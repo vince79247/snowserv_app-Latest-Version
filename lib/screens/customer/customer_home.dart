@@ -26,6 +26,8 @@ class _CustomerHomeState extends State<CustomerHome> {
   RealtimeChannel? _jobsChannel;
   double surgeMultiplier = 1.0;
   double? snowDepthInches;
+  double? _currentLat;
+  double? _currentLng;
   bool orderingForSomeoneElse = false;
   final _otherAddressController = TextEditingController();
   final _otherCityController = TextEditingController();
@@ -75,6 +77,8 @@ class _CustomerHomeState extends State<CustomerHome> {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
       );
+      _currentLat = position.latitude;
+      _currentLng = position.longitude;
 
       final url =
           'https://api.open-meteo.com/v1/forecast?latitude=${position.latitude}&longitude=${position.longitude}&current=snow_depth&timezone=auto';
@@ -170,6 +174,41 @@ class _CustomerHomeState extends State<CustomerHome> {
     return (getTotalBase() * surgeMultiplier).round();
   }
 
+  Future<void> _dispatchToNearest(String jobId, List<dynamic> rejected, double? lat, double? lng) async {
+    try {
+      final providers = await supabase
+          .from('providers')
+          .select('id, current_lat, current_lng')
+          .eq('is_online', true)
+          .eq('registration_status', 'approved');
+      final available = (providers as List)
+          .where((p) => !rejected.contains(p['id'].toString()))
+          .toList();
+      if (available.isEmpty) return;
+      if (lat != null && lng != null) {
+        available.sort((a, b) {
+          final da = _dist2(lat, lng, (a['current_lat'] ?? 0).toDouble(), (a['current_lng'] ?? 0).toDouble());
+          final db = _dist2(lat, lng, (b['current_lat'] ?? 0).toDouble(), (b['current_lng'] ?? 0).toDouble());
+          return da.compareTo(db);
+        });
+      }
+      await supabase.from('jobs').update({
+        'dispatched_to': available.first['id'],
+        'dispatched_at': DateTime.now().toUtc().toIso8601String(),
+        if (lat != null) 'job_lat': lat,
+        if (lng != null) 'job_lng': lng,
+      }).eq('id', jobId);
+    } catch (e) {
+      debugPrint('Dispatch error: $e');
+    }
+  }
+
+  double _dist2(double lat1, double lng1, double lat2, double lng2) {
+    final dlat = lat2 - lat1;
+    final dlng = (lng2 - lng1) * 0.7;
+    return dlat * dlat + dlng * dlng;
+  }
+
   Future<void> createJob() async {
     if (!orderingForSomeoneElse && savedAddress == null) {
       final result = await Navigator.push<bool>(
@@ -252,6 +291,7 @@ class _CustomerHomeState extends State<CustomerHome> {
       }).select('id').single();
 
       supabase.functions.invoke('notify-providers', body: {'job_id': result['id']});
+      await _dispatchToNearest(result['id'].toString(), [], _currentLat, _currentLng);
       loadMyJobs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

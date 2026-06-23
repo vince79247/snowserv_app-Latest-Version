@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:async';
 import 'dart:io';
 import '../../theme.dart';
 import 'job_history_screen.dart';
 
 final supabase = Supabase.instance.client;
+
+const int _kDispatchSeconds = 180;
 
 class ProviderHome extends StatefulWidget {
   const ProviderHome({super.key});
@@ -17,11 +20,13 @@ class ProviderHome extends StatefulWidget {
 class _ProviderHomeState extends State<ProviderHome> {
   bool isOnline = false;
   String? providerId;
-  List<Map<String, dynamic>> availableJobs = [];
+  Map<String, dynamic>? _dispatchedJob;
   List<Map<String, dynamic>> activeJobs = [];
-  Set<String> rejectedJobIds = {};
   bool loading = false;
   RealtimeChannel? _jobsChannel;
+  Timer? _countdownTimer;
+  int _secondsRemaining = _kDispatchSeconds;
+  bool _declining = false;
 
   @override
   void initState() {
@@ -32,6 +37,7 @@ class _ProviderHomeState extends State<ProviderHome> {
   @override
   void dispose() {
     _jobsChannel?.unsubscribe();
+    _stopCountdown();
     super.dispose();
   }
 
@@ -41,7 +47,7 @@ class _ProviderHomeState extends State<ProviderHome> {
       schema: 'public',
       table: 'jobs',
       callback: (payload) {
-        loadJobs();
+        loadDispatchedJob();
         loadActiveJobs();
       },
     ).subscribe();
@@ -62,7 +68,7 @@ class _ProviderHomeState extends State<ProviderHome> {
           isOnline = data['is_online'] ?? false;
         });
         loadActiveJobs();
-        if (isOnline) loadJobs();
+        if (isOnline) loadDispatchedJob();
         subscribeToJobs();
       }
     } catch (e) {
@@ -82,21 +88,35 @@ class _ProviderHomeState extends State<ProviderHome> {
         .eq('id', providerId!);
     setState(() {
       isOnline = value;
-      if (!value) availableJobs = [];
+      if (!value) {
+        _dispatchedJob = null;
+        _stopCountdown();
+      }
     });
-    if (value) loadJobs();
+    if (value) {
+      loadDispatchedJob();
+      _checkAndDispatchWaitingJob();
+    }
   }
 
-  Future<void> loadJobs() async {
+  Future<void> loadDispatchedJob() async {
+    if (providerId == null) return;
     setState(() => loading = true);
     try {
       final data = await supabase
           .from('jobs')
           .select('*, addresses(*)')
+          .eq('dispatched_to', providerId!)
           .eq('status', 'requested')
-          .order('created_at');
+          .maybeSingle();
       if (mounted) {
-        setState(() => availableJobs = List<Map<String, dynamic>>.from(data));
+        final prev = _dispatchedJob;
+        setState(() => _dispatchedJob = data);
+        if (data != null && (prev == null || prev['id'] != data['id'])) {
+          _startCountdown(data);
+        } else if (data == null) {
+          _stopCountdown();
+        }
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -118,8 +138,115 @@ class _ProviderHomeState extends State<ProviderHome> {
     } catch (_) {}
   }
 
-  void rejectJob(String jobId) {
-    setState(() => rejectedJobIds.add(jobId));
+  void _startCountdown(Map<String, dynamic> job) {
+    _stopCountdown();
+    final dispatchedAt = DateTime.parse(job['dispatched_at']).toLocal();
+    final elapsed = DateTime.now().difference(dispatchedAt).inSeconds;
+    _secondsRemaining = (_kDispatchSeconds - elapsed).clamp(0, _kDispatchSeconds);
+    if (_secondsRemaining == 0) {
+      _declineJob();
+      return;
+    }
+    setState(() {});
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_secondsRemaining > 0) _secondsRemaining--;
+      });
+      if (_secondsRemaining <= 0) {
+        _stopCountdown();
+        _declineJob();
+      }
+    });
+  }
+
+  void _stopCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+  }
+
+  Future<void> _declineJob() async {
+    if (_declining || _dispatchedJob == null || providerId == null) return;
+    _declining = true;
+    _stopCountdown();
+    final job = _dispatchedJob!;
+    setState(() => _dispatchedJob = null);
+
+    final jobId = job['id'].toString();
+    final rejected = List<dynamic>.from(job['rejected_providers'] ?? []);
+    rejected.add(providerId!);
+
+    try {
+      await supabase.from('jobs').update({
+        'dispatched_to': null,
+        'dispatched_at': null,
+        'rejected_providers': rejected,
+      }).eq('id', jobId);
+      await _redispatch(jobId, rejected, job['job_lat'], job['job_lng']);
+    } catch (e) {
+      debugPrint('Decline error: $e');
+    } finally {
+      _declining = false;
+    }
+  }
+
+  Future<void> _redispatch(String jobId, List<dynamic> rejected, dynamic lat, dynamic lng) async {
+    try {
+      final providers = await supabase
+          .from('providers')
+          .select('id, current_lat, current_lng')
+          .eq('is_online', true)
+          .eq('registration_status', 'approved');
+      final available = (providers as List)
+          .where((p) => !rejected.contains(p['id'].toString()))
+          .toList();
+      if (available.isEmpty) return;
+      if (lat != null && lng != null) {
+        final jlat = (lat as num).toDouble();
+        final jlng = (lng as num).toDouble();
+        available.sort((a, b) {
+          final da = _dist2(jlat, jlng, (a['current_lat'] ?? 0).toDouble(), (a['current_lng'] ?? 0).toDouble());
+          final db = _dist2(jlat, jlng, (b['current_lat'] ?? 0).toDouble(), (b['current_lng'] ?? 0).toDouble());
+          return da.compareTo(db);
+        });
+      }
+      await supabase.from('jobs').update({
+        'dispatched_to': available.first['id'],
+        'dispatched_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', jobId);
+    } catch (e) {
+      debugPrint('Redispatch error: $e');
+    }
+  }
+
+  double _dist2(double lat1, double lng1, double lat2, double lng2) {
+    final dlat = lat2 - lat1;
+    final dlng = (lng2 - lng1) * 0.7;
+    return dlat * dlat + dlng * dlng;
+  }
+
+  Future<void> _checkAndDispatchWaitingJob() async {
+    if (providerId == null) return;
+    try {
+      final waiting = await supabase
+          .from('jobs')
+          .select('id, job_lat, job_lng, rejected_providers')
+          .eq('status', 'requested')
+          .isFilter('dispatched_to', null)
+          .order('created_at')
+          .limit(1);
+      if (waiting.isEmpty) return;
+      final job = (waiting as List).first;
+      final rejected = List<dynamic>.from(job['rejected_providers'] ?? []);
+      if (rejected.contains(providerId!)) return;
+      await supabase.from('jobs').update({
+        'dispatched_to': providerId,
+        'dispatched_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', job['id']);
+      loadDispatchedJob();
+    } catch (e) {
+      debugPrint('Check waiting job error: $e');
+    }
   }
 
   void _notifyCustomer(String jobId, String status) {
@@ -128,13 +255,15 @@ class _ProviderHomeState extends State<ProviderHome> {
 
   Future<void> acceptJob(String jobId) async {
     if (providerId == null) return;
+    _stopCountdown();
+    setState(() => _dispatchedJob = null);
     try {
       await supabase.from('jobs').update({
         'status': 'assigned',
         'provider_id': providerId,
+        'dispatched_to': null,
       }).eq('id', jobId);
       _notifyCustomer(jobId, 'assigned');
-      loadJobs();
       loadActiveJobs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -152,9 +281,7 @@ class _ProviderHomeState extends State<ProviderHome> {
 
   Future<void> markInProgress(String jobId) async {
     try {
-      await supabase.from('jobs').update({
-        'status': 'in_progress',
-      }).eq('id', jobId);
+      await supabase.from('jobs').update({'status': 'in_progress'}).eq('id', jobId);
       _notifyCustomer(jobId, 'in_progress');
       loadActiveJobs();
     } catch (e) {
@@ -196,8 +323,7 @@ class _ProviderHomeState extends State<ProviderHome> {
                             imageQuality: 75,
                           );
                           if (photo != null) {
-                            setDialogState(() =>
-                                selectedPhotos.add(File(photo.path)));
+                            setDialogState(() => selectedPhotos.add(File(photo.path)));
                           }
                         },
                       ),
@@ -208,12 +334,9 @@ class _ProviderHomeState extends State<ProviderHome> {
                         icon: const Icon(Icons.photo_library),
                         label: const Text('Gallery'),
                         onPressed: () async {
-                          final photos = await picker.pickMultiImage(
-                            imageQuality: 75,
-                          );
+                          final photos = await picker.pickMultiImage(imageQuality: 75);
                           if (photos.isNotEmpty) {
-                            setDialogState(() => selectedPhotos
-                                .addAll(photos.map((p) => File(p.path))));
+                            setDialogState(() => selectedPhotos.addAll(photos.map((p) => File(p.path))));
                           }
                         },
                       ),
@@ -241,13 +364,11 @@ class _ProviderHomeState extends State<ProviderHome> {
                             top: 0,
                             right: 4,
                             child: GestureDetector(
-                              onTap: () => setDialogState(
-                                  () => selectedPhotos.removeAt(i)),
+                              onTap: () => setDialogState(() => selectedPhotos.removeAt(i)),
                               child: const CircleAvatar(
                                 radius: 10,
                                 backgroundColor: Colors.red,
-                                child: Icon(Icons.close,
-                                    size: 12, color: Colors.white),
+                                child: Icon(Icons.close, size: 12, color: Colors.white),
                               ),
                             ),
                           ),
@@ -289,7 +410,6 @@ class _ProviderHomeState extends State<ProviderHome> {
 
     try {
       List<String> photoUrls = [];
-
       if (selectedPhotos.isNotEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -297,14 +417,9 @@ class _ProviderHomeState extends State<ProviderHome> {
           );
         }
         for (final photo in selectedPhotos) {
-          final fileName =
-              'job_${jobId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          await supabase.storage
-              .from('job-photos')
-              .upload(fileName, photo);
-          final url = supabase.storage
-              .from('job-photos')
-              .getPublicUrl(fileName);
+          final fileName = 'job_${jobId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          await supabase.storage.from('job-photos').upload(fileName, photo);
+          final url = supabase.storage.from('job-photos').getPublicUrl(fileName);
           photoUrls.add(url);
         }
       }
@@ -346,18 +461,18 @@ class _ProviderHomeState extends State<ProviderHome> {
     return (total * 0.70).round().toString();
   }
 
-  Widget _addressRow(Map<String, dynamic> job) {
+  Widget _addressRow(Map<String, dynamic> job, {Color color = Colors.grey}) {
     if (job['addresses'] == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 2),
       child: Row(
         children: [
-          const Icon(Icons.location_on, size: 14, color: SnowServColors.iceBluLight),
+          Icon(Icons.location_on, size: 14, color: color),
           const SizedBox(width: 4),
           Expanded(
             child: Text(
               '${job['addresses']['address_line']}, ${job['addresses']['city']}, ${job['addresses']['state']} ${job['addresses']['zip']}',
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(color: color, fontSize: 13),
             ),
           ),
         ],
@@ -365,12 +480,129 @@ class _ProviderHomeState extends State<ProviderHome> {
     );
   }
 
+  Widget _buildDispatchCard() {
+    final job = _dispatchedJob!;
+    final isUrgent = _secondsRemaining < 60;
+    final minutes = _secondsRemaining ~/ 60;
+    final seconds = _secondsRemaining % 60;
+    final timerStr = '$minutes:${seconds.toString().padLeft(2, '0')}';
+    final fraction = (_secondsRemaining / _kDispatchSeconds).clamp(0.0, 1.0);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isUrgent
+              ? [Colors.red.shade700, Colors.red.shade500]
+              : [Colors.orange.shade700, Colors.orange.shade500],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: (isUrgent ? Colors.red : Colors.orange).withOpacity(0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'NEW JOB REQUEST',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                Text(
+                  timerStr,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: fraction,
+                backgroundColor: Colors.white24,
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                minHeight: 5,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              describeJob(job),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            _addressRow(job, color: Colors.white70),
+            const SizedBox(height: 6),
+            Text(
+              'Your pay: \$${providerPay(job)}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _declining ? null : _declineJob,
+                    icon: const Icon(Icons.close, color: Colors.white, size: 16),
+                    label: const Text('Decline',
+                        style: TextStyle(color: Colors.white)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white54),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => acceptJob(job['id'].toString()),
+                    icon: const Icon(Icons.check, size: 16),
+                    label: const Text('Accept'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: isUrgent
+                          ? Colors.red.shade700
+                          : Colors.orange.shade700,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final visibleJobs = availableJobs
-        .where((j) => !rejectedJobIds.contains(j['id'].toString()))
-        .toList();
-
     return Scaffold(
       appBar: AppBar(
         title: const Row(
@@ -398,6 +630,7 @@ class _ProviderHomeState extends State<ProviderHome> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Online toggle
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -409,7 +642,10 @@ class _ProviderHomeState extends State<ProviderHome> {
                   width: 2,
                 ),
                 boxShadow: isOnline
-                    ? [BoxShadow(color: Colors.green.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 3))]
+                    ? [BoxShadow(
+                        color: Colors.green.withOpacity(0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3))]
                     : [],
               ),
               child: SwitchListTile(
@@ -422,8 +658,13 @@ class _ProviderHomeState extends State<ProviderHome> {
                   ),
                 ),
                 subtitle: Text(
-                  isOnline ? 'You are visible to customers' : 'Toggle on to start receiving jobs',
-                  style: TextStyle(fontSize: 12, color: isOnline ? Colors.green.shade600 : Colors.grey),
+                  isOnline
+                      ? 'You are visible to customers'
+                      : 'Toggle on to start receiving jobs',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isOnline ? Colors.green.shade600 : Colors.grey,
+                  ),
                 ),
                 value: isOnline,
                 activeColor: Colors.green,
@@ -432,158 +673,149 @@ class _ProviderHomeState extends State<ProviderHome> {
             ),
             const SizedBox(height: 16),
 
-            if (activeJobs.isNotEmpty) ...[
-              const Text('Active Jobs',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: SnowServColors.navy)),
-              const SizedBox(height: 8),
-              ...activeJobs.map((job) {
-                final inProgress = job['status'] == 'in_progress';
-                return Card(
-                  color: inProgress ? const Color(0xFFE8F5E9) : const Color(0xFFE3F2FD),
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(describeJob(job),
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: SnowServColors.navy)),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: inProgress ? Colors.green : SnowServColors.iceBlue,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                inProgress ? 'In Progress' : 'Assigned',
-                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
-                        ),
-                        _addressRow(job),
-                        Text('Your pay: \$${providerPay(job)}',
-                            style: const TextStyle(fontSize: 20, color: Colors.green, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: inProgress
-                              ? ElevatedButton.icon(
-                                  onPressed: () => completeJob(job['id'].toString()),
-                                  icon: const Icon(Icons.check_circle_outline),
-                                  label: const Text('Complete Job'),
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                                )
-                              : ElevatedButton.icon(
-                                  onPressed: () => markInProgress(job['id'].toString()),
-                                  icon: const Icon(Icons.play_arrow),
-                                  label: const Text('Start Job'),
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-              const Divider(height: 20),
-            ],
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Dispatched job timer card
+                    if (_dispatchedJob != null) _buildDispatchCard(),
 
-            if (isOnline) ...[
-              const Text('Available Jobs',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: SnowServColors.navy)),
-              const SizedBox(height: 8),
-            ],
-
-            if (!isOnline)
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.power_settings_new, size: 56, color: Colors.grey.shade300),
-                      const SizedBox(height: 12),
-                      Text('Go online to see available jobs',
-                          style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
-                    ],
-                  ),
-                ),
-              )
-            else if (loading)
-              const Expanded(child: Center(child: CircularProgressIndicator()))
-            else if (visibleJobs.isEmpty)
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.search_off, size: 56, color: Colors.grey.shade300),
-                      const SizedBox(height: 12),
-                      Text('No new jobs available right now',
-                          style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: loadJobs,
-                  child: ListView.builder(
-                    itemCount: visibleJobs.length,
-                    itemBuilder: (context, index) {
-                      final job = visibleJobs[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(describeJob(job),
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: SnowServColors.navy)),
-                                  Text('Your pay: \$${providerPay(job)}',
-                                      style: const TextStyle(fontSize: 20, color: Colors.green, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              _addressRow(job),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () => rejectJob(job['id'].toString()),
-                                      icon: const Icon(Icons.close, size: 16),
-                                      label: const Text('Reject'),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.red,
-                                        side: const BorderSide(color: Colors.red),
+                    // Active jobs
+                    if (activeJobs.isNotEmpty) ...[
+                      const Text('Active Jobs',
+                          style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: SnowServColors.navy)),
+                      const SizedBox(height: 8),
+                      ...activeJobs.map((job) {
+                        final inProgress = job['status'] == 'in_progress';
+                        return Card(
+                          color: inProgress
+                              ? const Color(0xFFE8F5E9)
+                              : const Color(0xFFE3F2FD),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(describeJob(job),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: SnowServColors.navy)),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: inProgress
+                                            ? Colors.green
+                                            : SnowServColors.iceBlue,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        inProgress ? 'In Progress' : 'Assigned',
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () => acceptJob(job['id'].toString()),
-                                      icon: const Icon(Icons.check, size: 16),
-                                      label: const Text('Accept'),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                                _addressRow(job),
+                                Text(
+                                  'Your pay: \$${providerPay(job)}',
+                                  style: const TextStyle(
+                                      fontSize: 20,
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: inProgress
+                                      ? ElevatedButton.icon(
+                                          onPressed: () =>
+                                              completeJob(job['id'].toString()),
+                                          icon: const Icon(
+                                              Icons.check_circle_outline),
+                                          label: const Text('Complete Job'),
+                                          style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.green),
+                                        )
+                                      : ElevatedButton.icon(
+                                          onPressed: () =>
+                                              markInProgress(job['id'].toString()),
+                                          icon: const Icon(Icons.play_arrow),
+                                          label: const Text('Start Job'),
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 8),
+                    ],
+
+                    // Idle state
+                    if (!isOnline)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 48),
+                          child: Column(
+                            children: [
+                              Icon(Icons.power_settings_new,
+                                  size: 56, color: Colors.grey.shade300),
+                              const SizedBox(height: 12),
+                              Text('Go online to receive jobs',
+                                  style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontSize: 16)),
                             ],
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      )
+                    else if (loading)
+                      const Center(
+                          child: Padding(
+                        padding: EdgeInsets.only(top: 48),
+                        child: CircularProgressIndicator(),
+                      ))
+                    else if (_dispatchedJob == null && activeJobs.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 48),
+                          child: Column(
+                            children: [
+                              Icon(Icons.hourglass_empty,
+                                  size: 56, color: Colors.grey.shade300),
+                              const SizedBox(height: 12),
+                              Text('Waiting for jobs...',
+                                  style: TextStyle(
+                                      color: Colors.grey.shade500,
+                                      fontSize: 16)),
+                              const SizedBox(height: 4),
+                              Text('You\'ll be notified when a job is dispatched to you',
+                                  style: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 13),
+                                  textAlign: TextAlign.center),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
+            ),
           ],
         ),
       ),
