@@ -30,3 +30,6 @@ macos/.symlinks/
 # IDE
 .idea/
 *.swp
+
+# Secrets
+*firebase-adminsdk*.json

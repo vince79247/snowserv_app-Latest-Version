@@ -76,18 +76,24 @@ class _RoleRouterState extends State<RoleRouter> {
   }
 
   Future<void> initNotifications() async {
-    final messaging = FirebaseMessaging.instance;
-    final settings = await messaging.requestPermission();
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      final token = await messaging.getToken();
-      if (token != null) {
-        await supabase.from('profiles').update({'fcm_token': token}).eq(
-            'id', supabase.auth.currentUser!.id);
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission();
+      debugPrint('FCM auth status: ${settings.authorizationStatus}');
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        final token = await messaging.getToken();
+        if (token != null) {
+          await supabase.from('profiles').update({'fcm_token': token}).eq(
+              'id', supabase.auth.currentUser!.id);
+        }
+        messaging.onTokenRefresh.listen((newToken) async {
+          await supabase.from('profiles').update({'fcm_token': newToken}).eq(
+              'id', supabase.auth.currentUser!.id);
+        });
       }
-      messaging.onTokenRefresh.listen((newToken) async {
-        await supabase.from('profiles').update({'fcm_token': newToken}).eq(
-            'id', supabase.auth.currentUser!.id);
-      });
+    } catch (e) {
+      debugPrint('FCM init error: $e');
     }
 
     FirebaseMessaging.onMessage.listen((message) {

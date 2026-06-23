@@ -122,6 +122,10 @@ class _ProviderHomeState extends State<ProviderHome> {
     setState(() => rejectedJobIds.add(jobId));
   }
 
+  void _notifyCustomer(String jobId, String status) {
+    supabase.functions.invoke('notify-customer', body: {'job_id': jobId, 'status': status});
+  }
+
   Future<void> acceptJob(String jobId) async {
     if (providerId == null) return;
     try {
@@ -129,6 +133,7 @@ class _ProviderHomeState extends State<ProviderHome> {
         'status': 'assigned',
         'provider_id': providerId,
       }).eq('id', jobId);
+      _notifyCustomer(jobId, 'assigned');
       loadJobs();
       loadActiveJobs();
       if (mounted) {
@@ -150,6 +155,7 @@ class _ProviderHomeState extends State<ProviderHome> {
       await supabase.from('jobs').update({
         'status': 'in_progress',
       }).eq('id', jobId);
+      _notifyCustomer(jobId, 'in_progress');
       loadActiveJobs();
     } catch (e) {
       if (mounted) {
@@ -311,6 +317,7 @@ class _ProviderHomeState extends State<ProviderHome> {
         if (photoUrls.isNotEmpty) 'completion_photos': photoUrls,
       }).eq('id', jobId);
 
+      _notifyCustomer(jobId, 'completed');
       loadActiveJobs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -375,10 +382,9 @@ class _ProviderHomeState extends State<ProviderHome> {
               MaterialPageRoute(builder: (_) => const JobHistoryScreen()),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Log out',
+          TextButton(
             onPressed: () => supabase.auth.signOut(),
+            child: const Text('Log Out', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

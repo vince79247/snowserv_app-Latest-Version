@@ -107,7 +107,7 @@ class _CustomerHomeState extends State<CustomerHome> {
     }
     setState(() => loading = true);
     try {
-      await supabase.from('jobs').insert({
+      final result = await supabase.from('jobs').insert({
         'status': 'requested',
         'customer_id': supabase.auth.currentUser!.id,
         'address_id': savedAddress!['id'],
@@ -116,7 +116,11 @@ class _CustomerHomeState extends State<CustomerHome> {
         'salting': salting,
         'base_price': getTotalPrice(),
         'surge_multiplier': 1.0,
-      });
+      }).select('id').single();
+
+      // Notify online providers
+      supabase.functions.invoke('notify-providers', body: {'job_id': result['id']});
+
       loadMyJobs();
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -294,10 +298,9 @@ class _CustomerHomeState extends State<CustomerHome> {
             tooltip: 'Refresh',
             onPressed: () { loadMyJobs(); loadAddress(); },
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Log out',
+          TextButton(
             onPressed: () => supabase.auth.signOut(),
+            child: const Text('Log Out', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

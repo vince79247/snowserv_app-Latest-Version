@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme.dart';
+import '../admin/admin_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -327,7 +328,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                       ),
 
-                      if (isLogin)
+                      if (isLogin) ...[
                         TextButton(
                           onPressed: handleForgotPassword,
                           child: const Text(
@@ -335,6 +336,21 @@ class _AuthScreenState extends State<AuthScreen> {
                             style: TextStyle(color: Colors.grey),
                           ),
                         ),
+                        const Divider(),
+                        TextButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const AdminLoginScreen()),
+                          ),
+                          icon: const Icon(Icons.admin_panel_settings,
+                              size: 16, color: Colors.grey),
+                          label: const Text(
+                            'Admin Access',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
