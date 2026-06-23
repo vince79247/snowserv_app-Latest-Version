@@ -68,8 +68,13 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
     return '${date.month}/${date.day}/${date.year}';
   }
 
+  int providerPay(Map<String, dynamic> job) {
+    final total = (job['final_price'] ?? job['base_price'] ?? 0) as num;
+    return (total * 0.70).round();
+  }
+
   int get totalEarnings =>
-      completedJobs.fold(0, (sum, job) => sum + (job['base_price'] as int? ?? 0));
+      completedJobs.fold(0, (sum, job) => sum + providerPay(job));
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +152,7 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16)),
                                       Text(
-                                        '\$${job['base_price']}',
+                                        '\$${providerPay(job)}',
                                         style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,

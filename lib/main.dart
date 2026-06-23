@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/customer/customer_home.dart';
 import 'screens/provider/provider_home.dart';
+import 'screens/provider/provider_registration_screen.dart';
 import 'theme.dart';
 
 @pragma('vm:entry-point')
@@ -17,6 +19,9 @@ void main() async {
 
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  Stripe.publishableKey = 'pk_test_51TlZBgBYwOCAVVcUcMmYaVCyiv7YF8unZA7afdyHkAFauYaxiLVwU8Z4fhWScwRgm7cAmC5H6kGYfHT03tRuyvbX00MR63QKKG';
+  await Stripe.instance.applySettings();
 
   await Supabase.initialize(
     url: 'https://swttuujhcgpcsrxgupzv.supabase.co',
@@ -67,6 +72,7 @@ class RoleRouter extends StatefulWidget {
 
 class _RoleRouterState extends State<RoleRouter> {
   String? role;
+  String? registrationStatus;
 
   @override
   void initState() {
@@ -117,7 +123,23 @@ class _RoleRouterState extends State<RoleRouter> {
           .select('role')
           .eq('id', supabase.auth.currentUser!.id)
           .single();
-      if (mounted) setState(() => role = data['role']);
+      final fetchedRole = data['role'] as String?;
+
+      if (fetchedRole == 'provider') {
+        final providerData = await supabase
+            .from('providers')
+            .select('registration_status')
+            .eq('user_id', supabase.auth.currentUser!.id)
+            .maybeSingle();
+        if (mounted) {
+          setState(() {
+            role = fetchedRole;
+            registrationStatus = providerData?['registration_status'] ?? 'incomplete';
+          });
+        }
+      } else {
+        if (mounted) setState(() => role = fetchedRole);
+      }
     } catch (e) {
       if (mounted) setState(() => role = 'unknown');
     }
@@ -129,7 +151,12 @@ class _RoleRouterState extends State<RoleRouter> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (role == 'customer') return const CustomerHome();
-    if (role == 'provider') return const ProviderHome();
+    if (role == 'provider') {
+      if (registrationStatus == 'approved') return const ProviderHome();
+      if (registrationStatus == 'pending_review') return const ProviderPendingScreen();
+      if (registrationStatus == 'rejected') return const ProviderPendingScreen(isRejected: true);
+      return const ProviderRegistrationScreen();
+    }
     return const AuthScreen();
   }
 }

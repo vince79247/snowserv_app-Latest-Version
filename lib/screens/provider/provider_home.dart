@@ -341,6 +341,11 @@ class _ProviderHomeState extends State<ProviderHome> {
     return services.isEmpty ? 'Service' : services.join(' + ');
   }
 
+  String providerPay(Map<String, dynamic> job) {
+    final total = (job['final_price'] ?? job['base_price'] ?? 0) as num;
+    return (total * 0.70).round().toString();
+  }
+
   Widget _addressRow(Map<String, dynamic> job) {
     if (job['addresses'] == null) return const SizedBox.shrink();
     return Padding(
@@ -460,7 +465,7 @@ class _ProviderHomeState extends State<ProviderHome> {
                           ],
                         ),
                         _addressRow(job),
-                        Text('\$${job['base_price']}',
+                        Text('Your pay: \$${providerPay(job)}',
                             style: const TextStyle(fontSize: 20, color: Colors.green, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         SizedBox(
@@ -542,7 +547,7 @@ class _ProviderHomeState extends State<ProviderHome> {
                                 children: [
                                   Text(describeJob(job),
                                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: SnowServColors.navy)),
-                                  Text('\$${job['base_price']}',
+                                  Text('Your pay: \$${providerPay(job)}',
                                       style: const TextStyle(fontSize: 20, color: Colors.green, fontWeight: FontWeight.bold)),
                                 ],
                               ),
