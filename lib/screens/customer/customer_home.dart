@@ -28,6 +28,8 @@ class _CustomerHomeState extends State<CustomerHome> {
   double? snowDepthInches;
   double? _currentLat;
   double? _currentLng;
+  String? _stripeCustomerId;
+  Map<String, dynamic>? _savedCard;
   bool orderingForSomeoneElse = false;
   final _otherAddressController = TextEditingController();
   final _otherCityController = TextEditingController();
@@ -41,6 +43,7 @@ class _CustomerHomeState extends State<CustomerHome> {
     loadAddress();
     loadSurge();
     subscribeToJobs();
+    _loadSavedCard();
   }
 
   @override
@@ -174,6 +177,28 @@ class _CustomerHomeState extends State<CustomerHome> {
     return (getTotalBase() * surgeMultiplier).round();
   }
 
+  Future<void> _loadSavedCard() async {
+    try {
+      final userData = await supabase
+          .from('users')
+          .select('stripe_customer_id')
+          .eq('id', supabase.auth.currentUser!.id)
+          .maybeSingle();
+      final customerId = userData?['stripe_customer_id'] as String?;
+      if (customerId == null) return;
+      _stripeCustomerId = customerId;
+
+      final result = await supabase.functions
+          .invoke('get-payment-methods', body: {'stripe_customer_id': customerId});
+      final cards = result.data['cards'] as List?;
+      if (cards != null && cards.isNotEmpty && mounted) {
+        setState(() => _savedCard = Map<String, dynamic>.from(cards.first));
+      }
+    } catch (e) {
+      debugPrint('Load saved card error: $e');
+    }
+  }
+
   Future<void> rateJob(String jobId, String? providerId, int stars) async {
     try {
       await supabase.from('jobs').update({'customer_rating': stars}).eq('id', jobId);
@@ -268,10 +293,25 @@ class _CustomerHomeState extends State<CustomerHome> {
 
       final intentResponse = await supabase.functions.invoke(
         'create-payment-intent',
-        body: {'amount_cents': amountCents, 'job_description': description},
+        body: {
+          'amount_cents': amountCents,
+          'job_description': description,
+          if (_stripeCustomerId != null) 'stripe_customer_id': _stripeCustomerId,
+          if (_stripeCustomerId == null) 'user_email': supabase.auth.currentUser?.email,
+          if (_savedCard != null) 'payment_method_id': _savedCard!['id'],
+        },
       );
       final clientSecret = intentResponse.data['client_secret'] as String?;
+      final returnedCustomerId = intentResponse.data['stripe_customer_id'] as String?;
       if (clientSecret == null) throw Exception('Payment setup failed: ${intentResponse.data}');
+
+      // Persist stripe_customer_id on first payment
+      if (returnedCustomerId != null && _stripeCustomerId == null) {
+        _stripeCustomerId = returnedCustomerId;
+        await supabase.from('users')
+            .update({'stripe_customer_id': returnedCustomerId})
+            .eq('id', supabase.auth.currentUser!.id);
+      }
 
       if (!mounted) return;
       final paid = await showModalBottomSheet<bool>(
@@ -285,12 +325,14 @@ class _CustomerHomeState extends State<CustomerHome> {
           clientSecret: clientSecret,
           amount: getFinalPrice(),
           description: description,
+          savedCard: _savedCard,
         ),
       );
       if (paid != true) {
         setState(() => loading = false);
         return;
       }
+      _loadSavedCard(); // refresh saved card after successful payment
 
       String addressId;
       if (orderingForSomeoneElse) {
@@ -920,7 +962,13 @@ class _PaymentSheet extends StatefulWidget {
   final String clientSecret;
   final int amount;
   final String description;
-  const _PaymentSheet({required this.clientSecret, required this.amount, required this.description});
+  final Map<String, dynamic>? savedCard;
+  const _PaymentSheet({
+    required this.clientSecret,
+    required this.amount,
+    required this.description,
+    this.savedCard,
+  });
 
   @override
   State<_PaymentSheet> createState() => _PaymentSheetState();
@@ -931,6 +979,13 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   final _zipController = TextEditingController();
   bool _paying = false;
   String? _error;
+  late bool _usingSavedCard;
+
+  @override
+  void initState() {
+    super.initState();
+    _usingSavedCard = widget.savedCard != null;
+  }
 
   @override
   void dispose() {
@@ -940,30 +995,43 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   }
 
   Future<void> _pay() async {
-    if (_nameController.text.trim().isEmpty) {
-      setState(() => _error = 'Please enter the name on your card.');
-      return;
-    }
-    if (_zipController.text.trim().length < 5) {
-      setState(() => _error = 'Please enter a valid billing ZIP code.');
-      return;
+    if (!_usingSavedCard) {
+      if (_nameController.text.trim().isEmpty) {
+        setState(() => _error = 'Please enter the name on your card.');
+        return;
+      }
+      if (_zipController.text.trim().length < 5) {
+        setState(() => _error = 'Please enter a valid billing ZIP code.');
+        return;
+      }
     }
     setState(() { _paying = true; _error = null; });
     try {
-      await Stripe.instance.confirmPayment(
-        paymentIntentClientSecret: widget.clientSecret,
-        data: PaymentMethodParams.card(
-          paymentMethodData: PaymentMethodData(
-            billingDetails: BillingDetails(
-              name: _nameController.text.trim(),
-              address: Address(
-                postalCode: _zipController.text.trim(),
-                city: null, country: null, line1: null, line2: null, state: null,
+      if (_usingSavedCard && widget.savedCard != null) {
+        await Stripe.instance.confirmPayment(
+          paymentIntentClientSecret: widget.clientSecret,
+          data: PaymentMethodParams.cardFromMethodId(
+            paymentMethodData: PaymentMethodDataCardFromMethod(
+              paymentMethodId: widget.savedCard!['id'],
+            ),
+          ),
+        );
+      } else {
+        await Stripe.instance.confirmPayment(
+          paymentIntentClientSecret: widget.clientSecret,
+          data: PaymentMethodParams.card(
+            paymentMethodData: PaymentMethodData(
+              billingDetails: BillingDetails(
+                name: _nameController.text.trim(),
+                address: Address(
+                  postalCode: _zipController.text.trim(),
+                  city: null, country: null, line1: null, line2: null, state: null,
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
+      }
       if (mounted) Navigator.pop(context, true);
     } on StripeException catch (e) {
       if (e.error.code == FailureCode.Canceled) {
@@ -978,8 +1046,19 @@ class _PaymentSheetState extends State<_PaymentSheet> {
     }
   }
 
+  String _cardBrandIcon(String brand) {
+    switch (brand.toLowerCase()) {
+      case 'visa': return 'VISA';
+      case 'mastercard': return 'MC';
+      case 'amex': return 'AMEX';
+      case 'discover': return 'DISC';
+      default: return brand.toUpperCase();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final card = widget.savedCard;
     return Padding(
       padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
       child: Column(
@@ -990,36 +1069,90 @@ class _PaymentSheetState extends State<_PaymentSheet> {
           const SizedBox(height: 4),
           Text(widget.description, style: const TextStyle(color: Colors.grey, fontSize: 13)),
           const SizedBox(height: 16),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Name on Card',
-              prefixIcon: Icon(Icons.person_outline),
-              border: OutlineInputBorder(),
+
+          // Saved card section
+          if (card != null && _usingSavedCard) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: SnowServColors.iceBlue, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: SnowServColors.navy,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _cardBrandIcon(card['brand'] ?? ''),
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('••••  ••••  ••••  ${card['last4']}',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: 1)),
+                        Text('Exp ${card['exp_month']}/${card['exp_year']}',
+                            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.check_circle, color: SnowServColors.iceBlue, size: 20),
+                ],
+              ),
             ),
-            textCapitalization: TextCapitalization.words,
-          ),
-          const SizedBox(height: 12),
-          const Text('Card Number · MM/YY · CVC',
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
-          const SizedBox(height: 6),
-          CardField(
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => setState(() => _usingSavedCard = false),
+              child: const Text('Use a different card'),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _zipController,
-            decoration: const InputDecoration(
-              labelText: 'Billing ZIP Code',
-              prefixIcon: Icon(Icons.location_on_outlined),
-              border: OutlineInputBorder(),
+          ] else ...[
+            // New card entry form
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Name on Card',
+                prefixIcon: Icon(Icons.person_outline),
+                border: OutlineInputBorder(),
+              ),
+              textCapitalization: TextCapitalization.words,
             ),
-            keyboardType: TextInputType.number,
-            maxLength: 5,
-          ),
+            const SizedBox(height: 12),
+            const Text('Card Number · MM/YY · CVC',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 6),
+            CardField(
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _zipController,
+              decoration: const InputDecoration(
+                labelText: 'Billing ZIP Code',
+                prefixIcon: Icon(Icons.location_on_outlined),
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              maxLength: 5,
+            ),
+            if (card != null) ...[
+              TextButton(
+                onPressed: () => setState(() => _usingSavedCard = true),
+                child: Text('Use saved card (••••${card['last4']})'),
+              ),
+            ],
+          ],
+
           if (_error != null) ...[
             const SizedBox(height: 4),
             Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
@@ -1028,7 +1161,8 @@ class _PaymentSheetState extends State<_PaymentSheet> {
           ElevatedButton(
             onPressed: _paying ? null : _pay,
             child: _paying
-                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(height: 20, width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : Text('Pay \$${widget.amount}'),
           ),
           const SizedBox(height: 8),
