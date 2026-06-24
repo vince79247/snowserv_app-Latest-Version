@@ -305,13 +305,6 @@ class _CustomerHomeState extends State<CustomerHome> {
       final returnedCustomerId = intentResponse.data['stripe_customer_id'] as String?;
       if (clientSecret == null) throw Exception('Payment setup failed: ${intentResponse.data}');
 
-      // Persist stripe_customer_id on first payment
-      if (returnedCustomerId != null && _stripeCustomerId == null) {
-        _stripeCustomerId = returnedCustomerId;
-        await supabase.from('users')
-            .update({'stripe_customer_id': returnedCustomerId})
-            .eq('id', supabase.auth.currentUser!.id);
-      }
 
       if (!mounted) return;
       final paid = await showModalBottomSheet<bool>(
@@ -326,6 +319,16 @@ class _CustomerHomeState extends State<CustomerHome> {
           amount: getFinalPrice(),
           description: description,
           savedCard: _savedCard,
+          onSaveCard: (shouldSave) async {
+            if (!shouldSave) return;
+            if (returnedCustomerId != null && _stripeCustomerId == null) {
+              _stripeCustomerId = returnedCustomerId;
+              await supabase.from('users')
+                  .update({'stripe_customer_id': returnedCustomerId})
+                  .eq('id', supabase.auth.currentUser!.id);
+              _loadSavedCard();
+            }
+          },
         ),
       );
       if (paid != true) {
@@ -963,11 +966,13 @@ class _PaymentSheet extends StatefulWidget {
   final int amount;
   final String description;
   final Map<String, dynamic>? savedCard;
+  final Future<void> Function(bool shouldSave)? onSaveCard;
   const _PaymentSheet({
     required this.clientSecret,
     required this.amount,
     required this.description,
     this.savedCard,
+    this.onSaveCard,
   });
 
   @override
@@ -980,6 +985,7 @@ class _PaymentSheetState extends State<_PaymentSheet> {
   bool _paying = false;
   String? _error;
   late bool _usingSavedCard;
+  bool _saveCard = true;
 
   @override
   void initState() {
@@ -1031,6 +1037,9 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             ),
           ),
         );
+      }
+      if (widget.onSaveCard != null && !_usingSavedCard) {
+        await widget.onSaveCard!(_saveCard);
       }
       if (mounted) Navigator.pop(context, true);
     } on StripeException catch (e) {
@@ -1149,6 +1158,17 @@ class _PaymentSheetState extends State<_PaymentSheet> {
               TextButton(
                 onPressed: () => setState(() => _usingSavedCard = true),
                 child: Text('Use saved card (••••${card['last4']})'),
+              ),
+            ] else ...[
+              const SizedBox(height: 4),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _saveCard,
+                onChanged: (val) => setState(() => _saveCard = val ?? true),
+                activeColor: SnowServColors.iceBlue,
+                title: const Text('Save card for future payments',
+                    style: TextStyle(fontSize: 13)),
+                controlAffinity: ListTileControlAffinity.leading,
               ),
             ],
           ],
