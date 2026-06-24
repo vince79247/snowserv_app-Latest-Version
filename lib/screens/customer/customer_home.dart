@@ -413,7 +413,7 @@ class _CustomerHomeState extends State<CustomerHome> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Cancel Request?'),
-        content: const Text('Are you sure you want to cancel this service request?'),
+        content: const Text('Are you sure you want to cancel? If a provider has already been assigned, they will be notified.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -434,6 +434,7 @@ class _CustomerHomeState extends State<CustomerHome> {
         'dispatched_to': null,
         'dispatched_at': null,
       }).eq('id', jobId);
+      supabase.functions.invoke('notify-customer', body: {'job_id': jobId, 'status': 'cancelled'});
       loadMyJobs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -496,7 +497,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: SnowServColors.navy)),
               const SizedBox(height: 8),
               ...myJobs.map((job) {
-                final canCancel = job['status'] == 'requested';
+                final canCancel = job['status'] == 'requested' || job['status'] == 'assigned';
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: Padding(

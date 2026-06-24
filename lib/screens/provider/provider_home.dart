@@ -47,6 +47,18 @@ class _ProviderHomeState extends State<ProviderHome> {
       schema: 'public',
       table: 'jobs',
       callback: (payload) {
+        final newRecord = payload.newRecord;
+        if (newRecord['status'] == 'cancelled' &&
+            newRecord['provider_id'] == providerId) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('The customer cancelled this job.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
         loadDispatchedJob();
         loadActiveJobs();
       },
