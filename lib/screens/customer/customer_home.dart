@@ -174,6 +174,34 @@ class _CustomerHomeState extends State<CustomerHome> {
     return (getTotalBase() * surgeMultiplier).round();
   }
 
+  Future<void> rateJob(String jobId, String? providerId, int stars) async {
+    try {
+      await supabase.from('jobs').update({'customer_rating': stars}).eq('id', jobId);
+      if (providerId != null) {
+        final ratedJobs = await supabase
+            .from('jobs')
+            .select('customer_rating')
+            .eq('provider_id', providerId)
+            .not('customer_rating', 'is', null);
+        if (ratedJobs.isNotEmpty) {
+          final ratings = (ratedJobs as List)
+              .map((j) => (j['customer_rating'] as num).toDouble())
+              .toList();
+          final avg = ratings.reduce((a, b) => a + b) / ratings.length;
+          await supabase.from('providers').update({
+            'rating': double.parse(avg.toStringAsFixed(1)),
+          }).eq('id', providerId);
+        }
+      }
+      loadMyJobs();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Rating failed: $e')));
+      }
+    }
+  }
+
   Future<void> _dispatchToNearest(String jobId, List<dynamic> rejected, double? lat, double? lng) async {
     try {
       final providers = await supabase
@@ -544,6 +572,50 @@ class _CustomerHomeState extends State<CustomerHome> {
                               ),
                             ),
                           ),
+                        ],
+                        if (job['status'] == 'completed') ...[
+                          const SizedBox(height: 10),
+                          const Divider(height: 1),
+                          const SizedBox(height: 10),
+                          if (job['customer_rating'] == null) ...[
+                            const Text('How was your service?',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: SnowServColors.navy)),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: List.generate(5, (i) {
+                                return GestureDetector(
+                                  onTap: () => rateJob(
+                                    job['id'].toString(),
+                                    job['provider_id']?.toString(),
+                                    i + 1,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(right: 4),
+                                    child: Icon(
+                                      Icons.star_border,
+                                      color: Colors.amber,
+                                      size: 32,
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ] else ...[
+                            Row(
+                              children: [
+                                ...List.generate(5, (i) => Icon(
+                                  i < (job['customer_rating'] as int)
+                                      ? Icons.star
+                                      : Icons.star_border,
+                                  color: Colors.amber,
+                                  size: 20,
+                                )),
+                                const SizedBox(width: 6),
+                                Text('You rated this service',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                              ],
+                            ),
+                          ],
                         ],
                       ],
                     ),

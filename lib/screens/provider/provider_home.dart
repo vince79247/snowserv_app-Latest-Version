@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:geolocator/geolocator.dart';
 import '../../theme.dart';
 import 'job_history_screen.dart';
 
@@ -94,10 +95,29 @@ class _ProviderHomeState extends State<ProviderHome> {
 
   Future<void> toggleOnline(bool value) async {
     if (providerId == null) return;
-    await supabase
-        .from('providers')
-        .update({'is_online': value})
-        .eq('id', providerId!);
+
+    final update = <String, dynamic>{'is_online': value};
+
+    if (value) {
+      try {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission != LocationPermission.deniedForever) {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+          ).timeout(const Duration(seconds: 8));
+          update['current_lat'] = position.latitude;
+          update['current_lng'] = position.longitude;
+        }
+      } catch (e) {
+        debugPrint('Location error on toggle online: $e');
+      }
+    }
+
+    await supabase.from('providers').update(update).eq('id', providerId!);
+
     setState(() {
       isOnline = value;
       if (!value) {
@@ -105,6 +125,7 @@ class _ProviderHomeState extends State<ProviderHome> {
         _stopCountdown();
       }
     });
+
     if (value) {
       loadDispatchedJob();
       _checkAndDispatchWaitingJob();
