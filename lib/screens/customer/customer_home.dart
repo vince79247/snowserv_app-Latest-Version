@@ -380,6 +380,11 @@ class _CustomerHomeState extends State<CustomerHome> {
         label = 'Completed';
         icon = Icons.check_circle;
         break;
+      case 'cancelled':
+        color = Colors.red;
+        label = 'Cancelled';
+        icon = Icons.cancel;
+        break;
       default:
         color = Colors.grey;
         label = status;
@@ -424,7 +429,11 @@ class _CustomerHomeState extends State<CustomerHome> {
     );
     if (confirm != true) return;
     try {
-      await supabase.from('jobs').delete().eq('id', jobId);
+      await supabase.from('jobs').update({
+        'status': 'cancelled',
+        'dispatched_to': null,
+        'dispatched_at': null,
+      }).eq('id', jobId);
       loadMyJobs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
