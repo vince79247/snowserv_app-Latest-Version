@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:math';
 import '../../theme.dart';
 import '../admin/admin_screen.dart';
 
@@ -12,7 +14,7 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   bool isLogin = true;
   String selectedRole = 'customer';
   bool loading = false;
@@ -22,8 +24,29 @@ class _AuthScreenState extends State<AuthScreen> {
   final nameController = TextEditingController();
   final phoneController = TextEditingController();
 
+  late AnimationController _snowController;
+  late List<_Snowflake> _flakes;
+
+  @override
+  void initState() {
+    super.initState();
+    final rng = Random();
+    _snowController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat();
+    _flakes = List.generate(40, (_) => _Snowflake(
+      x: rng.nextDouble(),
+      size: 1.5 + rng.nextDouble() * 3.0,
+      phase: rng.nextDouble(),
+      drift: 8.0 + rng.nextDouble() * 18.0,
+      speed: 0.4 + rng.nextDouble() * 0.7,
+    ));
+  }
+
   @override
   void dispose() {
+    _snowController.dispose();
     emailController.dispose();
     passwordController.dispose();
     nameController.dispose();
@@ -105,7 +128,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 'is_online': false,
               });
             }
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('Profile setup error: $e');
+          }
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -159,15 +184,27 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [SnowServColors.navy, SnowServColors.navyMid],
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [SnowServColors.navy, SnowServColors.navyMid],
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _snowController,
+              builder: (_, __) => CustomPaint(
+                painter: _SnowfallPainter(_snowController.value, _flakes),
+              ),
+            ),
+          ),
+          SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
             child: Column(
@@ -236,12 +273,10 @@ class _AuthScreenState extends State<AuthScreen> {
                           ButtonSegment(
                             value: 'customer',
                             label: Text('Customer'),
-                            icon: Icon(Icons.person),
                           ),
                           ButtonSegment(
                             value: 'provider',
                             label: Text('Provider'),
-                            icon: Icon(Icons.build),
                           ),
                         ],
                         selected: {selectedRole},
@@ -356,6 +391,26 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
 
                 const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse('https://docs.google.com/document/d/e/2PACX-1vTs3QKh1Sh_d9RfCX4w1lgWhugWIld3VGiLSJnFHE5-Yd-qIj9v5rrrI8FMYTtYa85aY2aP2-aKFHRi/pub'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      child: const Text('Privacy Policy', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    ),
+                    const Text('·', style: TextStyle(color: Colors.white30)),
+                    TextButton(
+                      onPressed: () => launchUrl(
+                        Uri.parse('https://docs.google.com/document/d/e/2PACX-1vTcXcBxj_5lSgLWeWzPpPFWxSmA1BOjMgNs1fdFg1NFqZnIEWtluIwCyXbJLpnttfc0vD2Mts6IZcxb/pub'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      child: const Text('Terms of Service', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    ),
+                  ],
+                ),
                 const Text(
                   '❄   ❄   ❄',
                   style: TextStyle(color: Colors.white30, fontSize: 18),
@@ -365,7 +420,38 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
-      ),
+          ],
+        ),
     );
   }
+}
+
+class _Snowflake {
+  final double x;
+  final double size;
+  final double phase;
+  final double drift;
+  final double speed;
+  const _Snowflake({required this.x, required this.size, required this.phase, required this.drift, required this.speed});
+}
+
+class _SnowfallPainter extends CustomPainter {
+  final double progress;
+  final List<_Snowflake> flakes;
+  _SnowfallPainter(this.progress, this.flakes);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white.withOpacity(0.55);
+    for (final flake in flakes) {
+      final t = (progress * flake.speed + flake.phase) % 1.0;
+      final y = t * (size.height + 20) - 10;
+      final x = flake.x * size.width +
+          sin(progress * 2 * pi * flake.speed * 2 + flake.phase * 10) * flake.drift;
+      canvas.drawCircle(Offset(x, y), flake.size, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SnowfallPainter old) => true;
 }

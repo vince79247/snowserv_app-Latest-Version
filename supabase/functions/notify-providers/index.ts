@@ -51,17 +51,24 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   return tokenData.access_token
 }
 
-async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string) {
-  await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
+// Returns false if the token is invalid and should be cleared from the DB.
+async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string): Promise<boolean> {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      message: { token: fcmToken, notification: { title, body } },
+      message: { token: fcmToken, notification: { title, body }, apns: { payload: { aps: { sound: 'default' } } } },
     }),
   })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    const code = err?.error?.details?.[0]?.errorCode ?? err?.error?.status
+    return code !== 'UNREGISTERED' && code !== 'INVALID_ARGUMENT'
+  }
+  return true
 }
 
 Deno.serve(async (req) => {
@@ -99,7 +106,7 @@ Deno.serve(async (req) => {
     const userIds = onlineProviders.map((p: any) => p.user_id)
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('fcm_token')
+      .select('id, fcm_token')
       .in('id', userIds)
       .not('fcm_token', 'is', null)
 
@@ -113,13 +120,17 @@ Deno.serve(async (req) => {
     let sent = 0
     for (const profile of profiles) {
       if (profile.fcm_token) {
-        await sendNotification(
+        const ok = await sendNotification(
           accessToken,
           profile.fcm_token,
           'New Job Available!',
           `${serviceDesc} — $${job.base_price}`
         )
-        sent++
+        if (ok) {
+          sent++
+        } else {
+          await supabase.from('profiles').update({ fcm_token: null }).eq('id', profile.id)
+        }
       }
     }
 

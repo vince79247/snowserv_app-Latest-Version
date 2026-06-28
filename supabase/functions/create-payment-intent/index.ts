@@ -63,6 +63,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         client_secret: intent.client_secret,
         stripe_customer_id: customerId,
+        payment_intent_id: intent.id,
       }),
       { headers: { 'Content-Type': 'application/json' } }
     )

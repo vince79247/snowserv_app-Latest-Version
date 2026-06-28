@@ -48,6 +48,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               TextField(
                 controller: _passwordController,
                 obscureText: _obscure,
+                autocorrect: false,
+                enableSuggestions: false,
+                textCapitalization: TextCapitalization.none,
                 decoration: InputDecoration(
                   labelText: 'Admin Password',
                   filled: true,
@@ -98,12 +101,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   List<Map<String, dynamic>> jobs = [];
   List<Map<String, dynamic>> users = [];
   List<Map<String, dynamic>> providers = [];
+  List<Map<String, dynamic>> pendingPayouts = [];
   bool loading = true;
+  bool _payoutRunning = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     loadAll();
   }
 
@@ -116,6 +121,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Future<void> loadAll() async {
     setState(() => loading = true);
     try {
+      final cutoff = DateTime.now().subtract(const Duration(days: 7)).toUtc().toIso8601String();
       final jobsData = await supabase
           .from('jobs')
           .select('*, addresses(*)')
@@ -128,9 +134,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           .from('providers')
           .select('*, users!inner(name, email)')
           .order('created_at', ascending: false);
+      final payoutsData = await supabase
+          .from('jobs')
+          .select('*, providers!jobs_provider_id_fkey!inner(users!inner(name))')
+          .eq('status', 'completed')
+          .eq('payout_status', 'pending')
+          .lt('created_at', cutoff)
+          .order('created_at', ascending: false);
       if (mounted) {
         final providerList = List<Map<String, dynamic>>.from(providersData);
-        // pending_review first, then approved, then others
         providerList.sort((a, b) {
           const order = {'pending_review': 0, 'approved': 1};
           final aOrder = order[a['registration_status']] ?? 2;
@@ -141,6 +153,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           jobs = List<Map<String, dynamic>>.from(jobsData);
           users = List<Map<String, dynamic>>.from(usersData);
           providers = providerList;
+          pendingPayouts = List<Map<String, dynamic>>.from(payoutsData);
         });
       }
     } catch (e) {
@@ -227,8 +240,25 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           controller: _tabController,
           tabs: [
             Tab(text: 'Jobs (${jobs.length})'),
-            Tab(text: 'Users (${users.length})'),
+            Tab(text: 'Customers (${users.where((u) => !providers.map((p) => p['user_id']?.toString()).toSet().contains(u['id']?.toString())).length})'),
             Tab(text: 'Providers (${providers.length})'),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Payouts'),
+                  if (pendingPayouts.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    CircleAvatar(
+                      radius: 8,
+                      backgroundColor: Colors.red,
+                      child: Text('${pendingPayouts.length}',
+                          style: const TextStyle(fontSize: 10, color: Colors.white)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -240,44 +270,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 _buildJobsTab(),
                 _buildUsersTab(),
                 _buildProvidersTab(),
+                _buildPayoutsTab(),
               ],
             ),
-    );
-  }
-
-  Widget _roleBadge(String? role) {
-    if (role == null || role.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: const Text('unknown', style: TextStyle(fontSize: 11, color: Colors.grey)),
-      );
-    }
-    final isProvider = role == 'provider';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: isProvider ? Colors.blue.shade50 : Colors.green.shade50,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isProvider ? Colors.blue.shade300 : Colors.green.shade300),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(isProvider ? Icons.build : Icons.person,
-              size: 11, color: isProvider ? Colors.blue : Colors.green),
-          const SizedBox(width: 3),
-          Text(role,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: isProvider ? Colors.blue : Colors.green,
-                  fontWeight: FontWeight.bold)),
-        ],
-      ),
     );
   }
 
@@ -290,6 +285,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         final job = jobs[i];
         final hasNotes = job['provider_notes'] != null &&
             job['provider_notes'].toString().isNotEmpty;
+        final photos = (job['completion_photos'] as List<dynamic>? ?? []);
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
           child: Padding(
@@ -398,6 +394,34 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     ),
                   ),
                 ],
+                if (photos.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text('Completion Photos',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 6,
+                      mainAxisSpacing: 6,
+                    ),
+                    itemCount: photos.length,
+                    itemBuilder: (_, i) => ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.network(
+                        photos[i].toString(),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            const Icon(Icons.broken_image, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -406,88 +430,195 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  Widget _buildUsersTab() {
-    if (users.isEmpty) return const Center(child: Text('No users yet.'));
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: users.length,
-      itemBuilder: (context, i) {
-        final user = users[i];
-        final isFlagged = user['is_flagged'] == true;
-        final isSuspended = user['is_suspended'] == true;
-        return Card(
-          margin: const EdgeInsets.only(bottom: 10),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
+  Widget _userCard(Map<String, dynamic> user) {
+    final isFlagged = user['is_flagged'] == true;
+    final isSuspended = user['is_suspended'] == true;
+
+    Color borderColor = Colors.transparent;
+    if (isSuspended) borderColor = Colors.red;
+    else if (isFlagged) borderColor = Colors.orange;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: borderColor, width: isFlagged || isSuspended ? 1.5 : 0),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(user['name'] ?? user['email'] ?? 'Unknown',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: SnowServColors.navy)),
-                          Text(user['email'] ?? '',
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 13)),
-                          const SizedBox(height: 4),
-                          _roleBadge(user['role']),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      children: [
-                        if (isFlagged)
-                          const Icon(Icons.flag, color: Colors.orange, size: 20),
-                        if (isSuspended)
-                          const Icon(Icons.block, color: Colors.red, size: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(user['name'] ?? user['email'] ?? 'Unknown',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: SnowServColors.navy)),
+                      Text(user['email'] ?? '',
+                          style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                      if (user['phone'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(user['phone'],
+                            style: const TextStyle(color: Colors.grey, fontSize: 13)),
                       ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 10),
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => toggleUserFlag(user['id'], isFlagged),
-                        icon: Icon(isFlagged ? Icons.flag_outlined : Icons.flag,
-                            size: 14),
-                        label: Text(isFlagged ? 'Unflag' : 'Flag'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.orange,
-                          side: const BorderSide(color: Colors.orange),
+                    if (isSuspended)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.block, size: 11, color: Colors.red),
+                            SizedBox(width: 4),
+                            Text('Suspended', style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            toggleUserSuspend(user['id'], isSuspended),
-                        icon: Icon(
-                            isSuspended ? Icons.check_circle : Icons.block,
-                            size: 14),
-                        label: Text(isSuspended ? 'Unsuspend' : 'Suspend'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
+                    if (isFlagged) ...[
+                      if (isSuspended) const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.flag, size: 11, color: Colors.orange),
+                            SizedBox(width: 4),
+                            Text('Under Review', style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.bold)),
+                          ],
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ],
             ),
+            if (isSuspended) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 13, color: Colors.red),
+                    SizedBox(width: 6),
+                    Text('Account blocked — customer cannot place orders',
+                        style: TextStyle(fontSize: 12, color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+            if (isFlagged && !isSuspended) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 13, color: Colors.orange),
+                    SizedBox(width: 6),
+                    Text('Account active — flagged for admin attention',
+                        style: TextStyle(fontSize: 12, color: Colors.orange)),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => toggleUserFlag(user['id'], isFlagged),
+                    icon: Icon(isFlagged ? Icons.flag_outlined : Icons.flag, size: 14),
+                    label: Text(isFlagged ? 'Remove Flag' : 'Flag'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange,
+                      side: const BorderSide(color: Colors.orange),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => toggleUserSuspend(user['id'], isSuspended),
+                    icon: Icon(isSuspended ? Icons.check_circle : Icons.block, size: 14),
+                    label: Text(isSuspended ? 'Unsuspend' : 'Suspend'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUsersTab() {
+    final providerUserIds = providers.map((p) => p['user_id']?.toString()).toSet();
+    final customers = users.where((u) => !providerUserIds.contains(u['id']?.toString())).toList();
+    final flaggedCount = customers.where((u) => u['is_flagged'] == true).length;
+    final suspendedCount = customers.where((u) => u['is_suspended'] == true).length;
+
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: SnowServColors.navy.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(10),
           ),
-        );
-      },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _tallyItem('Total', customers.length, Colors.black87),
+              _tallyItem('Flagged', flaggedCount, Colors.orange.shade700),
+              _tallyItem('Suspended', suspendedCount, Colors.red.shade700),
+            ],
+          ),
+        ),
+        if (customers.isEmpty)
+          const Expanded(child: Center(child: Text('No customers yet.')))
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: customers.length,
+              itemBuilder: (_, i) => _userCard(customers[i]),
+            ),
+          ),
+      ],
     );
   }
 
@@ -563,42 +694,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Widget _buildProvidersTab() {
     if (providers.isEmpty) return const Center(child: Text('No providers yet.'));
 
-    final pendingCount =
-        providers.where((p) => p['registration_status'] == 'pending_review').length;
+    final pendingCount = providers.where((p) => p['registration_status'] == 'pending_review').length;
+    final onDuty = providers.where((p) => p['is_online'] == true).toList();
+    final offDuty = providers.where((p) => p['is_online'] != true).toList();
 
-    return Column(
-      children: [
-        if (pendingCount > 0)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.orange.shade300),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.notification_important,
-                    color: Colors.orange, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  '$pendingCount application${pendingCount == 1 ? '' : 's'} pending review',
-                  style: const TextStyle(
-                      color: Colors.orange,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: providers.length,
-            itemBuilder: (context, i) {
-              final p = providers[i];
+    Widget buildProviderCard(Map<String, dynamic> p) {
               final isOnline = p['is_online'] == true;
               final regStatus = p['registration_status'] as String?;
               final isPending = regStatus == 'pending_review';
@@ -790,9 +890,209 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ],
                 ),
               );
-            },
+    }
+
+    return Column(
+      children: [
+        if (pendingCount > 0)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange.shade300),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.notification_important, color: Colors.orange, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  '$pendingCount application${pendingCount == 1 ? '' : 's'} pending review',
+                  style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: SnowServColors.navy.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _tallyItem('Total', providers.length, Colors.black87),
+              _tallyItem('On Duty', onDuty.length, Colors.green.shade700),
+              _tallyItem('Off Duty', offDuty.length, Colors.grey.shade600),
+            ],
           ),
         ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(12),
+            children: [
+              if (onDuty.isNotEmpty) ...[
+                _sectionHeader('On Duty (${onDuty.length})', Colors.green.shade700),
+                ...onDuty.map(buildProviderCard),
+              ],
+              if (offDuty.isNotEmpty) ...[
+                _sectionHeader('Off Duty (${offDuty.length})', Colors.grey.shade600),
+                ...offDuty.map(buildProviderCard),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tallyItem(String label, int count, Color color) {
+    return Column(
+      children: [
+        Text('$count', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(String title, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 6),
+      child: Row(
+        children: [
+          Container(width: 4, height: 16, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runPayouts() async {
+    setState(() => _payoutRunning = true);
+    try {
+      final result = await supabase.functions.invoke('batch-payouts');
+      final processed = result.data['processed'] ?? 0;
+      final results = (result.data['results'] as List? ?? []);
+      final paid = results.where((r) => r['status'] == 'paid').length;
+      final errors = results.where((r) => r['status'] == 'error').length;
+      await loadAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Processed $processed payouts — $paid paid, $errors errors'),
+          backgroundColor: errors > 0 ? Colors.orange : Colors.green,
+          duration: const Duration(seconds: 6),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Payout error: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _payoutRunning = false);
+    }
+  }
+
+  Widget _buildPayoutsTab() {
+    final totalDue = pendingPayouts.fold<double>(
+      0,
+      (sum, job) => sum + ((job['final_price'] ?? job['base_price'] ?? 0) as num) * 0.70,
+    );
+
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.green.shade200),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${pendingPayouts.length} payouts due',
+                          style: const TextStyle(fontWeight: FontWeight.bold,
+                              fontSize: 15, color: SnowServColors.navy)),
+                      Text('Jobs completed 7+ days ago',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                    ],
+                  ),
+                  Text('\$${totalDue.toStringAsFixed(2)}',
+                      style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade700)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: pendingPayouts.isEmpty || _payoutRunning ? null : _runPayouts,
+                  icon: _payoutRunning
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.payments_outlined),
+                  label: Text(_payoutRunning ? 'Processing...' : 'Process All Payouts'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (pendingPayouts.isEmpty)
+          const Expanded(
+            child: Center(
+              child: Text('No payouts due.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+            ),
+          )
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: pendingPayouts.length,
+              itemBuilder: (context, i) {
+                final job = pendingPayouts[i];
+                final providerName = job['providers']?['users']?['name'] ?? 'Unknown';
+                final providerPay = ((job['final_price'] ?? job['base_price'] ?? 0) as num) * 0.70;
+                final date = DateTime.parse(job['created_at']).toLocal();
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    title: Text(providerName,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                      '${describeJob(job)} · ${date.month}/${date.day}/${date.year}',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    trailing: Text(
+                      '\$${providerPay.toStringAsFixed(2)}',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.green.shade700),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
       ],
     );
   }

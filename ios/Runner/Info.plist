@@ -28,12 +28,12 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>SnowServ needs camera access to take job completion photos.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>SnowServ needs photo library access to upload job completion photos.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SnowServ uses your location to check current snow conditions and calculate accurate pricing.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>SnowServ uses your location to check current snow conditions and calculate accurate pricing.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SnowServ uses your location to check current snow conditions and calculate accurate pricing.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SnowServ needs photo library access to upload job completion photos.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

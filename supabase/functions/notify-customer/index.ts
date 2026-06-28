@@ -28,12 +28,18 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   return tokenData.access_token
 }
 
-async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string) {
-  await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
+async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string): Promise<boolean> {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: { token: fcmToken, notification: { title, body } } }),
+    body: JSON.stringify({ message: { token: fcmToken, notification: { title, body }, apns: { payload: { aps: { sound: 'default' } } } } }),
   })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    const code = err?.error?.details?.[0]?.errorCode ?? err?.error?.status
+    return code !== 'UNREGISTERED' && code !== 'INVALID_ARGUMENT'
+  }
+  return true
 }
 
 function getNotificationContent(status: string): { title: string; body: string } | null {
@@ -44,6 +50,8 @@ function getNotificationContent(status: string): { title: string; body: string }
       return { title: 'Work Has Started!', body: 'Your provider has started working on your property.' }
     case 'completed':
       return { title: 'Job Complete!', body: 'Your snow removal is done. Tap to view your receipt.' }
+    case 'provider_cancelled':
+      return { title: 'Provider Cancelled', body: 'Your provider cancelled. We\'re finding you a new one.' }
     default:
       return null
   }
@@ -58,17 +66,21 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
-    const { data: job } = await supabase.from('jobs').select('customer_id').eq('id', job_id).single()
-    if (!job) return new Response('Job not found', { status: 404 })
+    const { data: job, error: jobError } = await supabase.from('jobs').select('customer_id').eq('id', job_id).single()
+    if (!job) return new Response(JSON.stringify({ error: 'Job not found', details: jobError }), { status: 404 })
 
     const { data: profile } = await supabase.from('profiles').select('fcm_token').eq('id', job.customer_id).single()
     if (!profile?.fcm_token) return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
 
     const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')!)
     const accessToken = await getAccessToken(serviceAccount)
-    await sendNotification(accessToken, profile.fcm_token, notification.title, notification.body)
+    const ok = await sendNotification(accessToken, profile.fcm_token, notification.title, notification.body)
 
-    return new Response(JSON.stringify({ sent: 1 }), { headers: { 'Content-Type': 'application/json' } })
+    if (!ok) {
+      await supabase.from('profiles').update({ fcm_token: null }).eq('id', job.customer_id)
+    }
+
+    return new Response(JSON.stringify({ sent: ok ? 1 : 0 }), { headers: { 'Content-Type': 'application/json' } })
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500 })
   }

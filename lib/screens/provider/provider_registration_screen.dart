@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import '../../theme.dart';
+
+const _kPrivacyUrl = 'https://docs.google.com/document/d/e/2PACX-1vTs3QKh1Sh_d9RfCX4w1lgWhugWIld3VGiLSJnFHE5-Yd-qIj9v5rrrI8FMYTtYa85aY2aP2-aKFHRi/pub';
+const _kTermsUrl = 'https://docs.google.com/document/d/e/2PACX-1vTcXcBxj_5lSgLWeWzPpPFWxSmA1BOjMgNs1fdFg1NFqZnIEWtluIwCyXbJLpnttfc0vD2Mts6IZcxb/pub';
 
 final supabase = Supabase.instance.client;
 
@@ -45,6 +49,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   // Step 4 - Banking
   final _routingController = TextEditingController();
   final _accountController = TextEditingController();
+  final _ssnController = TextEditingController();
 
   // Step 5 - Agreement
   bool _termsAgreed = false;
@@ -68,6 +73,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     _insuranceExpiryController.dispose();
     _routingController.dispose();
     _accountController.dispose();
+    _ssnController.dispose();
     super.dispose();
   }
 
@@ -138,6 +144,11 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         }
         if (_accountController.text.trim().isEmpty) {
           _showError('Please enter your bank account number.');
+          return false;
+        }
+        final ssn = _ssnController.text.replaceAll(RegExp(r'[^0-9]'), '');
+        if (ssn.length != 9) {
+          _showError('Please enter a valid 9-digit SSN.');
           return false;
         }
         return true;
@@ -235,6 +246,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         if (insuranceUrl != null) 'insurance_photo_url': insuranceUrl,
         'bank_routing': _routingController.text.trim(),
         'bank_account': _accountController.text.trim(),
+        'ssn': _ssnController.text.replaceAll(RegExp(r'[^0-9]'), ''),
         'terms_agreed': true,
         'registration_status': 'pending_review',
       }).eq('user_id', userId);
@@ -676,6 +688,21 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             keyboardType: TextInputType.number,
             obscureText: true,
           ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _ssnController,
+            decoration: const InputDecoration(
+              labelText: 'Social Security Number',
+              prefixIcon: Icon(Icons.security_outlined),
+              border: OutlineInputBorder(),
+              helperText: 'Required for identity verification and payouts',
+              hintText: 'XXX-XX-XXXX',
+              counterText: '',
+            ),
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            maxLength: 11,
+          ),
         ],
       ),
     );
@@ -688,35 +715,18 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            height: 220,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: const SingleChildScrollView(
-              child: Text(
-                'SnowServ Provider Terms of Service\n\n'
-                '1. INDEPENDENT CONTRACTOR\n'
-                'You are an independent contractor, not an employee of SnowServ. You are responsible for your own taxes, insurance, and equipment.\n\n'
-                '2. COMMISSION\n'
-                'SnowServ retains 30% of each job as a platform fee. You receive 70% of the customer-paid amount.\n\n'
-                '3. SERVICE STANDARDS\n'
-                'You agree to complete all accepted jobs professionally and in a timely manner. Failure to complete accepted jobs may result in account suspension.\n\n'
-                '4. INSURANCE\n'
-                'You must maintain valid general liability insurance at all times while active on the platform.\n\n'
-                '5. CONDUCT\n'
-                'You agree to treat all customers respectfully and professionally. SnowServ reserves the right to suspend or terminate accounts for violations.\n\n'
-                '6. PAYOUTS\n'
-                'Payouts are processed within 3–5 business days after job completion and admin confirmation.\n\n'
-                '7. JOB ACCEPTANCE\n'
-                'When a job is dispatched to you, you have 3 minutes to accept or decline. Repeated timeouts may affect your standing on the platform.',
-                style: TextStyle(fontSize: 13, color: Colors.black87, height: 1.5),
-              ),
-            ),
+          _legalLinkTile(
+            icon: Icons.description_outlined,
+            label: 'Read Terms of Service',
+            url: _kTermsUrl,
           ),
+          const SizedBox(height: 10),
+          _legalLinkTile(
+            icon: Icons.privacy_tip_outlined,
+            label: 'Read Privacy Policy',
+            url: _kPrivacyUrl,
+          ),
+          const SizedBox(height: 16),
           const SizedBox(height: 16),
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
@@ -730,6 +740,28 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             controlAffinity: ListTileControlAffinity.leading,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _legalLinkTile({required IconData icon, required String label, required String url}) {
+    return GestureDetector(
+      onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.blue.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.blue, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w600))),
+            const Icon(Icons.open_in_new, color: Colors.blue, size: 16),
+          ],
+        ),
       ),
     );
   }

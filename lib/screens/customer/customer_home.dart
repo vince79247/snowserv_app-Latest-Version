@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_stripe/flutter_stripe.dart' hide Card;
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 import '../../theme.dart';
 import 'address_screen.dart';
 import 'job_history_screen.dart';
@@ -30,11 +32,14 @@ class _CustomerHomeState extends State<CustomerHome> {
   double? _currentLng;
   String? _stripeCustomerId;
   Map<String, dynamic>? _savedCard;
+  final Map<String, String> _prevJobStatuses = {};
+  bool _completedDialogShowing = false;
   bool orderingForSomeoneElse = false;
   final _otherAddressController = TextEditingController();
   final _otherCityController = TextEditingController();
   final _otherStateController = TextEditingController();
   final _otherZipController = TextEditingController();
+  final _customerNotesController = TextEditingController();
 
   @override
   void initState() {
@@ -53,6 +58,7 @@ class _CustomerHomeState extends State<CustomerHome> {
     _otherCityController.dispose();
     _otherStateController.dispose();
     _otherZipController.dispose();
+    _customerNotesController.dispose();
     super.dispose();
   }
 
@@ -131,12 +137,26 @@ class _CustomerHomeState extends State<CustomerHome> {
       event: PostgresChangeEvent.all,
       schema: 'public',
       table: 'jobs',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'customer_id',
-        value: userId,
-      ),
-      callback: (payload) => loadMyJobs(),
+      callback: (payload) {
+        loadMyJobs();
+        if (!mounted) return;
+        final newStatus = payload.newRecord['status'] as String?;
+        if (newStatus == 'assigned') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('A provider has been assigned to your job!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else if (newStatus == 'in_progress') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your provider has started the job.'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+      },
     ).subscribe();
   }
 
@@ -147,15 +167,116 @@ class _CustomerHomeState extends State<CustomerHome> {
           .select()
           .eq('customer_id', supabase.auth.currentUser!.id)
           .order('created_at', ascending: false);
-      if (mounted) {
-        setState(() => myJobs = List<Map<String, dynamic>>.from(data));
+      if (!mounted) return;
+      final newJobs = List<Map<String, dynamic>>.from(data);
+      bool jobJustCompleted = false;
+      for (final job in newJobs) {
+        final jobId = job['id'].toString();
+        final newStatus = job['status'] as String? ?? '';
+        final oldStatus = _prevJobStatuses[jobId];
+        if (oldStatus != null && oldStatus != 'completed' && newStatus == 'completed') {
+          jobJustCompleted = true;
+        }
+        _prevJobStatuses[jobId] = newStatus;
       }
+      setState(() => myJobs = newJobs);
+      if (jobJustCompleted) _showJobCompleteDialog();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error loading jobs: $e')));
       }
     }
+  }
+
+  void _showAccountSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.email_outlined, color: SnowServColors.navy),
+                title: const Text('Contact Support'),
+                subtitle: const Text('support@snowserv.app'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final uri = Uri(
+                    scheme: 'mailto',
+                    path: 'support@snowserv.app',
+                    queryParameters: {'subject': 'SnowServ Support Request'},
+                  );
+                  final launched = await launchUrl(uri);
+                  if (!launched && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Email us at support@snowserv.app'),
+                        duration: Duration(seconds: 5),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Log Out', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  supabase.auth.signOut();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showJobCompleteDialog() {
+    if (_completedDialogShowing || !mounted) return;
+    _completedDialogShowing = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Job Complete!'),
+        content: const Text('Your service has been completed. Go to My Orders to view your receipt and rate your experience.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _completedDialogShowing = false;
+              Navigator.pop(context);
+            },
+            child: const Text('Later'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _completedDialogShowing = false;
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const CustomerJobHistoryScreen(),
+              ));
+            },
+            child: const Text('View Receipt'),
+          ),
+        ],
+      ),
+    );
   }
 
   int getBasePrice() {
@@ -181,18 +302,21 @@ class _CustomerHomeState extends State<CustomerHome> {
     try {
       final userData = await supabase
           .from('users')
-          .select('stripe_customer_id')
+          .select('stripe_customer_id, card_pm_id, card_last4, card_brand, card_exp_month, card_exp_year')
           .eq('id', supabase.auth.currentUser!.id)
           .maybeSingle();
-      final customerId = userData?['stripe_customer_id'] as String?;
-      if (customerId == null) return;
-      _stripeCustomerId = customerId;
-
-      final result = await supabase.functions
-          .invoke('get-payment-methods', body: {'stripe_customer_id': customerId});
-      final cards = result.data['cards'] as List?;
-      if (cards != null && cards.isNotEmpty && mounted) {
-        setState(() => _savedCard = Map<String, dynamic>.from(cards.first));
+      if (userData == null) return;
+      final customerId = userData['stripe_customer_id'] as String?;
+      if (customerId != null) _stripeCustomerId = customerId;
+      final pmId = userData['card_pm_id'] as String?;
+      if (pmId != null && mounted) {
+        setState(() => _savedCard = {
+          'id': pmId,
+          'last4': userData['card_last4'],
+          'brand': userData['card_brand'],
+          'exp_month': userData['card_exp_month'],
+          'exp_year': userData['card_exp_year'],
+        });
       }
     } catch (e) {
       debugPrint('Load saved card error: $e');
@@ -210,7 +334,7 @@ class _CustomerHomeState extends State<CustomerHome> {
             .not('customer_rating', 'is', null);
         if (ratedJobs.isNotEmpty) {
           final ratings = (ratedJobs as List)
-              .map((j) => (j['customer_rating'] as num).toDouble())
+              .map((j) => (j['customer_rating'] as num?)?.toDouble() ?? 0.0)
               .toList();
           final avg = ratings.reduce((a, b) => a + b) / ratings.length;
           await supabase.from('providers').update({
@@ -227,6 +351,27 @@ class _CustomerHomeState extends State<CustomerHome> {
     }
   }
 
+  Future<Map<String, double>?> _geocodeAddress(Map<String, dynamic> address) async {
+    try {
+      final query = Uri.encodeComponent(
+        '${address['address_line']}, ${address['city']}, ${address['state']} ${address['zip']}');
+      final res = await http.get(
+        Uri.parse('https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1'),
+        headers: {'User-Agent': 'SnowServApp/1.0'},
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final results = jsonDecode(res.body) as List;
+        if (results.isNotEmpty) {
+          return {
+            'lat': double.parse(results[0]['lat']),
+            'lng': double.parse(results[0]['lon']),
+          };
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _dispatchToNearest(String jobId, List<dynamic> rejected, double? lat, double? lng) async {
     try {
       final providers = await supabase
@@ -234,17 +379,56 @@ class _CustomerHomeState extends State<CustomerHome> {
           .select('id, current_lat, current_lng')
           .eq('is_online', true)
           .eq('registration_status', 'approved');
+
+      // Count active jobs per provider and grab their current job's location
+      final activeJobs = await supabase
+          .from('jobs')
+          .select('provider_id, job_lat, job_lng')
+          .inFilter('status', ['assigned', 'in_progress']);
+
+      final Map<String, Map<String, dynamic>> providerActiveJob = {};
+      for (final job in activeJobs as List) {
+        final pid = job['provider_id']?.toString();
+        if (pid != null) {
+          providerActiveJob[pid] = (providerActiveJob[pid] == null)
+              ? {'count': 1, 'job_lat': job['job_lat'], 'job_lng': job['job_lng']}
+              : {'count': (providerActiveJob[pid]!['count'] as int) + 1, 'job_lat': job['job_lat'], 'job_lng': job['job_lng']};
+        }
+      }
+
+      // Exclude rejected and providers already at queue cap (2 active jobs)
       final available = (providers as List)
-          .where((p) => !rejected.contains(p['id'].toString()))
+          .where((p) {
+            if (rejected.contains(p['id'].toString())) return false;
+            final activeCount = providerActiveJob[p['id'].toString()]?['count'] as int? ?? 0;
+            return activeCount < 2;
+          })
           .toList();
+
       if (available.isEmpty) return;
+
       if (lat != null && lng != null) {
         available.sort((a, b) {
-          final da = _dist2(lat, lng, (a['current_lat'] ?? 0).toDouble(), (a['current_lng'] ?? 0).toDouble());
-          final db = _dist2(lat, lng, (b['current_lat'] ?? 0).toDouble(), (b['current_lng'] ?? 0).toDouble());
-          return da.compareTo(db);
+          // Providers with an active job: measure from that job's location (where they'll finish)
+          // Providers with no active job: measure from their current GPS
+          final aInfo = providerActiveJob[a['id'].toString()];
+          final bInfo = providerActiveJob[b['id'].toString()];
+          final aLat = (aInfo != null && aInfo['job_lat'] != null)
+              ? (aInfo['job_lat'] as num).toDouble()
+              : (a['current_lat'] ?? 0).toDouble();
+          final aLng = (aInfo != null && aInfo['job_lng'] != null)
+              ? (aInfo['job_lng'] as num).toDouble()
+              : (a['current_lng'] ?? 0).toDouble();
+          final bLat = (bInfo != null && bInfo['job_lat'] != null)
+              ? (bInfo['job_lat'] as num).toDouble()
+              : (b['current_lat'] ?? 0).toDouble();
+          final bLng = (bInfo != null && bInfo['job_lng'] != null)
+              ? (bInfo['job_lng'] as num).toDouble()
+              : (b['current_lng'] ?? 0).toDouble();
+          return _dist2(lat, lng, aLat, aLng).compareTo(_dist2(lat, lng, bLat, bLng));
         });
       }
+
       await supabase.from('jobs').update({
         'dispatched_to': available.first['id'],
         'dispatched_at': DateTime.now().toUtc().toIso8601String(),
@@ -263,6 +447,40 @@ class _CustomerHomeState extends State<CustomerHome> {
   }
 
   Future<void> createJob() async {
+    // Block suspended accounts before any other processing
+    final userData = await supabase
+        .from('users')
+        .select('is_suspended')
+        .eq('id', supabase.auth.currentUser!.id)
+        .maybeSingle();
+    if (userData != null && userData['is_suspended'] == true) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.block, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Account Suspended'),
+              ],
+            ),
+            content: const Text(
+              'Your account has been suspended and you are unable to place orders. '
+              'Please contact support at support@snowserv.app for assistance.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
     if (!orderingForSomeoneElse && savedAddress == null) {
       final result = await Navigator.push<bool>(
         context,
@@ -303,6 +521,7 @@ class _CustomerHomeState extends State<CustomerHome> {
       );
       final clientSecret = intentResponse.data['client_secret'] as String?;
       final returnedCustomerId = intentResponse.data['stripe_customer_id'] as String?;
+      final paymentIntentId = intentResponse.data['payment_intent_id'] as String?;
       if (clientSecret == null) throw Exception('Payment setup failed: ${intentResponse.data}');
 
 
@@ -319,14 +538,47 @@ class _CustomerHomeState extends State<CustomerHome> {
           amount: getFinalPrice(),
           description: description,
           savedCard: _savedCard,
-          onSaveCard: (shouldSave) async {
-            if (!shouldSave) return;
-            if (returnedCustomerId != null && _stripeCustomerId == null) {
-              _stripeCustomerId = returnedCustomerId;
-              await supabase.from('users')
-                  .update({'stripe_customer_id': returnedCustomerId})
-                  .eq('id', supabase.auth.currentUser!.id);
-              _loadSavedCard();
+          onSaveCard: (shouldSave, cardDetails) async {
+            if (!shouldSave || cardDetails == null) return;
+            try {
+              final userId = supabase.auth.currentUser?.id;
+              if (userId == null) {
+                debugPrint('Save card: no current user');
+                return;
+              }
+              debugPrint('Saving card for user $userId: ${cardDetails['id']}');
+              final rows = await supabase.from('users').update({
+                if (returnedCustomerId != null) 'stripe_customer_id': returnedCustomerId,
+                'card_pm_id': cardDetails['id'],
+                'card_last4': cardDetails['last4'],
+                'card_brand': cardDetails['brand'],
+                'card_exp_month': cardDetails['exp_month'],
+                'card_exp_year': cardDetails['exp_year'],
+              }).eq('id', userId).select('card_pm_id');
+              debugPrint('Card save result: $rows');
+              if (rows.isEmpty) {
+                debugPrint('Card save: update matched 0 rows (RLS or ID mismatch)');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Card not saved — permission issue. Check Supabase RLS.'), backgroundColor: Colors.red),
+                  );
+                }
+                return;
+              }
+              if (returnedCustomerId != null) _stripeCustomerId = returnedCustomerId;
+              if (mounted) {
+                setState(() => _savedCard = cardDetails);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Card saved!'), backgroundColor: Colors.green),
+                );
+              }
+            } catch (e) {
+              debugPrint('Save card error: $e');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Card save failed: $e'), backgroundColor: Colors.red),
+                );
+              }
             }
           },
         ),
@@ -335,7 +587,6 @@ class _CustomerHomeState extends State<CustomerHome> {
         setState(() => loading = false);
         return;
       }
-      _loadSavedCard(); // refresh saved card after successful payment
 
       String addressId;
       if (orderingForSomeoneElse) {
@@ -351,6 +602,18 @@ class _CustomerHomeState extends State<CustomerHome> {
         addressId = savedAddress!['id'].toString();
       }
 
+      final notes = _customerNotesController.text.trim();
+
+      final addressForGeo = orderingForSomeoneElse ? {
+        'address_line': _otherAddressController.text.trim(),
+        'city': _otherCityController.text.trim(),
+        'state': _otherStateController.text.trim(),
+        'zip': _otherZipController.text.trim(),
+      } : savedAddress;
+      final geo = addressForGeo != null ? await _geocodeAddress(addressForGeo) : null;
+      final jobLat = geo?['lat'];
+      final jobLng = geo?['lng'];
+
       final result = await supabase.from('jobs').insert({
         'status': 'requested',
         'customer_id': supabase.auth.currentUser!.id,
@@ -361,14 +624,26 @@ class _CustomerHomeState extends State<CustomerHome> {
         'base_price': getTotalBase(),
         'surge_multiplier': surgeMultiplier,
         'final_price': getFinalPrice(),
+        if (paymentIntentId != null) 'payment_intent_id': paymentIntentId,
+        if (notes.isNotEmpty) 'customer_notes': notes,
+        if (jobLat != null) 'job_lat': jobLat,
+        if (jobLng != null) 'job_lng': jobLng,
       }).select('id').single();
 
       supabase.functions.invoke('notify-providers', body: {'job_id': result['id']});
-      await _dispatchToNearest(result['id'].toString(), [], _currentLat, _currentLng);
-      loadMyJobs();
+      await _dispatchToNearest(result['id'].toString(), [], jobLat, jobLng);
+      await loadMyJobs();
       if (mounted) {
+        setState(() {
+          orderingForSomeoneElse = false;
+          _otherAddressController.clear();
+          _otherCityController.clear();
+          _otherStateController.clear();
+          _otherZipController.clear();
+          _customerNotesController.clear();
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment successful! Job requested.')),
+          const SnackBar(content: Text('Request placed! Finding a provider near you...')),
         );
       }
     } catch (e) {
@@ -502,16 +777,20 @@ class _CustomerHomeState extends State<CustomerHome> {
     );
     if (confirm != true) return;
     try {
+      final job = myJobs.firstWhere((j) => j['id'].toString() == jobId, orElse: () => {});
+      if (job['payment_intent_id'] != null) {
+        await supabase.functions.invoke('refund-job', body: {'job_id': jobId});
+      }
       await supabase.from('jobs').update({
         'status': 'cancelled',
         'dispatched_to': null,
         'dispatched_at': null,
       }).eq('id', jobId);
-      supabase.functions.invoke('notify-customer', body: {'job_id': jobId, 'status': 'cancelled'});
+      supabase.functions.invoke('notify-provider', body: {'job_id': jobId, 'status': 'cancelled'});
       loadMyJobs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request cancelled.')),
+          const SnackBar(content: Text('Request cancelled. Your refund will appear in 5–10 business days.')),
         );
       }
     } catch (e) {
@@ -540,9 +819,9 @@ class _CustomerHomeState extends State<CustomerHome> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'Service History',
+          TextButton.icon(
+            icon: const Icon(Icons.receipt_long, color: Colors.white, size: 18),
+            label: const Text('My Orders', style: TextStyle(color: Colors.white)),
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const CustomerJobHistoryScreen()),
@@ -551,11 +830,15 @@ class _CustomerHomeState extends State<CustomerHome> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () { loadMyJobs(); loadAddress(); loadSurge(); },
+            onPressed: () async {
+              await Future.wait([loadMyJobs(), loadAddress(), _loadSavedCard()]);
+              loadSurge();
+            },
           ),
-          TextButton(
-            onPressed: () => supabase.auth.signOut(),
-            child: const Text('Log Out', style: TextStyle(color: Colors.white)),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Account',
+            onPressed: () => _showAccountSheet(),
           ),
         ],
       ),
@@ -565,11 +848,20 @@ class _CustomerHomeState extends State<CustomerHome> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (myJobs.isNotEmpty) ...[
-              const Text('Your Jobs',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: SnowServColors.navy)),
-              const SizedBox(height: 8),
-              ...myJobs.map((job) {
+            Builder(builder: (context) {
+              final activeJobs = myJobs.where((j) =>
+                j['status'] == 'requested' ||
+                j['status'] == 'assigned' ||
+                j['status'] == 'in_progress'
+              ).toList();
+              if (activeJobs.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Active Jobs',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: SnowServColors.navy)),
+                  const SizedBox(height: 8),
+                  ...activeJobs.map((job) {
                 final canCancel = job['status'] == 'requested' || job['status'] == 'assigned';
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -591,7 +883,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                                           color: SnowServColors.navy)),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '\$${job['final_price'] ?? job['base_price']}',
+                                    '\$${job['final_price'] ?? job['base_price'] ?? 0}',
                                     style: const TextStyle(
                                         color: Colors.green,
                                         fontWeight: FontWeight.bold,
@@ -603,6 +895,19 @@ class _CustomerHomeState extends State<CustomerHome> {
                             statusBadge(job['status']),
                           ],
                         ),
+                        if (job['status'] == 'assigned' && job['eta_minutes'] != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Provider arriving in ~${job['eta_minutes']} min',
+                                style: const TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ],
                         if (canCancel) ...[
                           const SizedBox(height: 10),
                           SizedBox(
@@ -666,9 +971,11 @@ class _CustomerHomeState extends State<CustomerHome> {
                     ),
                   ),
                 );
-              }),
-              const Divider(height: 28),
-            ],
+                  }),
+                  const Divider(height: 28),
+                ],
+              );
+            }),
 
             const Text('Request Service',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: SnowServColors.navy)),
@@ -841,19 +1148,22 @@ class _CustomerHomeState extends State<CustomerHome> {
             serviceButton('sidewalk_driveway', 'Sidewalk + Driveway', 125, Icons.home),
 
             const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: salting ? SnowServColors.iceBlue : SnowServColors.glacier, width: 2),
-              ),
-              child: SwitchListTile(
-                title: const Text('Add Salting',
-                    style: TextStyle(fontWeight: FontWeight.w600, color: SnowServColors.navy)),
-                subtitle: const Text('+\$40', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                value: salting,
-                activeColor: SnowServColors.iceBlue,
-                onChanged: (val) => setState(() => salting = val),
+            Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: salting ? SnowServColors.iceBlue : SnowServColors.glacier, width: 2),
+                ),
+                child: SwitchListTile(
+                  title: const Text('Add Salting',
+                      style: TextStyle(fontWeight: FontWeight.w600, color: SnowServColors.navy)),
+                  subtitle: const Text('+\$40', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  value: salting,
+                  activeColor: SnowServColors.iceBlue,
+                  onChanged: (val) => setState(() => salting = val),
+                ),
               ),
             ),
 
@@ -942,6 +1252,17 @@ class _CustomerHomeState extends State<CustomerHome> {
             ),
 
             const SizedBox(height: 16),
+            TextField(
+              controller: _customerNotesController,
+              maxLines: 2,
+              maxLength: 200,
+              decoration: const InputDecoration(
+                labelText: 'Notes for provider (optional)',
+                hintText: 'e.g. Side gate is unlocked, dog in backyard...',
+                prefixIcon: Icon(Icons.notes_outlined),
+              ),
+            ),
+            const SizedBox(height: 8),
             ElevatedButton(
               onPressed: loading ? null : createJob,
               child: loading
@@ -966,7 +1287,7 @@ class _PaymentSheet extends StatefulWidget {
   final int amount;
   final String description;
   final Map<String, dynamic>? savedCard;
-  final Future<void> Function(bool shouldSave)? onSaveCard;
+  final Future<void> Function(bool shouldSave, Map<String, dynamic>? cardDetails)? onSaveCard;
   const _PaymentSheet({
     required this.clientSecret,
     required this.amount,
@@ -1023,9 +1344,9 @@ class _PaymentSheetState extends State<_PaymentSheet> {
           ),
         );
       } else {
-        await Stripe.instance.confirmPayment(
-          paymentIntentClientSecret: widget.clientSecret,
-          data: PaymentMethodParams.card(
+        // Create PM first so we have the ID before confirming
+        final pm = await Stripe.instance.createPaymentMethod(
+          params: PaymentMethodParams.card(
             paymentMethodData: PaymentMethodData(
               billingDetails: BillingDetails(
                 name: _nameController.text.trim(),
@@ -1037,9 +1358,24 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             ),
           ),
         );
-      }
-      if (widget.onSaveCard != null && !_usingSavedCard) {
-        await widget.onSaveCard!(_saveCard);
+        await Stripe.instance.confirmPayment(
+          paymentIntentClientSecret: widget.clientSecret,
+          data: PaymentMethodParams.cardFromMethodId(
+            paymentMethodData: PaymentMethodDataCardFromMethod(
+              paymentMethodId: pm.id,
+            ),
+          ),
+        );
+        if (widget.onSaveCard != null) {
+          final cardDetails = <String, dynamic>{
+            'id': pm.id,
+            'last4': pm.card.last4 ?? '',
+            'brand': pm.card.brand ?? 'unknown',
+            'exp_month': pm.card.expMonth ?? 0,
+            'exp_year': pm.card.expYear ?? 0,
+          };
+          await widget.onSaveCard!(_saveCard, cardDetails);
+        }
       }
       if (mounted) Navigator.pop(context, true);
     } on StripeException catch (e) {

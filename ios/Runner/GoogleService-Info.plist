@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.snowservApp</string>
+	<string>com.snowserv.app</string>
 	<key>PROJECT_ID</key>
 	<string>snowserv-a5a29</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:444628528819:ios:c4af002e814be8ac2b4ac6</string>
+	<string>1:444628528819:ios:a9dc34e765de33592b4ac6</string>
 </dict>
 </plist>

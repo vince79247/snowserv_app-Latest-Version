@@ -25,7 +25,7 @@ void main() async {
 
   await Supabase.initialize(
     url: 'https://swttuujhcgpcsrxgupzv.supabase.co',
-    anonKey: 'sb_publishable_SnyCvdfwgHOQe-NB0D8Ipw_DUI9uWRe',
+    publishableKey: 'sb_publishable_SnyCvdfwgHOQe-NB0D8Ipw_DUI9uWRe',
   );
 
   runApp(const MyApp());
@@ -88,10 +88,27 @@ class _RoleRouterState extends State<RoleRouter> {
       debugPrint('FCM auth status: ${settings.authorizationStatus}');
       if (settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional) {
-        final token = await messaging.getToken();
-        if (token != null) {
-          await supabase.from('profiles').update({'fcm_token': token}).eq(
-              'id', supabase.auth.currentUser!.id);
+        // iOS requires APNs token before FCM token — retry up to 15 times
+        String? apnsToken;
+        for (int i = 0; i < 15; i++) {
+          apnsToken = await messaging.getAPNSToken();
+          if (apnsToken != null) break;
+          await Future.delayed(const Duration(seconds: 2));
+        }
+        if (apnsToken != null) {
+          final token = await messaging.getToken();
+          if (token != null) {
+            debugPrint('FCM token obtained: $token');
+            try {
+              await supabase.from('profiles').update({'fcm_token': token}).eq(
+                  'id', supabase.auth.currentUser!.id);
+              debugPrint('FCM token saved successfully');
+            } catch (saveErr) {
+              debugPrint('FCM token save error: $saveErr');
+            }
+          }
+        } else {
+          debugPrint('APNs token not available');
         }
         messaging.onTokenRefresh.listen((newToken) async {
           await supabase.from('profiles').update({'fcm_token': newToken}).eq(
@@ -122,7 +139,8 @@ class _RoleRouterState extends State<RoleRouter> {
           .from('profiles')
           .select('role')
           .eq('id', supabase.auth.currentUser!.id)
-          .single();
+          .maybeSingle();
+      if (data == null) return;
       final fetchedRole = data['role'] as String?;
 
       if (fetchedRole == 'provider') {
