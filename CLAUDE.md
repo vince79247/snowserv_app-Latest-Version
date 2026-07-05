@@ -34,6 +34,18 @@ Used for: role-based routing in Flutter (RoleRouter)
 ### addresses
 id, user_id, address_line, city, state, zip
 
+### service_areas
+id, name, zips (text[]), price_sidewalk, price_driveway, price_both, price_salting,
+is_active (bool), created_at. Drives REGIONAL pricing + who can order: a customer's
+address ZIP is matched to an active area (zips @> [zip]); that area's prices apply.
+No active area for the ZIP → can't order ("Not available in your area yet"). Managed
+in the admin panel's "Areas" tab. Public SELECT via RLS (so the pre-signup quote can
+read prices with the anon key).
+
+### waitlist
+id, email, zip, address, created_at. Captured when someone's ZIP isn't served yet
+(from the order screen banner or the pre-signup quote screen).
+
 ### payments
 Schema unknown.
 
@@ -48,6 +60,7 @@ Schema unknown.
 lib/
   main.dart                             — app entry, AuthGate, RoleRouter
   screens/
+    quote_screen.dart                   — pre-signup instant quote by address ZIP + waitlist
     auth/
       auth_screen.dart                  — login, signup, forgot password
     customer/
@@ -58,10 +71,12 @@ lib/
       provider_home.dart                — online toggle, available jobs, active jobs, cancel
       job_history_screen.dart           — provider job history
     admin/
-      admin_screen.dart                 — job management, payouts, user flags
+      admin_screen.dart                 — jobs, payouts, user flags, service Areas tab
 ```
 
 ## Pricing
+- REGIONAL: prices come from the matched service_areas row (per ZIP), editable in
+  the admin "Areas" tab — NOT hardcoded. Values below are the Yonkers launch defaults.
 - Sidewalk only: $50
 - Driveway only: $100
 - Sidewalk + Driveway: $125
