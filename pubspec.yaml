@@ -52,12 +52,27 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.6
 
 flutter_launcher_icons:
   android: false
   ios: true
   image_path: "assets/icon.png"
   remove_alpha_ios: true
+
+# Launch screen. Frost background (matches the app's scaffold color) with the
+# app icon centered — the navy snowflake reads cleanly on the light background
+# without the icon's rounded-square edge showing, which a navy splash would.
+flutter_native_splash:
+  color: "#F0F6FF"
+  image: assets/icon.png
+  android: true
+  ios: true
+  # Android 12+ draws the splash inside a masked circle from a separate icon
+  # slot; point it at the same asset with a matching background.
+  android_12:
+    color: "#F0F6FF"
+    image: assets/icon.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
