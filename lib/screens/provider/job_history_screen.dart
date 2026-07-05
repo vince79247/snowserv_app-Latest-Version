@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../utils/job_helpers.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -52,24 +53,6 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
     } finally {
       if (mounted) setState(() => loading = false);
     }
-  }
-
-  String describeJob(Map<String, dynamic> job) {
-    final List<String> services = [];
-    if (job['driveway'] == true) services.add('Driveway');
-    if (job['walkway'] == true) services.add('Sidewalk');
-    if (job['salting'] == true) services.add('Salting');
-    return services.isEmpty ? 'Service' : services.join(' + ');
-  }
-
-  String formatDate(String dateStr) {
-    final date = DateTime.parse(dateStr).toLocal();
-    return '${date.month}/${date.day}/${date.year}';
-  }
-
-  int providerPay(Map<String, dynamic> job) {
-    final total = (job['final_price'] ?? job['base_price'] ?? 0) as num;
-    return (total * 0.70).round();
   }
 
   int get totalEarnings =>
@@ -142,14 +125,20 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  if (job['job_number'] != null)
+                                    Text('Job #${job['job_number']}',
+                                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
                                   Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(describeJob(job),
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16)),
+                                      Flexible(
+                                        child: Text(describeJob(job),
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16)),
+                                      ),
+                                      const SizedBox(width: 8),
                                       Text(
                                         '\$${providerPay(job)}',
                                         style: TextStyle(

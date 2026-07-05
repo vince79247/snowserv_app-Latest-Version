@@ -7,7 +7,10 @@ import 'dart:io';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import '../../theme.dart';
+import '../../utils/job_helpers.dart';
+import '../../utils/dispatch.dart';
 import 'job_history_screen.dart';
+import '../faq_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -27,6 +30,10 @@ class _ProviderHomeState extends State<ProviderHome> {
   int? _totalJobs;
   Map<String, dynamic>? _dispatchedJob;
   List<Map<String, dynamic>> activeJobs = [];
+  // Jobs sitting in the queue with no provider currently holding an offer —
+  // shown as a "Jobs Waiting" board so any on-duty provider can grab one,
+  // including a job they previously declined (a second shot).
+  List<Map<String, dynamic>> _waitingJobs = [];
   bool loading = false;
   RealtimeChannel? _jobsChannel;
   Timer? _countdownTimer;
@@ -66,6 +73,7 @@ class _ProviderHomeState extends State<ProviderHome> {
         }
         loadDispatchedJob();
         loadActiveJobs();
+        loadWaitingJobs();
       },
     ).subscribe();
   }
@@ -81,15 +89,18 @@ class _ProviderHomeState extends State<ProviderHome> {
       final data = results.first;
       if (mounted) {
         final pid = data['id'].toString();
-        // Always start offline — stale online state from a previous session shouldn't carry over
-        await supabase.from('providers').update({'is_online': false}).eq('id', pid);
+        final wasOnline = data['is_online'] == true;
         setState(() {
           providerId = pid;
-          isOnline = false;
+          isOnline = wasOnline;
           _rating = (data['rating'] as num?)?.toDouble();
           _totalJobs = data['total_jobs'] as int?;
         });
         loadActiveJobs();
+        if (wasOnline) {
+          loadDispatchedJob();
+          loadWaitingJobs();
+        }
         subscribeToJobs();
       }
     } catch (e) {
@@ -130,6 +141,7 @@ class _ProviderHomeState extends State<ProviderHome> {
       isOnline = value;
       if (!value) {
         _dispatchedJob = null;
+        _waitingJobs = [];
         _stopCountdown();
       }
     });
@@ -137,6 +149,7 @@ class _ProviderHomeState extends State<ProviderHome> {
     if (value) {
       loadDispatchedJob();
       _checkAndDispatchWaitingJob();
+      loadWaitingJobs();
     }
   }
 
@@ -151,7 +164,7 @@ class _ProviderHomeState extends State<ProviderHome> {
           .eq('status', 'requested')
           .order('created_at')
           .limit(1);
-      final data = results.isEmpty ? null : results.first as Map<String, dynamic>;
+      final data = results.isEmpty ? null : results.first;
       if (mounted) {
         final prev = _dispatchedJob;
         setState(() => _dispatchedJob = data);
@@ -177,6 +190,28 @@ class _ProviderHomeState extends State<ProviderHome> {
           .order('created_at', ascending: true);
       if (mounted) {
         setState(() => activeJobs = List<Map<String, dynamic>>.from(data));
+      }
+    } catch (_) {}
+  }
+
+  // Jobs that are queued (requested) but not currently pushed to anyone —
+  // i.e. no one holds a live dispatch offer. These are grabbable by any
+  // on-duty provider, so a driver who changed their mind gets a second shot.
+  Future<void> loadWaitingJobs() async {
+    if (providerId == null || !isOnline) {
+      if (mounted && _waitingJobs.isNotEmpty) setState(() => _waitingJobs = []);
+      return;
+    }
+    try {
+      final data = await supabase
+          .from('jobs')
+          .select('*, addresses(*)')
+          .eq('status', 'requested')
+          .isFilter('dispatched_to', null)
+          .order('created_at', ascending: true);
+      if (mounted) {
+        setState(() =>
+            _waitingJobs = List<Map<String, dynamic>>.from(data as List));
       }
     } catch (_) {}
   }
@@ -225,82 +260,13 @@ class _ProviderHomeState extends State<ProviderHome> {
         'dispatched_at': null,
         'rejected_providers': rejected,
       }).eq('id', jobId);
-      await _redispatch(jobId, rejected, job['job_lat'], job['job_lng']);
+      await dispatchToNearest(supabase, jobId, rejected,
+          (job['job_lat'] as num?)?.toDouble(), (job['job_lng'] as num?)?.toDouble());
     } catch (e) {
       debugPrint('Decline error: $e');
     } finally {
       _declining = false;
     }
-  }
-
-  Future<void> _redispatch(String jobId, List<dynamic> rejected, dynamic lat, dynamic lng) async {
-    try {
-      final providers = await supabase
-          .from('providers')
-          .select('id, current_lat, current_lng')
-          .eq('is_online', true)
-          .eq('registration_status', 'approved');
-
-      final activeJobs = await supabase
-          .from('jobs')
-          .select('provider_id, job_lat, job_lng')
-          .inFilter('status', ['assigned', 'in_progress']);
-
-      final Map<String, Map<String, dynamic>> providerActiveJob = {};
-      for (final job in activeJobs as List) {
-        final pid = job['provider_id']?.toString();
-        if (pid != null) {
-          providerActiveJob[pid] = (providerActiveJob[pid] == null)
-              ? {'count': 1, 'job_lat': job['job_lat'], 'job_lng': job['job_lng']}
-              : {'count': (providerActiveJob[pid]!['count'] as int) + 1, 'job_lat': job['job_lat'], 'job_lng': job['job_lng']};
-        }
-      }
-
-      final available = (providers as List)
-          .where((p) {
-            if (rejected.contains(p['id'].toString())) return false;
-            final activeCount = providerActiveJob[p['id'].toString()]?['count'] as int? ?? 0;
-            return activeCount < 2;
-          })
-          .toList();
-
-      if (available.isEmpty) return;
-
-      if (lat != null && lng != null) {
-        final jlat = (lat as num).toDouble();
-        final jlng = (lng as num).toDouble();
-        available.sort((a, b) {
-          final aInfo = providerActiveJob[a['id'].toString()];
-          final bInfo = providerActiveJob[b['id'].toString()];
-          final aLat = (aInfo != null && aInfo['job_lat'] != null)
-              ? (aInfo['job_lat'] as num).toDouble()
-              : (a['current_lat'] ?? 0).toDouble();
-          final aLng = (aInfo != null && aInfo['job_lng'] != null)
-              ? (aInfo['job_lng'] as num).toDouble()
-              : (a['current_lng'] ?? 0).toDouble();
-          final bLat = (bInfo != null && bInfo['job_lat'] != null)
-              ? (bInfo['job_lat'] as num).toDouble()
-              : (b['current_lat'] ?? 0).toDouble();
-          final bLng = (bInfo != null && bInfo['job_lng'] != null)
-              ? (bInfo['job_lng'] as num).toDouble()
-              : (b['current_lng'] ?? 0).toDouble();
-          return _dist2(jlat, jlng, aLat, aLng).compareTo(_dist2(jlat, jlng, bLat, bLng));
-        });
-      }
-
-      await supabase.from('jobs').update({
-        'dispatched_to': available.first['id'],
-        'dispatched_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', jobId);
-    } catch (e) {
-      debugPrint('Redispatch error: $e');
-    }
-  }
-
-  double _dist2(double lat1, double lng1, double lat2, double lng2) {
-    final dlat = lat2 - lat1;
-    final dlng = (lng2 - lng1) * 0.7;
-    return dlat * dlat + dlng * dlng;
   }
 
   int _calcEtaMinutes(double provLat, double provLng, double jobLat, double jobLng) {
@@ -312,7 +278,7 @@ class _ProviderHomeState extends State<ProviderHome> {
         sin(dLng / 2) * sin(dLng / 2);
     final distKm = R * 2 * atan2(sqrt(a), sqrt(1 - a));
     final minutes = (distKm / 30 * 60 * 1.3).round();
-    // Round to nearest 5, minimum 5
+    // Round to nearest 5, minimum 60
     return max(60, ((minutes / 5).round() * 5));
   }
 
@@ -338,6 +304,117 @@ class _ProviderHomeState extends State<ProviderHome> {
     } catch (e) {
       debugPrint('Check waiting job error: $e');
     }
+  }
+
+  Future<void> _editBankingDetails() async {
+    if (providerId == null) return;
+    final routingController = TextEditingController();
+    final accountController = TextEditingController();
+
+    // Pre-fill existing values
+    try {
+      final data = await supabase
+          .from('providers')
+          .select('bank_routing, bank_account')
+          .eq('id', providerId!)
+          .single();
+      routingController.text = data['bank_routing'] ?? '';
+      accountController.text = data['bank_account'] ?? '';
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.account_balance_outlined, color: SnowServColors.navy),
+            SizedBox(width: 8),
+            Text('Banking Details'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Your banking information is used for payouts only and stored securely.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: routingController,
+              keyboardType: TextInputType.number,
+              maxLength: 9,
+              decoration: const InputDecoration(
+                labelText: 'Routing Number',
+                hintText: '9-digit routing number',
+                prefixIcon: Icon(Icons.numbers),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: accountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Account Number',
+                prefixIcon: Icon(Icons.credit_card),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final routing = routingController.text.trim();
+              final account = accountController.text.trim();
+              if (routing.length != 9) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Routing number must be 9 digits.')),
+                );
+                return;
+              }
+              if (account.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter your account number.')),
+                );
+                return;
+              }
+              try {
+                await supabase.from('providers').update({
+                  'bank_routing': routing,
+                  'bank_account': account,
+                }).eq('id', providerId!);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Banking details updated successfully.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error saving: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    routingController.dispose();
+    accountController.dispose();
   }
 
   void _showAccountSheet() {
@@ -384,6 +461,25 @@ class _ProviderHomeState extends State<ProviderHome> {
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
+                leading: const Icon(Icons.account_balance_outlined, color: SnowServColors.navy),
+                title: const Text('Update Banking Details'),
+                subtitle: const Text('Routing & account number for payouts'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _editBankingDetails();
+                },
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.help_outline, color: SnowServColors.navy),
+                title: const Text('Help & FAQ'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const FaqScreen()));
+                },
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
                 title: const Text('Log Out', style: TextStyle(color: Colors.red)),
                 onTap: () async {
@@ -411,11 +507,17 @@ class _ProviderHomeState extends State<ProviderHome> {
     final destination = Uri.encodeComponent(
       '${addr['address_line']}, ${addr['city']}, ${addr['state']} ${addr['zip']}',
     );
-    final appleMaps = Uri.parse('maps://maps.apple.com/?daddr=$destination');
+    // Universal https link opens the Apple Maps app directly on iOS without
+    // needing the maps:// scheme whitelisted in Info.plist. Fall back to
+    // Google Maps if that fails for any reason.
+    final appleMaps = Uri.parse('https://maps.apple.com/?daddr=$destination');
     final googleMaps = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$destination');
-    if (await canLaunchUrl(appleMaps)) {
-      await launchUrl(appleMaps);
-    } else {
+    try {
+      final ok = await launchUrl(appleMaps, mode: LaunchMode.externalApplication);
+      if (!ok) {
+        await launchUrl(googleMaps, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
       await launchUrl(googleMaps, mode: LaunchMode.externalApplication);
     }
   }
@@ -448,6 +550,12 @@ class _ProviderHomeState extends State<ProviderHome> {
         'dispatched_to': null,
         if (eta != null) 'eta_minutes': eta,
       }).eq('id', jobId);
+      // A provider is now committed — capture the customer's held payment.
+      try {
+        await supabase.functions.invoke('capture-payment', body: {'job_id': jobId});
+      } catch (e) {
+        debugPrint('Capture failed for $jobId: $e');
+      }
       _notifyCustomer(jobId, 'assigned');
       loadActiveJobs();
       if (mounted) {
@@ -455,11 +563,127 @@ class _ProviderHomeState extends State<ProviderHome> {
           const SnackBar(content: Text('Job accepted!')),
         );
       }
+
+      // Open navigation to the accepted job — but only if the driver isn't
+      // already working another job. If they are mid-job, we don't yank them
+      // out to the map; it will open for this job when they complete the
+      // current one (see completeJob's next-job navigation).
+      if (job != null && mounted) {
+        try {
+          final inProgress = await supabase
+              .from('jobs')
+              .select('id')
+              .eq('provider_id', providerId!)
+              .eq('status', 'in_progress')
+              .limit(1);
+          if (inProgress.isEmpty && mounted) {
+            _launchNavigation(Map<String, dynamic>.from(job));
+          }
+        } catch (e) {
+          debugPrint('Accept-time navigation check failed: $e');
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
+      }
+    }
+  }
+
+  // Claim a job off the "Jobs Waiting" board. Unlike a pushed dispatch, this
+  // is provider-initiated, so it works even for a job this provider declined
+  // earlier (we drop them from the rejected list). The conditional update is
+  // atomic — only the first provider to grab an unclaimed job wins.
+  Future<void> claimWaitingJob(Map<String, dynamic> job) async {
+    if (providerId == null) return;
+    final jobId = job['id'].toString();
+    try {
+      final rejected = List<dynamic>.from(job['rejected_providers'] ?? [])
+        ..removeWhere((id) => id.toString() == providerId);
+
+      int? eta;
+      if (job['job_lat'] != null && job['job_lng'] != null) {
+        final provData = await supabase
+            .from('providers')
+            .select('current_lat, current_lng')
+            .eq('id', providerId!)
+            .single();
+        if (provData['current_lat'] != null && provData['current_lng'] != null) {
+          eta = _calcEtaMinutes(
+            (provData['current_lat'] as num).toDouble(),
+            (provData['current_lng'] as num).toDouble(),
+            (job['job_lat'] as num).toDouble(),
+            (job['job_lng'] as num).toDouble(),
+          );
+        }
+      }
+
+      final updated = await supabase
+          .from('jobs')
+          .update({
+            'status': 'assigned',
+            'provider_id': providerId,
+            'dispatched_to': null,
+            'dispatched_at': null,
+            'rejected_providers': rejected,
+            if (eta != null) 'eta_minutes': eta,
+          })
+          .eq('id', jobId)
+          .eq('status', 'requested')
+          .isFilter('dispatched_to', null)
+          .select();
+
+      if (updated.isEmpty) {
+        // Lost the race — someone else grabbed it or it got dispatched.
+        loadWaitingJobs();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('That job was just taken by another provider.')),
+          );
+        }
+        return;
+      }
+
+      // A provider is now committed — capture the customer's held payment.
+      try {
+        await supabase.functions.invoke('capture-payment', body: {'job_id': jobId});
+      } catch (e) {
+        debugPrint('Capture failed for $jobId: $e');
+      }
+      _notifyCustomer(jobId, 'assigned');
+      if (mounted) {
+        setState(() => _waitingJobs
+            .removeWhere((j) => j['id'].toString() == jobId));
+      }
+      loadActiveJobs();
+      loadWaitingJobs();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Job accepted!')),
+        );
+      }
+
+      // Open navigation unless already mid-another-job (same rule as Accept).
+      try {
+        final inProgress = await supabase
+            .from('jobs')
+            .select('id')
+            .eq('provider_id', providerId!)
+            .eq('status', 'in_progress')
+            .limit(1);
+        if (inProgress.isEmpty && mounted) {
+          _launchNavigation(Map<String, dynamic>.from(job));
+        }
+      } catch (e) {
+        debugPrint('Claim navigation check failed: $e');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -498,7 +722,8 @@ class _ProviderHomeState extends State<ProviderHome> {
         'rejected_providers': rejected,
       }).eq('id', jobId);
       supabase.functions.invoke('notify-customer', body: {'job_id': jobId, 'status': 'provider_cancelled'});
-      await _redispatch(jobId, rejected, job['job_lat'], job['job_lng']);
+      await dispatchToNearest(supabase, jobId, rejected,
+          (job['job_lat'] as num?)?.toDouble(), (job['job_lng'] as num?)?.toDouble());
       loadActiveJobs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -541,8 +766,11 @@ class _ProviderHomeState extends State<ProviderHome> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Add photos of the completed work:',
+                const Text('Photos of completed work are required:',
                     style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                const Text('You must upload at least one photo to mark this job complete.',
+                    style: TextStyle(fontSize: 12, color: Colors.red)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -551,9 +779,16 @@ class _ProviderHomeState extends State<ProviderHome> {
                         icon: const Icon(Icons.camera_alt),
                         label: const Text('Camera'),
                         onPressed: () async {
+                          // maxWidth/maxHeight downsize the image at the native
+                          // layer, drastically cutting the memory a full-res
+                          // camera capture uses. Without this, iOS may kill the
+                          // app while the camera is open (blank white screen on
+                          // return, lost photo).
                           final photo = await picker.pickImage(
                             source: ImageSource.camera,
-                            imageQuality: 75,
+                            maxWidth: 1600,
+                            maxHeight: 1600,
+                            imageQuality: 70,
                           );
                           if (photo != null) {
                             setDialogState(() => selectedPhotos.add(File(photo.path)));
@@ -567,7 +802,11 @@ class _ProviderHomeState extends State<ProviderHome> {
                         icon: const Icon(Icons.photo_library),
                         label: const Text('Gallery'),
                         onPressed: () async {
-                          final photos = await picker.pickMultiImage(imageQuality: 75);
+                          final photos = await picker.pickMultiImage(
+                            maxWidth: 1600,
+                            maxHeight: 1600,
+                            imageQuality: 70,
+                          );
                           if (photos.isNotEmpty) {
                             setDialogState(() => selectedPhotos.addAll(photos.map((p) => File(p.path))));
                           }
@@ -631,7 +870,7 @@ class _ProviderHomeState extends State<ProviderHome> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: selectedPhotos.isEmpty ? null : () => Navigator.pop(context, true),
               child: const Text('Mark Complete'),
             ),
           ],
@@ -667,6 +906,20 @@ class _ProviderHomeState extends State<ProviderHome> {
 
       _notifyCustomer(jobId, 'completed');
 
+      // Increment this provider's completed-job counter
+      try {
+        final prov = await supabase
+            .from('providers')
+            .select('total_jobs')
+            .eq('id', providerId!)
+            .single();
+        final newCount = ((prov['total_jobs'] as int?) ?? 0) + 1;
+        await supabase.from('providers').update({'total_jobs': newCount}).eq('id', providerId!);
+        if (mounted) setState(() => _totalJobs = newCount);
+      } catch (e) {
+        debugPrint('total_jobs increment error: $e');
+      }
+
       // Fetch next queued job before refreshing state
       final remaining = await supabase
           .from('jobs')
@@ -688,24 +941,23 @@ class _ProviderHomeState extends State<ProviderHome> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+        // Persistent dialog (not a SnackBar) so the exact error can be read
+        // and screenshotted — a completion failure needs to be diagnosable.
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Could not complete job'),
+            content: SingleChildScrollView(child: Text('$e')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
     }
-  }
-
-  String describeJob(Map<String, dynamic> job) {
-    final List<String> services = [];
-    if (job['driveway'] == true) services.add('Driveway');
-    if (job['walkway'] == true) services.add('Sidewalk');
-    if (job['salting'] == true) services.add('Salting');
-    return services.isEmpty ? 'Service' : services.join(' + ');
-  }
-
-  String providerPay(Map<String, dynamic> job) {
-    final total = (job['final_price'] ?? job['base_price'] ?? 0) as num;
-    return (total * 0.70).round().toString();
   }
 
   Widget _addressRow(Map<String, dynamic> job, {Color color = Colors.grey}) {
@@ -729,7 +981,6 @@ class _ProviderHomeState extends State<ProviderHome> {
 
   Widget _buildDispatchCard() {
     final job = _dispatchedJob!;
-    final isUrgent = _secondsRemaining < 60;
     final minutes = _secondsRemaining ~/ 60;
     final seconds = _secondsRemaining % 60;
     final timerStr = '$minutes:${seconds.toString().padLeft(2, '0')}';
@@ -738,17 +989,15 @@ class _ProviderHomeState extends State<ProviderHome> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isUrgent
-              ? [Colors.red.shade700, Colors.red.shade500]
-              : [Colors.orange.shade700, Colors.orange.shade500],
+        gradient: const LinearGradient(
+          colors: [SnowServColors.iceBlue, SnowServColors.navyMid],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: (isUrgent ? Colors.red : Colors.orange).withOpacity(0.4),
+            color: SnowServColors.iceBlue.withOpacity(0.35),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -792,6 +1041,9 @@ class _ProviderHomeState extends State<ProviderHome> {
               ),
             ),
             const SizedBox(height: 14),
+            if (job['job_number'] != null)
+              Text('Job #${job['job_number']}',
+                  style: const TextStyle(color: Colors.white60, fontSize: 11)),
             Text(
               describeJob(job),
               style: const TextStyle(
@@ -815,7 +1067,7 @@ class _ProviderHomeState extends State<ProviderHome> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade800.withOpacity(0.6),
+                  color: Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -856,9 +1108,7 @@ class _ProviderHomeState extends State<ProviderHome> {
                     label: const Text('Accept'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      foregroundColor: isUrgent
-                          ? Colors.red.shade700
-                          : Colors.orange.shade700,
+                      foregroundColor: SnowServColors.iceBlue,
                       padding: const EdgeInsets.symmetric(vertical: 13),
                     ),
                   ),
@@ -868,6 +1118,66 @@ class _ProviderHomeState extends State<ProviderHome> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildWaitingJobsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.pending_actions, size: 18, color: SnowServColors.iceBlue),
+            const SizedBox(width: 6),
+            Text('Jobs Waiting (${_waitingJobs.length})',
+                style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: SnowServColors.navy)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text('Unclaimed jobs you can pick up now — including ones you passed on.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        const SizedBox(height: 8),
+        ..._waitingJobs.map((job) => Card(
+              color: const Color(0xFFF0F6FF),
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (job['job_number'] != null)
+                      Text('Job #${job['job_number']}',
+                          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(describeJob(job),
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: SnowServColors.navy)),
+                    _addressRow(job),
+                    const SizedBox(height: 4),
+                    Text('Your pay: \$${providerPay(job)}',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: SnowServColors.iceBlue)),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => claimWaitingJob(job),
+                        icon: const Icon(Icons.check, size: 16),
+                        label: const Text('Accept This Job'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )),
+        const SizedBox(height: 8),
+      ],
     );
   }
 
@@ -1023,6 +1333,9 @@ class _ProviderHomeState extends State<ProviderHome> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                if (job['job_number'] != null)
+                                  Text('Job #${job['job_number']}',
+                                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
                                 Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
@@ -1123,6 +1436,10 @@ class _ProviderHomeState extends State<ProviderHome> {
                       const SizedBox(height: 8),
                     ],
 
+                    // Jobs waiting board — grabbable unclaimed jobs
+                    if (isOnline && _waitingJobs.isNotEmpty)
+                      _buildWaitingJobsSection(),
+
                     // Idle state
                     if (!isOnline)
                       Center(
@@ -1147,7 +1464,9 @@ class _ProviderHomeState extends State<ProviderHome> {
                         padding: EdgeInsets.only(top: 48),
                         child: CircularProgressIndicator(),
                       ))
-                    else if (_dispatchedJob == null && activeJobs.isEmpty)
+                    else if (_dispatchedJob == null &&
+                        activeJobs.isEmpty &&
+                        _waitingJobs.isEmpty)
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.only(top: 48),

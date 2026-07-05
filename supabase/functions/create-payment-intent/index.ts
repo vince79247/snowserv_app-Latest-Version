@@ -34,7 +34,11 @@ Deno.serve(async (req: Request) => {
     body.append('currency', 'usd')
     body.append('payment_method_types[0]', 'card')
     body.append('description', job_description ?? 'SnowServ snow removal')
-    body.append('capture_method', 'automatic')
+    // Manual capture = place an authorization HOLD at order time, don't charge
+    // yet. The hold is captured (charged for real) when a provider accepts, or
+    // released (no charge) if the order is cancelled before anyone accepts —
+    // which avoids the slow refund when the customer did nothing wrong.
+    body.append('capture_method', 'manual')
 
     if (customerId) {
       body.append('customer', customerId)

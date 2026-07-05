@@ -27,6 +27,54 @@ Deno.serve(async (req: Request) => {
     }
 
     // Issue full refund via Stripe
+    // Look up the current payment status to decide how to reverse it.
+    const piRes = await fetch(
+      `https://api.stripe.com/v1/payment_intents/${paymentIntentId}`,
+      { headers: { Authorization: `Bearer ${stripeKey}` } }
+    )
+    const pi = await piRes.json()
+    if (pi.error) {
+      return new Response(JSON.stringify({ error: pi.error.message }), { status: 400 })
+    }
+
+    // Not captured yet (still just a hold) → cancel the authorization. This
+    // RELEASES the hold quickly with no settled charge, so the customer isn't
+    // stuck waiting 5–10 days for a refund when no provider ever accepted.
+    if (
+      pi.status === 'requires_capture' ||
+      pi.status === 'requires_confirmation' ||
+      pi.status === 'requires_payment_method'
+    ) {
+      const cancelRes = await fetch(
+        `https://api.stripe.com/v1/payment_intents/${paymentIntentId}/cancel`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${stripeKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        }
+      )
+      const canceled = await cancelRes.json()
+      if (canceled.error) {
+        return new Response(JSON.stringify({ error: canceled.error.message }), { status: 400 })
+      }
+      return new Response(
+        JSON.stringify({ action: 'released', status: canceled.status }),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Hold was already released — nothing owed.
+    if (pi.status === 'canceled') {
+      return new Response(
+        JSON.stringify({ action: 'released', status: 'canceled', already: true }),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Payment was already captured (a provider had accepted) → real refund,
+    // which the bank posts back over 5–10 business days.
     const refundBody = new URLSearchParams()
     refundBody.append('payment_intent', paymentIntentId)
 
@@ -45,7 +93,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ refund_id: refund.id, status: refund.status }),
+      JSON.stringify({ action: 'refunded', refund_id: refund.id, status: refund.status }),
       { headers: { 'Content-Type': 'application/json' } }
     )
   } catch (e: unknown) {

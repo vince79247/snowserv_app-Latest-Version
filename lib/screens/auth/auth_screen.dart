@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 import '../../theme.dart';
 import '../admin/admin_screen.dart';
+import '../faq_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -390,7 +391,17 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FaqScreen()),
+                  ),
+                  icon: const Icon(Icons.help_outline, size: 16, color: Colors.white70),
+                  label: const Text('Have questions? Read our FAQ',
+                      style: TextStyle(color: Colors.white70, fontSize: 13)),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

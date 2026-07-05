@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../utils/job_helpers.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -74,19 +75,6 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
     }
   }
 
-  String describeJob(Map<String, dynamic> job) {
-    final List<String> services = [];
-    if (job['driveway'] == true) services.add('Driveway');
-    if (job['walkway'] == true) services.add('Sidewalk');
-    if (job['salting'] == true) services.add('Salting');
-    return services.isEmpty ? 'Service' : services.join(' + ');
-  }
-
-  String formatDate(String dateStr) {
-    final date = DateTime.parse(dateStr).toLocal();
-    return '${date.month}/${date.day}/${date.year}';
-  }
-
   int get totalSpent =>
       completedJobs.fold(0, (sum, job) => sum + ((job['final_price'] ?? job['base_price']) as int? ?? 0));
 
@@ -111,6 +99,10 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
               const Text('Receipt',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center),
+              if (job['job_number'] != null)
+                Text('Job #${job['job_number']}',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    textAlign: TextAlign.center),
               const Divider(height: 24),
               _receiptRow('Service', describeJob(job)),
               if (job['addresses'] != null)
@@ -195,6 +187,13 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        // Home icon instead of the default back arrow — this screen returns to
+        // the home screen, so a house makes the destination obvious.
+        leading: IconButton(
+          icon: const Icon(Icons.home_outlined),
+          tooltip: 'Home',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: const Text('My Orders'),
         actions: [
           IconButton(
@@ -265,6 +264,9 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
+                                            if (job['job_number'] != null)
+                                              Text('Job #${job['job_number']}',
+                                                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
                                             Text(describeJob(job),
                                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                                             const SizedBox(height: 2),

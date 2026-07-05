@@ -7,8 +7,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../../theme.dart';
+import '../../utils/job_helpers.dart';
+import '../../utils/dispatch.dart';
 import 'address_screen.dart';
 import 'job_history_screen.dart';
+import '../faq_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -28,8 +31,6 @@ class _CustomerHomeState extends State<CustomerHome> {
   RealtimeChannel? _jobsChannel;
   double surgeMultiplier = 1.0;
   double? snowDepthInches;
-  double? _currentLat;
-  double? _currentLng;
   String? _stripeCustomerId;
   Map<String, dynamic>? _savedCard;
   final Map<String, String> _prevJobStatuses = {};
@@ -86,8 +87,6 @@ class _CustomerHomeState extends State<CustomerHome> {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
       );
-      _currentLat = position.latitude;
-      _currentLng = position.longitude;
 
       final url =
           'https://api.open-meteo.com/v1/forecast?latitude=${position.latitude}&longitude=${position.longitude}&current=snow_depth&timezone=auto';
@@ -233,6 +232,15 @@ class _CustomerHomeState extends State<CustomerHome> {
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
+                leading: const Icon(Icons.help_outline, color: SnowServColors.navy),
+                title: const Text('Help & FAQ'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const FaqScreen()));
+                },
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
                 title: const Text('Log Out', style: TextStyle(color: Colors.red)),
                 onTap: () {
@@ -323,34 +331,6 @@ class _CustomerHomeState extends State<CustomerHome> {
     }
   }
 
-  Future<void> rateJob(String jobId, String? providerId, int stars) async {
-    try {
-      await supabase.from('jobs').update({'customer_rating': stars}).eq('id', jobId);
-      if (providerId != null) {
-        final ratedJobs = await supabase
-            .from('jobs')
-            .select('customer_rating')
-            .eq('provider_id', providerId)
-            .not('customer_rating', 'is', null);
-        if (ratedJobs.isNotEmpty) {
-          final ratings = (ratedJobs as List)
-              .map((j) => (j['customer_rating'] as num?)?.toDouble() ?? 0.0)
-              .toList();
-          final avg = ratings.reduce((a, b) => a + b) / ratings.length;
-          await supabase.from('providers').update({
-            'rating': double.parse(avg.toStringAsFixed(1)),
-          }).eq('id', providerId);
-        }
-      }
-      loadMyJobs();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Rating failed: $e')));
-      }
-    }
-  }
-
   Future<Map<String, double>?> _geocodeAddress(Map<String, dynamic> address) async {
     try {
       final query = Uri.encodeComponent(
@@ -370,80 +350,6 @@ class _CustomerHomeState extends State<CustomerHome> {
       }
     } catch (_) {}
     return null;
-  }
-
-  Future<void> _dispatchToNearest(String jobId, List<dynamic> rejected, double? lat, double? lng) async {
-    try {
-      final providers = await supabase
-          .from('providers')
-          .select('id, current_lat, current_lng')
-          .eq('is_online', true)
-          .eq('registration_status', 'approved');
-
-      // Count active jobs per provider and grab their current job's location
-      final activeJobs = await supabase
-          .from('jobs')
-          .select('provider_id, job_lat, job_lng')
-          .inFilter('status', ['assigned', 'in_progress']);
-
-      final Map<String, Map<String, dynamic>> providerActiveJob = {};
-      for (final job in activeJobs as List) {
-        final pid = job['provider_id']?.toString();
-        if (pid != null) {
-          providerActiveJob[pid] = (providerActiveJob[pid] == null)
-              ? {'count': 1, 'job_lat': job['job_lat'], 'job_lng': job['job_lng']}
-              : {'count': (providerActiveJob[pid]!['count'] as int) + 1, 'job_lat': job['job_lat'], 'job_lng': job['job_lng']};
-        }
-      }
-
-      // Exclude rejected and providers already at queue cap (2 active jobs)
-      final available = (providers as List)
-          .where((p) {
-            if (rejected.contains(p['id'].toString())) return false;
-            final activeCount = providerActiveJob[p['id'].toString()]?['count'] as int? ?? 0;
-            return activeCount < 2;
-          })
-          .toList();
-
-      if (available.isEmpty) return;
-
-      if (lat != null && lng != null) {
-        available.sort((a, b) {
-          // Providers with an active job: measure from that job's location (where they'll finish)
-          // Providers with no active job: measure from their current GPS
-          final aInfo = providerActiveJob[a['id'].toString()];
-          final bInfo = providerActiveJob[b['id'].toString()];
-          final aLat = (aInfo != null && aInfo['job_lat'] != null)
-              ? (aInfo['job_lat'] as num).toDouble()
-              : (a['current_lat'] ?? 0).toDouble();
-          final aLng = (aInfo != null && aInfo['job_lng'] != null)
-              ? (aInfo['job_lng'] as num).toDouble()
-              : (a['current_lng'] ?? 0).toDouble();
-          final bLat = (bInfo != null && bInfo['job_lat'] != null)
-              ? (bInfo['job_lat'] as num).toDouble()
-              : (b['current_lat'] ?? 0).toDouble();
-          final bLng = (bInfo != null && bInfo['job_lng'] != null)
-              ? (bInfo['job_lng'] as num).toDouble()
-              : (b['current_lng'] ?? 0).toDouble();
-          return _dist2(lat, lng, aLat, aLng).compareTo(_dist2(lat, lng, bLat, bLng));
-        });
-      }
-
-      await supabase.from('jobs').update({
-        'dispatched_to': available.first['id'],
-        'dispatched_at': DateTime.now().toUtc().toIso8601String(),
-        if (lat != null) 'job_lat': lat,
-        if (lng != null) 'job_lng': lng,
-      }).eq('id', jobId);
-    } catch (e) {
-      debugPrint('Dispatch error: $e');
-    }
-  }
-
-  double _dist2(double lat1, double lng1, double lat2, double lng2) {
-    final dlat = lat2 - lat1;
-    final dlng = (lng2 - lng1) * 0.7;
-    return dlat * dlat + dlng * dlng;
   }
 
   Future<void> createJob() async {
@@ -630,8 +536,9 @@ class _CustomerHomeState extends State<CustomerHome> {
         if (jobLng != null) 'job_lng': jobLng,
       }).select('id').single();
 
-      supabase.functions.invoke('notify-providers', body: {'job_id': result['id']});
-      await _dispatchToNearest(result['id'].toString(), [], jobLat, jobLng);
+      // Dispatch to the nearest provider — dispatchToNearest handles notifying
+      // that single provider. (No broadcast to everyone.)
+      await dispatchToNearest(supabase, result['id'].toString(), [], jobLat, jobLng);
       await loadMyJobs();
       if (mounted) {
         setState(() {
@@ -778,8 +685,13 @@ class _CustomerHomeState extends State<CustomerHome> {
     if (confirm != true) return;
     try {
       final job = myJobs.firstWhere((j) => j['id'].toString() == jobId, orElse: () => {});
+      String? refundAction;
       if (job['payment_intent_id'] != null) {
-        await supabase.functions.invoke('refund-job', body: {'job_id': jobId});
+        final resp = await supabase.functions.invoke('refund-job', body: {'job_id': jobId});
+        final data = resp.data;
+        if (data is Map && data['action'] is String) {
+          refundAction = data['action'] as String;
+        }
       }
       await supabase.from('jobs').update({
         'status': 'cancelled',
@@ -789,8 +701,13 @@ class _CustomerHomeState extends State<CustomerHome> {
       supabase.functions.invoke('notify-provider', body: {'job_id': jobId, 'status': 'cancelled'});
       loadMyJobs();
       if (mounted) {
+        // A released hold clears fast; a real refund (a provider had accepted)
+        // takes the bank's usual 5–10 days.
+        final message = refundAction == 'refunded'
+            ? 'Request cancelled. Your refund will appear in 5–10 business days.'
+            : 'Request cancelled. The pending hold on your card will drop off shortly — you were never charged.';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request cancelled. Your refund will appear in 5–10 business days.')),
+          SnackBar(content: Text(message)),
         );
       }
     } catch (e) {
@@ -799,14 +716,6 @@ class _CustomerHomeState extends State<CustomerHome> {
             .showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
-  }
-
-  String describeJob(Map<String, dynamic> job) {
-    final List<String> services = [];
-    if (job['driveway'] == true) services.add('Driveway');
-    if (job['walkway'] == true) services.add('Sidewalk');
-    if (job['salting'] == true) services.add('Salting');
-    return services.isEmpty ? 'Service' : services.join(' + ');
   }
 
   @override
@@ -876,6 +785,12 @@ class _CustomerHomeState extends State<CustomerHome> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  if (job['job_number'] != null)
+                                    Text('Job #${job['job_number']}',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey,
+                                            fontWeight: FontWeight.w500)),
                                   Text(describeJob(job),
                                       style: const TextStyle(
                                           fontWeight: FontWeight.bold,
@@ -908,6 +823,29 @@ class _CustomerHomeState extends State<CustomerHome> {
                             ],
                           ),
                         ],
+                        // High-demand reassurance: shown when the job is still
+                        // unclaimed and has already been offered around (no
+                        // driver currently holds it, but some have passed). Keeps
+                        // the customer informed instead of an endless silent wait.
+                        if (job['status'] == 'requested' &&
+                            job['dispatched_to'] == null &&
+                            ((job['rejected_providers'] as List?)?.isNotEmpty ?? false)) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Icon(Icons.hourglass_bottom, size: 14, color: Colors.grey),
+                              SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  "It's busy right now — we're still finding you an available provider. "
+                                  "Hang tight; you'll be notified the moment someone accepts.",
+                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         if (canCancel) ...[
                           const SizedBox(height: 10),
                           SizedBox(
@@ -922,50 +860,6 @@ class _CustomerHomeState extends State<CustomerHome> {
                               ),
                             ),
                           ),
-                        ],
-                        if (job['status'] == 'completed') ...[
-                          const SizedBox(height: 10),
-                          const Divider(height: 1),
-                          const SizedBox(height: 10),
-                          if (job['customer_rating'] == null) ...[
-                            const Text('How was your service?',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: SnowServColors.navy)),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: List.generate(5, (i) {
-                                return GestureDetector(
-                                  onTap: () => rateJob(
-                                    job['id'].toString(),
-                                    job['provider_id']?.toString(),
-                                    i + 1,
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(right: 4),
-                                    child: Icon(
-                                      Icons.star_border,
-                                      color: Colors.amber,
-                                      size: 32,
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ] else ...[
-                            Row(
-                              children: [
-                                ...List.generate(5, (i) => Icon(
-                                  i < (job['customer_rating'] as int)
-                                      ? Icons.star
-                                      : Icons.star_border,
-                                  color: Colors.amber,
-                                  size: 20,
-                                )),
-                                const SizedBox(width: 6),
-                                Text('You rated this service',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                              ],
-                            ),
-                          ],
                         ],
                       ],
                     ),

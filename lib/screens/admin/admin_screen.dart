@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme.dart';
+import '../../utils/job_helpers.dart';
 
 final supabase = Supabase.instance.client;
 const _adminPassword = 'SnowServ@Admin2026';
@@ -201,19 +202,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
-  String describeJob(Map<String, dynamic> job) {
-    final List<String> services = [];
-    if (job['driveway'] == true) services.add('Driveway');
-    if (job['walkway'] == true) services.add('Sidewalk');
-    if (job['salting'] == true) services.add('Salting');
-    return services.isEmpty ? 'Service' : services.join(' + ');
-  }
-
-  String formatDate(String dateStr) {
-    final date = DateTime.parse(dateStr).toLocal();
-    return '${date.month}/${date.day}/${date.year}';
-  }
-
   Color statusColor(String status) {
     switch (status) {
       case 'requested': return Colors.orange;
@@ -293,6 +281,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (job['job_number'] != null)
+                  Text('Job #${job['job_number']}',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
