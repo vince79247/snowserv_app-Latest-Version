@@ -5,6 +5,7 @@ import '../../theme.dart';
 import '../../utils/legal.dart';
 import '../admin/admin_screen.dart';
 import '../faq_screen.dart';
+import '../quote_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -397,6 +398,23 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 ),
 
                 const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final wantsSignup = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(builder: (_) => const QuoteScreen()),
+                    );
+                    // "Sign up to book" on the quote screen → switch to signup.
+                    if (wantsSignup == true && mounted) {
+                      setState(() => isLogin = false);
+                    }
+                  },
+                  icon: const Icon(Icons.calculate_outlined, size: 18, color: Colors.white),
+                  label: const Text('Get an instant quote — no account needed',
+                      style: TextStyle(color: Colors.white, fontSize: 13)),
+                  style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white54)),
+                ),
+                const SizedBox(height: 4),
                 TextButton.icon(
                   onPressed: () => Navigator.push(
                     context,
