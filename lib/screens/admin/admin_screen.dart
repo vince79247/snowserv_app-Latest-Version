@@ -277,6 +277,75 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
+  // ---- Provider documents (private bucket, admin-only viewing) --------------
+
+  Widget _docViewButton(String label, dynamic pathOrUrl) {
+    if (pathOrUrl == null || pathOrUrl.toString().isEmpty) {
+      return _infoRow(label, 'not uploaded');
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () => _viewProviderDoc(label, pathOrUrl.toString()),
+        icon: const Icon(Icons.image_outlined, size: 16),
+        label: Text('View $label'),
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(0, 0),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
+  // Fetches a short-lived signed URL from the password-gated function and shows
+  // the document. The private bucket + this function mean only the admin can
+  // view provider licenses/insurance.
+  Future<void> _viewProviderDoc(String title, String pathOrUrl) async {
+    String? url;
+    try {
+      final resp = await supabase.functions.invoke('admin-doc-url', body: {
+        'admin_password': _adminPassword,
+        'path': pathOrUrl,
+      });
+      if (resp.data is Map) url = resp.data['signed_url'] as String?;
+    } catch (_) {}
+    if (!mounted) return;
+    if (url == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not load document.')),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            Flexible(
+              child: InteractiveViewer(
+                child: Image.network(
+                  url!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('Could not display image.'),
+                  ),
+                ),
+              ),
+            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ---- Service areas -------------------------------------------------------
 
   Future<void> _toggleAreaActive(Map<String, dynamic> area) async {
@@ -1004,8 +1073,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     const SizedBox(height: 6),
                     _infoRow('Date of birth', p['dob']),
                     _infoRow("Driver's license", '${p['dl_number'] ?? ''}  ${p['dl_state'] ?? ''}'.trim()),
-                    if (p['dl_photo_url'] != null)
-                      _infoRow('DL photo', '✓ uploaded'),
+                    _docViewButton('DL photo', p['dl_photo_url']),
                     const SizedBox(height: 10),
                     // Insurance section
                     const Align(
@@ -1020,8 +1088,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     _infoRow('Carrier', p['insurance_carrier']),
                     _infoRow('Policy #', p['insurance_policy']),
                     _infoRow('Expiry', p['insurance_expiry']),
-                    if (p['insurance_photo_url'] != null)
-                      _infoRow('Card photo', '✓ uploaded'),
+                    _docViewButton('Insurance card', p['insurance_photo_url']),
                     const SizedBox(height: 10),
                     // Banking section
                     const Align(

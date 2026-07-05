@@ -205,7 +205,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
 
   Future<String> _uploadPhoto(File file, String filename) async {
     await supabase.storage.from('provider-documents').upload(filename, file);
-    return supabase.storage.from('provider-documents').getPublicUrl(filename);
+    // Store the object PATH, not a public URL — the bucket is private. The admin
+    // views documents through a short-lived signed URL minted by the password-
+    // gated admin-doc-url function.
+    return filename;
   }
 
   Future<void> _submit() async {
