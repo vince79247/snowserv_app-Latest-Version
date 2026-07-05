@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 import '../../theme.dart';
+import '../../utils/legal.dart';
 import '../admin/admin_screen.dart';
 import '../faq_screen.dart';
 
@@ -344,6 +344,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             : Text(isLogin ? 'Log In' : 'Sign Up'),
                       ),
 
+                      if (!isLogin) ...[
+                        const SizedBox(height: 12),
+                        const LegalConsentText(),
+                      ],
+
                       const SizedBox(height: 8),
 
                       TextButton(
@@ -406,18 +411,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     TextButton(
-                      onPressed: () => launchUrl(
-                        Uri.parse('https://docs.google.com/document/d/e/2PACX-1vTs3QKh1Sh_d9RfCX4w1lgWhugWIld3VGiLSJnFHE5-Yd-qIj9v5rrrI8FMYTtYa85aY2aP2-aKFHRi/pub'),
-                        mode: LaunchMode.externalApplication,
-                      ),
+                      onPressed: () => openLegalUrl(privacyPolicyUrl),
                       child: const Text('Privacy Policy', style: TextStyle(color: Colors.white54, fontSize: 12)),
                     ),
                     const Text('·', style: TextStyle(color: Colors.white30)),
                     TextButton(
-                      onPressed: () => launchUrl(
-                        Uri.parse('https://docs.google.com/document/d/e/2PACX-1vTcXcBxj_5lSgLWeWzPpPFWxSmA1BOjMgNs1fdFg1NFqZnIEWtluIwCyXbJLpnttfc0vD2Mts6IZcxb/pub'),
-                        mode: LaunchMode.externalApplication,
-                      ),
+                      onPressed: () => openLegalUrl(termsOfServiceUrl),
                       child: const Text('Terms of Service', style: TextStyle(color: Colors.white54, fontSize: 12)),
                     ),
                   ],

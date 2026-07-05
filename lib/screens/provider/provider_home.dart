@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/dispatch.dart';
+import '../../utils/legal.dart';
 import 'job_history_screen.dart';
 import '../faq_screen.dart';
 
@@ -478,6 +479,8 @@ class _ProviderHomeState extends State<ProviderHome> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const FaqScreen()));
                 },
               ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ...legalMenuTiles(context),
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
