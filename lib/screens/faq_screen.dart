@@ -169,11 +169,11 @@ const _customerSections = [
   _FaqSection('Pricing & Payment', [
     _FaqItem(
       'What does it cost?',
-      'Sidewalk clearing: \$50\nDriveway clearing: \$100\nSidewalk + Driveway: \$125\nSalting add-on: +\$40\n\nPrices may be higher during heavy snowfall events (see surge pricing below).',
+      'Sidewalk clearing: \$50\nDriveway clearing: \$100\nSidewalk + Driveway: \$125\nSalting add-on: +\$40\n\nPrices vary by service area, and may be higher during heavy snowfall (see storm pricing below).',
     ),
     _FaqItem(
-      'What is surge pricing?',
-      'During heavy snowfall, demand for providers increases and prices adjust automatically based on current snow depth:\n\n0–8 inches: standard price\n8–13 inches: 1.25× multiplier\n13–18 inches: 1.5× multiplier\n18+ inches: 2.0× multiplier\n\nThe surge level is always shown on the order screen before you pay.',
+      'What is storm pricing?',
+      'During heavier snow, the job takes more time and effort, so prices adjust automatically based on current snow depth:\n\nUp to 3 inches: standard price\n3–6 inches: 1.3× multiplier\n6–10 inches: 1.7× multiplier\n10+ inches: 2.3× multiplier\n\nThe storm pricing level is always shown on the order screen before you pay.',
     ),
     _FaqItem(
       'When am I charged?',
@@ -271,8 +271,8 @@ const _providerSections = [
       'You keep 70% of the total job price. The remaining 30% covers platform fees, payment processing, insurance, and app maintenance.\n\nExample: A \$125 driveway + sidewalk job pays you \$87.50.',
     ),
     _FaqItem(
-      'How do surge prices affect my pay?',
-      'Surge pricing increases the total job price, and your 70% cut applies to that higher amount. During a 2× surge event, your earnings double automatically.',
+      'How does storm pricing affect my pay?',
+      'Storm pricing increases the total job price, and your 70% cut applies to that higher amount. During a 2.3× storm event, your earnings scale up automatically.',
     ),
     _FaqItem(
       'How long does it take to get paid?',

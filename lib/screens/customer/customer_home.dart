@@ -100,13 +100,16 @@ class _CustomerHomeState extends State<CustomerHome> {
 
       final inches = snowDepthMeters * 39.3701;
 
+      // Storm pricing (formerly "surge") — reflects how much harder the job is
+      // at depth, and helps get providers out in bad storms. Contiguous bands:
+      // 0-3" 1.0x, 3-6" 1.3x, 6-10" 1.7x, 10"+ 2.3x.
       double multiplier;
-      if (inches >= 18) {
-        multiplier = 2.0;
-      } else if (inches >= 13) {
-        multiplier = 1.5;
-      } else if (inches >= 8) {
-        multiplier = 1.25;
+      if (inches >= 10) {
+        multiplier = 2.3;
+      } else if (inches >= 6) {
+        multiplier = 1.7;
+      } else if (inches >= 3) {
+        multiplier = 1.3;
       } else {
         multiplier = 1.0;
       }
@@ -1090,7 +1093,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                         children: [
                           Text(
                             surgeMultiplier > 1.0
-                                ? 'Surge Pricing — ${surgeMultiplier}x'
+                                ? 'Storm Pricing — ${surgeMultiplier}x'
                                 : 'Snow Conditions',
                             style: TextStyle(
                                 fontWeight: FontWeight.bold,
@@ -1101,7 +1104,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                             snowDepthInches! == 0
                                 ? 'No snow on the ground — standard pricing'
                                 : '${snowDepthInches!.toStringAsFixed(1)}" of snow on the ground'
-                                    '${surgeMultiplier > 1.0 ? ' — surge pricing active' : ''}',
+                                    '${surgeMultiplier > 1.0 ? ' — storm pricing active' : ''}',
                             style: TextStyle(
                               color: surgeMultiplier > 1.0 ? Colors.orange : Colors.blue,
                               fontSize: 12,

@@ -66,8 +66,9 @@ lib/
 - Driveway only: $100
 - Sidewalk + Driveway: $125
 - Salting add-on: +$40
-- Surge pricing: base_price × surge_multiplier (live — driven by snow depth via Open-Meteo API)
-  - 0–8": 1.0x, 8–13": 1.25x, 13–18": 1.5x, 18"+: 2.0x
+- Storm pricing (labeled "Storm pricing" in customer UI; internal var still surge_multiplier):
+  base_price × multiplier (live — driven by snow depth via Open-Meteo API)
+  - 0–3": 1.0x, 3–6": 1.3x, 6–10": 1.7x, 10"+: 2.3x
 - Platform commission: 30% (admin panel), provider payout: 70%
 - Payouts: 7-day rolling batch via admin panel
 
