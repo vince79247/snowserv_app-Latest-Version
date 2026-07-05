@@ -126,7 +126,13 @@ Customer can toggle "Ordering for someone else" to enter a different service add
 
 ## What's NOT built yet
 - Apple Pay
-- Customer in-app job modification after provider accepts (e.g. add salting)
+
+## Deliberately NOT doing (decided, do not re-propose)
+- Modifying an order after it's placed (e.g. "add salting" later). Considered and
+  rejected 2026-07-05: too confusing and not worth the payment-flow complexity
+  (the hold can't be raised, so it needs a new hold / delta charge). If a customer
+  forgets an add-on, they cancel and re-book — the instant hold-release makes that
+  painless. Order-time selection is the only place to choose services + salting.
 
 ## Recently built (previously on the NOT-built list)
 - Job completion UI (provider marks done, uploads photos to job-photos bucket)
