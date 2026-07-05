@@ -148,6 +148,20 @@ Customer can toggle "Ordering for someone else" to enter a different service add
   cancel after capture issues a real refund. refund-job returns action:
   released|refunded so the customer sees the right message.
 
+## Secrets & keys (verified 2026-07-05)
+Public-by-design, correctly in client code (lib/main.dart): Stripe publishable
+key (pk_test), Supabase anon/publishable key. Firebase API key (AIza…) in
+ios/Runner/GoogleService-Info.plist is Firebase client config, not secret.
+Server-side only (Supabase env vars, never in repo): STRIPE_SECRET_KEY,
+SUPABASE_SERVICE_ROLE_KEY, FIREBASE_SERVICE_ACCOUNT (Admin private key).
+`*firebase-adminsdk*.json` is gitignored.
+
+Hardening applied 2026-07-05: the Firebase "iOS key (auto created by Firebase)"
+(ends …NZz7Nk) is restricted in Google Cloud Console (project snowserv-a5a29) to
+Application restriction = iOS apps, bundle ID com.snowserv.app. API restrictions
+left unrestricted on purpose — restricting them risks breaking FCM push. The
+Browser key and firebase-adminsdk service account were left untouched.
+
 ## SQL to run (if not done yet)
 ```sql
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_intent_id text;
