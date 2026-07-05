@@ -34,6 +34,10 @@ class _CustomerHomeState extends State<CustomerHome> {
   double? snowDepthInches;
   String? _stripeCustomerId;
   Map<String, dynamic>? _savedCard;
+  // The active service area matching the current order address ZIP (null = the
+  // ZIP isn't served, or we don't have a ZIP yet). Prices come from here.
+  Map<String, dynamic>? _serviceArea;
+  bool _checkingArea = false;
   final Map<String, String> _prevJobStatuses = {};
   bool _completedDialogShowing = false;
   bool orderingForSomeoneElse = false;
@@ -51,6 +55,8 @@ class _CustomerHomeState extends State<CustomerHome> {
     loadSurge();
     subscribeToJobs();
     _loadSavedCard();
+    // Re-check availability as the "someone else" ZIP is typed.
+    _otherZipController.addListener(_refreshServiceArea);
   }
 
   @override
@@ -73,6 +79,7 @@ class _CustomerHomeState extends State<CustomerHome> {
           .limit(1);
       if (mounted && data.isNotEmpty) {
         setState(() => savedAddress = data.first);
+        _refreshServiceArea();
       }
     } catch (_) {}
   }
@@ -293,23 +300,122 @@ class _CustomerHomeState extends State<CustomerHome> {
     );
   }
 
+  // Prices come from the matched service area (0 when no area / unserved ZIP).
+  int get _priceSidewalk => (_serviceArea?['price_sidewalk'] as num?)?.round() ?? 0;
+  int get _priceDriveway => (_serviceArea?['price_driveway'] as num?)?.round() ?? 0;
+  int get _priceBoth => (_serviceArea?['price_both'] as num?)?.round() ?? 0;
+  int get _priceSalting => (_serviceArea?['price_salting'] as num?)?.round() ?? 0;
+
+  // The ZIP that determines pricing for this order — the "someone else" address
+  // when that toggle is on, otherwise the customer's saved address.
+  String? get _orderZip {
+    final z = orderingForSomeoneElse
+        ? _otherZipController.text.trim()
+        : savedAddress?['zip']?.toString().trim();
+    return (z == null || z.isEmpty) ? null : z;
+  }
+
+  // Look up the active service area covering the current order ZIP.
+  Future<void> _refreshServiceArea() async {
+    final zip = _orderZip;
+    if (zip == null || zip.length < 5) {
+      if (mounted) setState(() { _serviceArea = null; _checkingArea = false; });
+      return;
+    }
+    if (mounted) setState(() => _checkingArea = true);
+    try {
+      final rows = await supabase
+          .from('service_areas')
+          .select()
+          .eq('is_active', true)
+          .contains('zips', [zip]);
+      if (!mounted) return;
+      setState(() {
+        _serviceArea = rows.isNotEmpty ? Map<String, dynamic>.from(rows.first) : null;
+        _checkingArea = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() { _serviceArea = null; _checkingArea = false; });
+    }
+  }
+
+  Future<void> _joinWaitlist() async {
+    try {
+      await supabase.from('waitlist').insert({
+        'email': supabase.auth.currentUser?.email,
+        'zip': _orderZip,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You're on the waitlist — we'll email you when we reach your area.")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not join waitlist: $e')));
+      }
+    }
+  }
+
   int getBasePrice() {
     switch (selectedService) {
-      case 'sidewalk': return 50;
-      case 'driveway': return 100;
-      case 'sidewalk_driveway': return 125;
+      case 'sidewalk': return _priceSidewalk;
+      case 'driveway': return _priceDriveway;
+      case 'sidewalk_driveway': return _priceBoth;
       default: return 0;
     }
   }
 
   int getTotalBase() {
     int total = getBasePrice();
-    if (salting) total += 40;
+    if (salting) total += _priceSalting;
     return total;
   }
 
   int getFinalPrice() {
     return (getTotalBase() * surgeMultiplier).round();
+  }
+
+  Widget _buildNotAvailableBanner() {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.location_off, color: Colors.orange),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Not available in your area yet',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: SnowServColors.navy)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "SnowServ isn't in your area yet — but we're expanding. Join the waitlist and "
+            "we'll notify you the moment we arrive.",
+            style: TextStyle(fontSize: 13, color: Colors.black87),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _joinWaitlist,
+              icon: const Icon(Icons.notifications_active_outlined, size: 18),
+              label: const Text('Join the waitlist'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadSavedCard() async {
@@ -412,6 +518,15 @@ class _CustomerHomeState extends State<CustomerHome> {
         return;
       }
     }
+
+    // Availability gate — a matching active service area is required to order.
+    if (_serviceArea == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not available in your area yet.')),
+      );
+      return;
+    }
+
     setState(() => loading = true);
     try {
       final amountCents = getFinalPrice() * 100;
@@ -929,7 +1044,10 @@ class _CustomerHomeState extends State<CustomerHome> {
 
             const SizedBox(height: 12),
             GestureDetector(
-              onTap: () => setState(() => orderingForSomeoneElse = !orderingForSomeoneElse),
+              onTap: () {
+                setState(() => orderingForSomeoneElse = !orderingForSomeoneElse);
+                _refreshServiceArea();
+              },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
@@ -968,7 +1086,10 @@ class _CustomerHomeState extends State<CustomerHome> {
                     Switch(
                       value: orderingForSomeoneElse,
                       activeColor: Colors.purple,
-                      onChanged: (val) => setState(() => orderingForSomeoneElse = val),
+                      onChanged: (val) {
+                        setState(() => orderingForSomeoneElse = val);
+                        _refreshServiceArea();
+                      },
                     ),
                   ],
                 ),
@@ -1042,10 +1163,29 @@ class _CustomerHomeState extends State<CustomerHome> {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            serviceButton('sidewalk', 'Sidewalk Only', 50, Icons.directions_walk),
-            serviceButton('driveway', 'Driveway Only', 100, Icons.directions_car),
-            serviceButton('sidewalk_driveway', 'Sidewalk + Driveway', 125, Icons.home),
+            // Availability gate: prices + ordering only appear for a served ZIP.
+            if (_checkingArea)
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Row(children: [
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 10),
+                  Text('Checking availability in your area…', style: TextStyle(color: Colors.grey)),
+                ]),
+              ),
+            if (!_checkingArea && orderingForSomeoneElse && _orderZip == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Text('Enter the service address above to see pricing.',
+                    style: TextStyle(color: Colors.grey)),
+              ),
+            if (!_checkingArea && _orderZip != null && _serviceArea == null)
+              _buildNotAvailableBanner(),
+            if (_serviceArea != null) ...[
+              const SizedBox(height: 16),
+              serviceButton('sidewalk', 'Sidewalk Only', _priceSidewalk, Icons.directions_walk),
+              serviceButton('driveway', 'Driveway Only', _priceDriveway, Icons.directions_car),
+              serviceButton('sidewalk_driveway', 'Sidewalk + Driveway', _priceBoth, Icons.home),
 
             const SizedBox(height: 16),
             Material(
@@ -1059,7 +1199,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                 child: SwitchListTile(
                   title: const Text('Add Salting',
                       style: TextStyle(fontWeight: FontWeight.w600, color: SnowServColors.navy)),
-                  subtitle: const Text('+\$40', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  subtitle: Text('+\$$_priceSalting', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                   value: salting,
                   activeColor: SnowServColors.iceBlue,
                   onChanged: (val) => setState(() => salting = val),
@@ -1174,6 +1314,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                   : const Text('Request Service'),
             ),
             const SizedBox(height: 20),
+            ],
           ],
         ),
       ),
