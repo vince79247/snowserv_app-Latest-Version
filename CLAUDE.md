@@ -162,6 +162,11 @@ Application restriction = iOS apps, bundle ID com.snowserv.app. API restrictions
 left unrestricted on purpose — restricting them risks breaking FCM push. The
 Browser key and firebase-adminsdk service account were left untouched.
 
+## Domain & support email
+snowserv.app registered at Cloudflare (registrar + DNS). support@snowserv.app is a live
+Zoho Mail (free plan) alias on mailbox snowserv.app@snowserv.app; MX/SPF/DKIM set in
+Cloudflare DNS. The app's "Contact Support" links point to support@snowserv.app.
+
 ## SQL to run (if not done yet)
 ```sql
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_intent_id text;
