@@ -125,12 +125,22 @@ Customer can toggle "Ordering for someone else" to enter a different service add
 - Real-time job updates via Supabase Realtime (requires Realtime enabled on jobs table in Supabase dashboard)
 
 ## What's NOT built yet
-- Job completion UI (provider marks done, uploads photos)
-- Push notifications
 - Apple Pay
-- Android configuration
-- App icon and splash screen
 - Customer in-app job modification after provider accepts (e.g. add salting)
+
+## Recently built (previously on the NOT-built list)
+- Job completion UI (provider marks done, uploads photos to job-photos bucket)
+- Push notifications (FCM/APNs) for dispatch, accept, cancel, completion
+- App icon (flutter_launcher_icons) + native splash screen (flutter_native_splash,
+  iOS + Android): navy snowflake icon centered on frost #F0F6FF
+- Android platform scaffolding exists (android/ dir tracked)
+
+## Payment model (authorize-and-capture)
+- Order places an authorization HOLD (create-payment-intent: capture_method manual)
+- Provider accept captures the hold (capture-payment edge fn, idempotent)
+- Cancel before accept RELEASES the hold instantly (refund-job cancels the PI);
+  cancel after capture issues a real refund. refund-job returns action:
+  released|refunded so the customer sees the right message.
 
 ## SQL to run (if not done yet)
 ```sql
