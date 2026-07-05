@@ -236,6 +236,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
           tabs: [
             Tab(text: 'Jobs (${jobs.length})'),
             Tab(text: 'Customers (${users.where((u) => !providers.map((p) => p['user_id']?.toString()).toSet().contains(u['id']?.toString())).length})'),
