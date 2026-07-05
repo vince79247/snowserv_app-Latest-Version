@@ -103,13 +103,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   List<Map<String, dynamic>> users = [];
   List<Map<String, dynamic>> providers = [];
   List<Map<String, dynamic>> pendingPayouts = [];
+  List<Map<String, dynamic>> serviceAreas = [];
   bool loading = true;
   bool _payoutRunning = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     loadAll();
   }
 
@@ -142,6 +143,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           .eq('payout_status', 'pending')
           .lt('created_at', cutoff)
           .order('created_at', ascending: false);
+      // Loaded separately so a missing service_areas table (before the SQL is
+      // run) doesn't break the rest of the admin panel.
+      List<Map<String, dynamic>> areasList = [];
+      try {
+        final areasData = await supabase.from('service_areas').select().order('name');
+        areasList = List<Map<String, dynamic>>.from(areasData);
+      } catch (_) {}
+
       if (mounted) {
         final providerList = List<Map<String, dynamic>>.from(providersData);
         providerList.sort((a, b) {
@@ -155,6 +164,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           users = List<Map<String, dynamic>>.from(usersData);
           providers = providerList;
           pendingPayouts = List<Map<String, dynamic>>.from(payoutsData);
+          serviceAreas = areasList;
         });
       }
     } catch (e) {
@@ -247,6 +257,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ],
               ),
             ),
+            Tab(text: 'Areas (${serviceAreas.length})'),
           ],
         ),
       ),
@@ -259,8 +270,199 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 _buildUsersTab(),
                 _buildProvidersTab(),
                 _buildPayoutsTab(),
+                _buildServiceAreasTab(),
               ],
             ),
+    );
+  }
+
+  // ---- Service areas -------------------------------------------------------
+
+  Future<void> _toggleAreaActive(Map<String, dynamic> area) async {
+    await supabase
+        .from('service_areas')
+        .update({'is_active': !(area['is_active'] == true)})
+        .eq('id', area['id']);
+    loadAll();
+  }
+
+  Future<void> _deleteArea(Map<String, dynamic> area) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete service area?'),
+        content: Text(
+            'Remove "${area['name']}"? Customers in its ZIPs will no longer be able to order.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await supabase.from('service_areas').delete().eq('id', area['id']);
+    loadAll();
+  }
+
+  Future<void> _showAreaEditor([Map<String, dynamic>? area]) async {
+    final nameCtrl = TextEditingController(text: area?['name']?.toString() ?? '');
+    final zipsCtrl = TextEditingController(text: (area?['zips'] as List?)?.join(', ') ?? '');
+    final sidewalkCtrl = TextEditingController(text: area?['price_sidewalk']?.toString() ?? '50');
+    final drivewayCtrl = TextEditingController(text: area?['price_driveway']?.toString() ?? '100');
+    final bothCtrl = TextEditingController(text: area?['price_both']?.toString() ?? '125');
+    final saltingCtrl = TextEditingController(text: area?['price_salting']?.toString() ?? '40');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(area == null ? 'Add Service Area' : 'Edit Service Area'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Area name (e.g. Yonkers)')),
+              const SizedBox(height: 8),
+              TextField(
+                controller: zipsCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'ZIP codes (comma-separated)',
+                  hintText: '10701, 10704, 10710',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: TextField(controller: sidewalkCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Sidewalk \$'))),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: drivewayCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Driveway \$'))),
+              ]),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: TextField(controller: bothCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Both \$'))),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: saltingCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Salting \$'))),
+              ]),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (saved != true) return;
+
+    final zips = zipsCtrl.text
+        .split(',')
+        .map((z) => z.trim())
+        .where((z) => z.isNotEmpty)
+        .toList();
+    final payload = {
+      'name': nameCtrl.text.trim(),
+      'zips': zips,
+      'price_sidewalk': num.tryParse(sidewalkCtrl.text.trim()) ?? 0,
+      'price_driveway': num.tryParse(drivewayCtrl.text.trim()) ?? 0,
+      'price_both': num.tryParse(bothCtrl.text.trim()) ?? 0,
+      'price_salting': num.tryParse(saltingCtrl.text.trim()) ?? 0,
+    };
+    try {
+      if (area == null) {
+        await supabase.from('service_areas').insert({...payload, 'is_active': true});
+      } else {
+        await supabase.from('service_areas').update(payload).eq('id', area['id']);
+      }
+      loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      }
+    }
+  }
+
+  Widget _buildServiceAreasTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showAreaEditor(),
+              icon: const Icon(Icons.add_location_alt),
+              label: const Text('Add Service Area'),
+            ),
+          ),
+        ),
+        Expanded(
+          child: serviceAreas.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'No service areas yet.\nAdd one to start accepting orders in that ZIP.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: serviceAreas.length,
+                  itemBuilder: (context, i) {
+                    final a = serviceAreas[i];
+                    final active = a['is_active'] == true;
+                    final zips = (a['zips'] as List?)?.join(', ') ?? '';
+                    return Card(
+                      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(a['name']?.toString() ?? 'Area',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: SnowServColors.navy)),
+                                ),
+                                Text(active ? 'Active' : 'Off',
+                                    style: TextStyle(color: active ? Colors.green : Colors.grey, fontWeight: FontWeight.w600, fontSize: 12)),
+                                Switch(value: active, onChanged: (_) => _toggleAreaActive(a)),
+                              ],
+                            ),
+                            Text('ZIPs: ${zips.isEmpty ? '—' : zips}',
+                                style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Sidewalk \$${a['price_sidewalk']}  •  Driveway \$${a['price_driveway']}  •  Both \$${a['price_both']}  •  Salting +\$${a['price_salting']}',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: () => _showAreaEditor(a),
+                                  icon: const Icon(Icons.edit, size: 16),
+                                  label: const Text('Edit'),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () => _deleteArea(a),
+                                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                  label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
