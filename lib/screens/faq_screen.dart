@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../utils/legal.dart';
 
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
@@ -37,7 +38,26 @@ class _FaqTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
-      children: sections.map((section) => _SectionWidget(section: section)).toList(),
+      children: [
+        ...sections.map((section) => _SectionWidget(section: section)),
+        const SizedBox(height: 8),
+        // Reachable even before login (the FAQ opens from the auth screen), so
+        // this is the one policy surface a prospective user can find.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextButton(
+              onPressed: () => openLegalUrl(privacyPolicyUrl),
+              child: const Text('Privacy Policy', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ),
+            const Text('·', style: TextStyle(color: Colors.grey)),
+            TextButton(
+              onPressed: () => openLegalUrl(termsOfServiceUrl),
+              child: const Text('Terms of Service', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
