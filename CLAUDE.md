@@ -102,6 +102,19 @@ lib/
 - notify-providers: notifies providers of new job
 - notify-provider: notifies single provider (e.g. cancellation)
 - notify-customer: notifies customer (e.g. provider cancelled)
+- capture-payment: captures the held PaymentIntent when a provider accepts (idempotent)
+- notify-dispatch: notifies only the single provider a job was dispatched to
+- admin-doc-url: verifies admin password (ADMIN_PASSWORD secret) → returns a 1h
+  signed URL for a provider-documents file (service role). Only way to read that
+  private bucket.
+
+## Storage buckets
+- job-photos: PUBLIC (completion photos shown to customers). Read via getPublicUrl.
+- provider-documents: PRIVATE. Registration stores the object PATH (not a URL) in
+  providers.dl_photo_url / insurance_photo_url. Admin views via the admin-doc-url
+  function (password-gated signed URLs) — customers/providers/public cannot read it.
+- Admin panel auth is still the client-side password (admin_screen _adminPassword),
+  now also server-verified for doc access. Real admin auth = separate hardening item.
 
 ## Provider flow
 1. Toggle online → loads available jobs (status=requested, dispatched_to=this provider)
