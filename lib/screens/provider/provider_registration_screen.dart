@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import '../../theme.dart';
+import 'provider_agreement_screen.dart';
 
 const _kPrivacyUrl = 'https://docs.google.com/document/d/e/2PACX-1vTs3QKh1Sh_d9RfCX4w1lgWhugWIld3VGiLSJnFHE5-Yd-qIj9v5rrrI8FMYTtYa85aY2aP2-aKFHRi/pub';
 const _kTermsUrl = 'https://docs.google.com/document/d/e/2PACX-1vTcXcBxj_5lSgLWeWzPpPFWxSmA1BOjMgNs1fdFg1NFqZnIEWtluIwCyXbJLpnttfc0vD2Mts6IZcxb/pub';
@@ -53,6 +54,8 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
 
   // Step 5 - Agreement
   bool _termsAgreed = false;
+  bool _agreementSigned = false;
+  final _signatureController = TextEditingController();
 
   final _picker = ImagePicker();
   final _steps = ['Equipment', 'Identity', 'Insurance', 'Banking', 'Agreement'];
@@ -74,6 +77,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     _routingController.dispose();
     _accountController.dispose();
     _ssnController.dispose();
+    _signatureController.dispose();
     super.dispose();
   }
 
@@ -155,6 +159,14 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       case 4:
         if (!_termsAgreed) {
           _showError('Please agree to the Terms of Service to continue.');
+          return false;
+        }
+        if (_signatureController.text.trim().length < 3) {
+          _showError('Type your full legal name to sign the Provider Service Agreement.');
+          return false;
+        }
+        if (!_agreementSigned) {
+          _showError('Please read and sign the Provider Service Agreement to continue.');
           return false;
         }
         return true;
@@ -251,6 +263,9 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         'bank_account': _accountController.text.trim(),
         'ssn': _ssnController.text.replaceAll(RegExp(r'[^0-9]'), ''),
         'terms_agreed': true,
+        'service_agreement_signed_at': DateTime.now().toUtc().toIso8601String(),
+        'service_agreement_name': _signatureController.text.trim(),
+        'service_agreement_version': kProviderAgreementVersion,
         'registration_status': 'pending_review',
       }).eq('user_id', userId);
 
@@ -738,6 +753,63 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             activeColor: SnowServColors.iceBlue,
             title: const Text(
               'I have read and agree to the SnowServ Terms of Service.',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 12),
+          const Text('Provider Service Agreement',
+              style: TextStyle(fontWeight: FontWeight.bold, color: SnowServColors.navy)),
+          const SizedBox(height: 4),
+          const Text(
+            'Covers non-circumvention (no taking SnowServ customers off-platform). '
+            'You must read and sign it to accept jobs.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ProviderAgreementScreen())),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.assignment_outlined, color: Colors.blue, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                      child: Text('Read Provider Service Agreement',
+                          style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w600))),
+                  Icon(Icons.chevron_right, color: Colors.blue, size: 20),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _signatureController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Type your full legal name to sign',
+              prefixIcon: Icon(Icons.draw_outlined),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _agreementSigned,
+            onChanged: (val) => setState(() => _agreementSigned = val ?? false),
+            activeColor: SnowServColors.iceBlue,
+            title: const Text(
+              'I have read and agree to the Provider Service Agreement, and my typed name '
+              'above is my electronic signature.',
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             controlAffinity: ListTileControlAffinity.leading,

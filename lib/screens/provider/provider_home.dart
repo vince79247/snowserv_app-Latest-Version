@@ -12,6 +12,7 @@ import '../../utils/job_helpers.dart';
 import '../../utils/dispatch.dart';
 import '../../utils/legal.dart';
 import 'job_history_screen.dart';
+import 'provider_agreement_screen.dart';
 import '../faq_screen.dart';
 import '../admin/admin_screen.dart';
 
@@ -530,6 +531,16 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
               ...legalMenuTiles(context),
+              ListTile(
+                leading: const Icon(Icons.assignment_outlined, color: SnowServColors.navy),
+                title: const Text('Provider Service Agreement'),
+                trailing: const Icon(Icons.open_in_new, size: 16, color: Colors.grey),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ProviderAgreementScreen()));
+                },
+              ),
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),

@@ -32,6 +32,12 @@ Vince (Apple portal, decisions, etc.), not just code.
   full re-testing. **Dedicated session right before launch — do not rush mid-build.**
 
 ## Auth / signup (conversion)
+- ⏳ **Provider Service Agreement** (built 2026-07-06, anti-harvesting/non-circumvention):
+  (1) have a NY attorney review docs/provider_service_agreement.md before launch;
+  (2) fill the `[Company Legal Name]` placeholder (doc + provider_agreement_screen.dart);
+  (3) manual test — run a full NEW provider registration and confirm the read-link +
+  typed-signature + checkbox block submit until signed, and the signature saves to
+  providers.service_agreement_* . Existing providers are NOT gated (decided new-only).
 - ⏳ **Sign in with Apple** (+ optional Google). NOTE: Apple Guideline 4.8 — offering
   *any* social login forces Sign in with Apple too. Needs: Apple portal config
   (needs you), first-login provisioning of profiles/users/providers rows, and a

@@ -137,6 +137,17 @@ lib/
 5. Reject job → provider added to rejected_providers, job re-dispatched to next nearest
 6. Cancel accepted job → confirmation dialog, job reset to requested, re-dispatched, customer notified
 
+## Provider Service Agreement (anti-harvesting)
+- Provider-specific contract with a Non-Circumvention / Non-Solicitation clause
+  (no taking SnowServ customers off-platform). Source text: docs/provider_service_agreement.md
+  (a founder draft — NEEDS a NY attorney review; still has a [Company Legal Name] placeholder).
+- Rendered in-app: lib/screens/provider/provider_agreement_screen.dart (exports
+  kProviderAgreementVersion). Linked from the provider account menu too.
+- Signed at REGISTRATION only (existing/approved providers are NOT gated — decided
+  2026-07-06): agreement page has a read-link + typed full-name e-signature + required
+  checkbox; can't submit until signed. Stored on providers:
+  service_agreement_signed_at, service_agreement_name, service_agreement_version.
+
 ## Customer flow
 1. Add address (required before ordering)
 2. Select service + salting option
