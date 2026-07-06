@@ -155,6 +155,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
+          // High-contrast labels on the navy app bar (defaults render dim blue/grey).
+          labelColor: Colors.white,
+          unselectedLabelColor: SnowServColors.glacier,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
           tabs: [
             Tab(text: 'Jobs (${jobs.length})'),
             Tab(text: 'Customers (${users.where((u) => !providers.map((p) => p['user_id']?.toString()).toSet().contains(u['id']?.toString())).length})'),

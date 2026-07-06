@@ -530,6 +530,44 @@ class _CustomerHomeState extends State<CustomerHome> {
     }
   }
 
+  // Normalized address key for duplicate comparison (case/whitespace-insensitive).
+  String _addrKey(Map addr) => [
+        addr['address_line'],
+        addr['city'],
+        addr['state'],
+        addr['zip'],
+      ].map((v) => (v ?? '').toString().trim().toLowerCase()).join('|');
+
+  // True if the customer already has an active (requested/assigned/in_progress)
+  // order at the same address. Fail-open: returns false on any error so a
+  // hiccup in the check never blocks a legitimate order.
+  Future<bool> _hasActiveOrderForAddress(Map addr) async {
+    try {
+      final uid = supabase.auth.currentUser!.id;
+      final active = await supabase
+          .from('jobs')
+          .select('id, address_id')
+          .eq('customer_id', uid)
+          .inFilter('status', ['requested', 'assigned', 'in_progress']);
+      if (active.isEmpty) return false;
+      final ids = active.map((j) => j['address_id']).where((x) => x != null).toList();
+      if (ids.isEmpty) return false;
+      final addrs = await supabase
+          .from('addresses')
+          .select('id, address_line, city, state, zip')
+          .inFilter('id', ids);
+      final byId = {for (final a in addrs) a['id'].toString(): a};
+      final key = _addrKey(addr);
+      return active.any((j) {
+        final a = byId[j['address_id']?.toString()];
+        return a != null && _addrKey(a) == key;
+      });
+    } catch (e) {
+      debugPrint('Duplicate-order check failed (allowing order): $e');
+      return false;
+    }
+  }
+
   Future<void> createJob() async {
     // Block suspended accounts before any other processing
     final userData = await supabase
@@ -590,6 +628,40 @@ class _CustomerHomeState extends State<CustomerHome> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Not available in your area yet.')),
       );
+      return;
+    }
+
+    // Duplicate-order guard: one active order per address. Blocks placing a new
+    // order for an address that already has an active (requested/assigned/
+    // in_progress) job. Fail-open — if the check errors, allow the order.
+    final currentAddr = orderingForSomeoneElse
+        ? {
+            'address_line': _otherAddressController.text.trim(),
+            'city': _otherCityController.text.trim(),
+            'state': _otherStateController.text.trim(),
+            'zip': _otherZipController.text.trim(),
+          }
+        : savedAddress!;
+    if (await _hasActiveOrderForAddress(currentAddr)) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Row(children: [
+              Icon(Icons.info_outline, color: SnowServColors.iceBlue),
+              SizedBox(width: 8),
+              Text('Order already active'),
+            ]),
+            content: const Text(
+              'You already have an active order for this address. Please wait for '
+              'it to finish, or cancel it, before placing a new order.',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+            ],
+          ),
+        );
+      }
       return;
     }
 
