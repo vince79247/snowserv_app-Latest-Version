@@ -146,9 +146,10 @@ lib/
   cap, so nothing is stranded when everyone is busy.
 - AUTO-ACCEPT (providers.auto_accept, opt-in toggle on provider home): a job routed to
   an auto-accept provider is assigned directly (status=assigned) instead of a pending
-  offer — no countdown to miss. Notified via notify-provider status 'auto_assigned'
-  (client path only — the cron can't call edge functions, so cron auto-assigns are
-  silent until the provider's app refreshes; acceptable for now).
+  offer — no countdown to miss. Provider notified via notify-provider status
+  'auto_assigned' from BOTH paths: the client calls it directly; the cron calls it
+  via pg_net (net.http_post, same pattern as the payout cron) so a closed-app
+  provider still gets the push.
 - NOTE: cron expires offers at 3 min but the provider UI countdown is 4 min
   (_kDispatchSeconds=240) — a known minor mismatch, not yet reconciled.
 
