@@ -108,7 +108,8 @@ lib/
 - notify-providers: notifies providers of new job
 - notify-provider: notifies single provider (e.g. cancellation)
 - notify-customer: notifies customer (e.g. provider cancelled)
-- capture-payment: captures the held PaymentIntent when a provider accepts (idempotent)
+- capture-payment: captures the held PaymentIntent when a provider STARTS the job
+  (markInProgress → status in_progress); idempotent. NOT on accept.
 - notify-dispatch: notifies only the single provider a job was dispatched to
 - admin-doc-url: verifies admin password (ADMIN_PASSWORD secret) → returns a 1h
   signed URL for a provider-documents file (service role). Only way to read that
@@ -184,8 +185,12 @@ Customer can toggle "Ordering for someone else" to enter a different service add
 
 ## Payment model (authorize-and-capture)
 - Order places an authorization HOLD (create-payment-intent: capture_method manual)
-- Provider accept captures the hold (capture-payment edge fn, idempotent)
-- Cancel before accept RELEASES the hold instantly (refund-job cancels the PI);
+- Provider STARTING the job captures the hold (capture-payment, idempotent), called
+  from markInProgress (status → in_progress). Accept does NOT capture — it stays a
+  hold through requested/assigned. Chosen 2026-07-06 so a customer who cancels before
+  work begins is never charged (customers can only cancel before In Progress anyway).
+  The payment sheet shows a "this is a hold, not a charge" note; FAQ matches.
+- Cancel before start RELEASES the hold instantly (refund-job cancels the PI);
   cancel after capture issues a real refund. refund-job returns action:
   released|refunded so the customer sees the right message.
 

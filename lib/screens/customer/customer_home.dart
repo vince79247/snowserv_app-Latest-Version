@@ -1694,6 +1694,32 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
           ],
           const SizedBox(height: 12),
+          // Reassure the customer this is an authorization hold, not a charge —
+          // shown at the moment of payment (not just buried in the FAQ).
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: SnowServColors.frost,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: SnowServColors.glacier),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Icon(Icons.lock_clock_outlined, size: 18, color: SnowServColors.iceBlue),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "This places a hold — you're not charged yet. Your card is only "
+                    "charged when a provider starts the job, so if you cancel before "
+                    "then, you're never charged.",
+                    style: TextStyle(fontSize: 12, color: SnowServColors.navy, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           ElevatedButton(
             onPressed: _paying ? null : _pay,
             child: _paying

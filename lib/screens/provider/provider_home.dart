@@ -579,12 +579,9 @@ class _ProviderHomeState extends State<ProviderHome> {
         'dispatched_to': null,
         if (eta != null) 'eta_minutes': eta,
       }).eq('id', jobId);
-      // A provider is now committed — capture the customer's held payment.
-      try {
-        await supabase.functions.invoke('capture-payment', body: {'job_id': jobId});
-      } catch (e) {
-        debugPrint('Capture failed for $jobId: $e');
-      }
+      // Payment stays on HOLD at accept — it's captured when the provider
+      // starts the job (see markInProgress). Cancelling before start releases
+      // the hold, so the customer is never charged for a no-show.
       _notifyCustomer(jobId, 'assigned');
       loadActiveJobs();
       if (mounted) {
@@ -675,12 +672,8 @@ class _ProviderHomeState extends State<ProviderHome> {
         return;
       }
 
-      // A provider is now committed — capture the customer's held payment.
-      try {
-        await supabase.functions.invoke('capture-payment', body: {'job_id': jobId});
-      } catch (e) {
-        debugPrint('Capture failed for $jobId: $e');
-      }
+      // Payment stays on HOLD at accept — captured when the provider starts the
+      // job (markInProgress), so cancelling before start never charges the card.
       _notifyCustomer(jobId, 'assigned');
       if (mounted) {
         setState(() => _waitingJobs
@@ -768,7 +761,34 @@ class _ProviderHomeState extends State<ProviderHome> {
 
   Future<void> markInProgress(String jobId) async {
     try {
+      // Guard against a stale card: if the customer cancelled (or the job
+      // otherwise moved on) but the dashboard hadn't refreshed, don't start it
+      // — that would flip a cancelled job to in_progress and try to charge.
+      final current =
+          await supabase.from('jobs').select('status').eq('id', jobId).maybeSingle();
+      final status = current?['status'] as String?;
+      if (status != 'assigned') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(status == 'cancelled'
+                ? 'The customer cancelled this job.'
+                : 'This job is no longer available.'),
+            backgroundColor: Colors.red,
+          ));
+        }
+        loadActiveJobs();
+        loadDispatchedJob();
+        loadWaitingJobs();
+        return;
+      }
       await supabase.from('jobs').update({'status': 'in_progress'}).eq('id', jobId);
+      // The provider has started work — NOW capture the customer's held payment.
+      // (Idempotent; a no-op if it was somehow already captured.)
+      try {
+        await supabase.functions.invoke('capture-payment', body: {'job_id': jobId});
+      } catch (e) {
+        debugPrint('Capture failed for $jobId: $e');
+      }
       _notifyCustomer(jobId, 'in_progress');
       loadActiveJobs();
     } catch (e) {

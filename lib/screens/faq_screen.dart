@@ -163,7 +163,7 @@ const _customerSections = [
     ),
     _FaqItem(
       'What if no provider is available?',
-      'Your job stays in the queue. We\'ll notify you the moment a provider accepts. You can cancel at any time for a full refund while the job hasn\'t started.',
+      'Your job stays in the queue. We\'ll notify you the moment a provider accepts. You can cancel any time before the job starts — and since your card isn\'t charged until a provider starts the job, you won\'t be charged.',
     ),
   ]),
   _FaqSection('Pricing & Payment', [
@@ -177,11 +177,11 @@ const _customerSections = [
     ),
     _FaqItem(
       'When am I charged?',
-      'When you place an order, we put a temporary authorization hold on your card for the job amount. This reserves the funds and confirms your card is valid — but it is NOT a charge yet.\n\nYour card is only actually charged once a provider accepts your job. If no provider accepts, or you cancel before one does, the hold is released and you are never charged.',
+      'When you place an order, we put a temporary authorization hold on your card for the job amount. This reserves the funds and confirms your card is valid — but it is NOT a charge yet.\n\nYour card is only actually charged once a provider starts your job. Until then it stays a hold — so if no provider takes the job, or you cancel before a provider starts, the hold is released and you are never charged.',
     ),
     _FaqItem(
       'Why do I see a "pending" amount on my card?',
-      'That is the authorization hold, not a charge. When you place an order we reserve the job amount to confirm your card, and it shows as "pending" on your statement.\n\nIt only becomes a real charge when a provider accepts your job. If the order is cancelled before that, the pending hold drops off on its own, usually within a few minutes to a couple of days depending on your bank.',
+      'That is the authorization hold, not a charge. When you place an order we reserve the job amount to confirm your card, and it shows as "pending" on your statement.\n\nIt only becomes a real charge when a provider starts your job. If the order is cancelled before that, the pending hold drops off on its own, usually within a few minutes to a couple of days depending on your bank.',
     ),
     _FaqItem(
       'Can I save my payment method?',
@@ -191,11 +191,11 @@ const _customerSections = [
   _FaqSection('Cancellations & Refunds', [
     _FaqItem(
       'Can I cancel my order?',
-      'Yes, you can cancel from your home screen at any time before the job is marked In Progress.\n\nIf no provider has accepted yet, your card was never charged — we simply release the authorization hold. If a provider had already accepted (so your card was charged), you receive a full refund.',
+      'Yes, you can cancel from your home screen at any time before the job is marked In Progress.\n\nBecause we don\'t charge your card until a provider starts the job, cancelling means your card was never charged — we simply release the authorization hold, and the pending amount drops off.',
     ),
     _FaqItem(
       'How long does a refund take?',
-      'It depends on where your order was when you cancelled:\n\n• Cancelled before a provider accepted: no charge was ever taken, so there is nothing to refund. We release the authorization hold, which typically clears from your account within a few minutes to a couple of days.\n\n• Cancelled after a provider accepted (your card was charged): we issue the refund instantly, but your bank takes 5–10 business days to post the credit back. That delay is on the bank\'s side, not ours.',
+      'If you cancelled before the job started, no charge was ever taken — we release the authorization hold, which typically clears from your account within a few minutes to a couple of days.\n\nIn the rare case a refund is issued after your card was charged (for example, a job that couldn\'t be completed after it started), we process it instantly, but your bank takes 5–10 business days to post the credit back. That delay is on the bank\'s side, not ours.',
     ),
     _FaqItem(
       'What if the provider cancels?',
@@ -272,7 +272,7 @@ const _providerSections = [
     ),
     _FaqItem(
       'How does storm pricing affect my pay?',
-      'Storm pricing increases the total job price, and your 70% cut applies to that higher amount. During a 2.3× storm event, your earnings scale up automatically.',
+      'When it snows harder, storm pricing raises the total job price — and since you keep 70%, your pay scales up with it automatically. The same snow-depth tiers customers see apply to your earnings:\n\nUp to 3 inches: standard price\n3–6 inches: 1.3× multiplier\n6–10 inches: 1.7× multiplier\n10+ inches: 2.3× multiplier\n\nExample: a \$125 job during a 2.3× storm bills at \$287.50, so your 70% is \$201.25.',
     ),
     _FaqItem(
       'How long does it take to get paid?',
