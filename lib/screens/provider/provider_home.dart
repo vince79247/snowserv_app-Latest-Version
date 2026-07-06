@@ -1518,6 +1518,20 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                   ),
                                 ],
                                 const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => _launchNavigation(Map<String, dynamic>.from(job)),
+                                    icon: const Icon(Icons.directions, size: 18),
+                                    label: const Text('Directions'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: SnowServColors.iceBlue,
+                                      side: const BorderSide(color: SnowServColors.iceBlue),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
                                 Row(
                                   children: [
                                     Expanded(
