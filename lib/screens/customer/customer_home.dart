@@ -13,6 +13,7 @@ import '../../utils/legal.dart';
 import 'address_screen.dart';
 import 'job_history_screen.dart';
 import '../faq_screen.dart';
+import '../admin/admin_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -38,6 +39,7 @@ class _CustomerHomeState extends State<CustomerHome> {
   // ZIP isn't served, or we don't have a ZIP yet). Prices come from here.
   Map<String, dynamic>? _serviceArea;
   bool _checkingArea = false;
+  bool _isAdmin = false;
   final Map<String, String> _prevJobStatuses = {};
   bool _completedDialogShowing = false;
   bool orderingForSomeoneElse = false;
@@ -55,6 +57,7 @@ class _CustomerHomeState extends State<CustomerHome> {
     loadSurge();
     subscribeToJobs();
     _loadSavedCard();
+    _loadIsAdmin();
     // Re-check availability as the "someone else" ZIP is typed.
     _otherZipController.addListener(_refreshServiceArea);
   }
@@ -81,6 +84,17 @@ class _CustomerHomeState extends State<CustomerHome> {
         setState(() => savedAddress = data.first);
         _refreshServiceArea();
       }
+    } catch (_) {}
+  }
+
+  Future<void> _loadIsAdmin() async {
+    try {
+      final data = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', supabase.auth.currentUser!.id)
+          .maybeSingle();
+      if (mounted && data?['is_admin'] == true) setState(() => _isAdmin = true);
     } catch (_) {}
   }
 
@@ -219,6 +233,18 @@ class _CustomerHomeState extends State<CustomerHome> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
+              if (_isAdmin) ...[
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings, color: SnowServColors.iceBlue),
+                  title: const Text('Admin Panel'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const AdminPanelScreen()));
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+              ],
               ListTile(
                 leading: const Icon(Icons.email_outlined, color: SnowServColors.navy),
                 title: const Text('Contact Support'),

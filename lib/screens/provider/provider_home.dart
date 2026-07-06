@@ -12,6 +12,7 @@ import '../../utils/dispatch.dart';
 import '../../utils/legal.dart';
 import 'job_history_screen.dart';
 import '../faq_screen.dart';
+import '../admin/admin_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -40,11 +41,13 @@ class _ProviderHomeState extends State<ProviderHome> {
   Timer? _countdownTimer;
   int _secondsRemaining = _kDispatchSeconds;
   bool _declining = false;
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
     loadProviderRecord();
+    _loadIsAdmin();
   }
 
   @override
@@ -52,6 +55,17 @@ class _ProviderHomeState extends State<ProviderHome> {
     _jobsChannel?.unsubscribe();
     _stopCountdown();
     super.dispose();
+  }
+
+  Future<void> _loadIsAdmin() async {
+    try {
+      final data = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', supabase.auth.currentUser!.id)
+          .maybeSingle();
+      if (mounted && data?['is_admin'] == true) setState(() => _isAdmin = true);
+    } catch (_) {}
   }
 
   void subscribeToJobs() {
@@ -438,6 +452,18 @@ class _ProviderHomeState extends State<ProviderHome> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
+              if (_isAdmin) ...[
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings, color: SnowServColors.iceBlue),
+                  title: const Text('Admin Panel'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const AdminPanelScreen()));
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+              ],
               ListTile(
                 leading: const Icon(Icons.email_outlined, color: SnowServColors.navy),
                 title: const Text('Contact Support'),

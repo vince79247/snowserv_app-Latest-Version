@@ -4,90 +4,6 @@ import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 
 final supabase = Supabase.instance.client;
-const _adminPassword = 'SnowServ@Admin2026';
-
-class AdminLoginScreen extends StatefulWidget {
-  const AdminLoginScreen({super.key});
-
-  @override
-  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
-}
-
-class _AdminLoginScreenState extends State<AdminLoginScreen> {
-  final _passwordController = TextEditingController();
-  bool _obscure = true;
-  String? _error;
-
-  void _login() {
-    if (_passwordController.text == _adminPassword) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
-      );
-    } else {
-      setState(() => _error = 'Incorrect password.');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: SnowServColors.navy,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.admin_panel_settings, size: 64, color: Colors.white),
-              const SizedBox(height: 16),
-              const Text('Admin Panel',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 8),
-              const Text('SnowServ', style: TextStyle(color: SnowServColors.glacier, fontSize: 14)),
-              const SizedBox(height: 40),
-              TextField(
-                controller: _passwordController,
-                obscureText: _obscure,
-                autocorrect: false,
-                enableSuggestions: false,
-                textCapitalization: TextCapitalization.none,
-                decoration: InputDecoration(
-                  labelText: 'Admin Password',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                  ),
-                ),
-                onSubmitted: (_) => _login(),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              ],
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: SnowServColors.iceBlue,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Enter', style: TextStyle(fontSize: 16)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -305,7 +221,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     String? url;
     try {
       final resp = await supabase.functions.invoke('admin-doc-url', body: {
-        'admin_password': _adminPassword,
         'path': pathOrUrl,
       });
       if (resp.data is Map) url = resp.data['signed_url'] as String?;

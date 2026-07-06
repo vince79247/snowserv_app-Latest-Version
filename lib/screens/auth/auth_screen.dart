@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 import '../../theme.dart';
 import '../../utils/legal.dart';
-import '../admin/admin_screen.dart';
 import '../faq_screen.dart';
 import '../quote_screen.dart';
 
@@ -376,20 +375,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           child: const Text(
                             'Forgot Password?',
                             style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                        const Divider(),
-                        TextButton.icon(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const AdminLoginScreen()),
-                          ),
-                          icon: const Icon(Icons.admin_panel_settings,
-                              size: 16, color: Colors.grey),
-                          label: const Text(
-                            'Admin Access',
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
                           ),
                         ),
                       ],
