@@ -30,6 +30,12 @@ Vince (Apple portal, decisions, etc.), not just code.
   security. Tightening every table's policies so the DB enforces who-can-do-what
   is the big one: touches every flow (order, accept, payout, admin) and needs
   full re-testing. **Dedicated session right before launch — do not rush mid-build.**
+  - CAVEAT: the customer "N jobs ahead of you" line (customer_home
+    `_refreshQueuePositions`) counts the assigned provider's OTHER active job
+    rows — it works today only because SELECT on jobs is permissive. When
+    locking down, preserve a path for that count (a narrow policy, an RPC, or an
+    edge function) or the queue-position display silently reads 0/blank. Same
+    applies to any anon jobs reads used for diagnostics.
 
 ## Auth / signup (conversion)
 - ⏳ **Provider Service Agreement** (built 2026-07-06, anti-harvesting/non-circumvention):
@@ -50,6 +56,11 @@ Vince (Apple portal, decisions, etc.), not just code.
   Google/Mapbox before real volume. Shared helper: lib/utils/geocode.dart.
 - ⏳ **Storm-burst load test** — simulate a spike (k6 / Artillery) on order→dispatch;
   the real risk for this app is bursts during storms, not steady traffic. Do before launch.
+- ⏳ **Multi-provider dispatch + queue-position functional test** (deferred from
+  build 2026-07-06, low-risk sort/display change): with 2–3 online approved
+  providers and stacked jobs, confirm load-aware dispatch routes new jobs to the
+  least-busy nearby provider, and the customer's "N jobs ahead of you" line
+  counts correctly. Natural to fold into a pre-launch beta/dry-run.
 - ⏳ **Database indexes** on hot paths: jobs(customer_id), jobs(status),
   jobs(dispatched_to), providers(user_id), service_areas(zips GIN).
 - ⏳ **Supabase Pro plan** + watch metrics dashboard (CPU, connections, slow queries).
