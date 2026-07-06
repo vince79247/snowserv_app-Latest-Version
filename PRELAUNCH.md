@@ -4,12 +4,28 @@ Living list of what must happen before real users, in rough priority order.
 Status: ✅ done · 🔨 in progress · ⏳ todo · 🧊 later. "Needs you" = requires
 Vince (Apple portal, decisions, etc.), not just code.
 
+## Handoff — where we left off (last session)
+- Shipped & deployed: regional pricing (service_areas) + availability gate +
+  pre-signup quote; storm pricing; real admin auth (profiles.is_admin, no shared
+  password — Admin Panel entry in the account menu for is_admin accounts);
+  provider-documents locked private + admin-only viewer. All edge functions
+  deployed & current; supabase secrets verified.
+- Admin account: vcitarella2004@yahoo.com (is_admin=true). Log in normally →
+  account menu → Admin Panel. Decided to KEEP this UX for now (not route straight
+  to admin) so the account can still test as a customer during the build.
+- ⏳ Verify later (manual): provider document viewing end-to-end — register a test
+  provider WITH photo uploads, then open them in admin (existing test providers
+  have nothing uploaded, so "View" shows nothing — that's correct, not a bug).
+- Next candidates: web admin (flutter build web — now unblocked) or Apple sign-in.
+
 ## Security hardening
 - ✅ Firebase iOS API key restricted to bundle id (Google Cloud Console)
 - ✅ Provider documents: private bucket + admin-only signed-URL viewing (admin-doc-url)
 - ✅ Secrets server-side only (Stripe secret, service role, Firebase admin)
 - 🔨 **Real admin authentication** — replace the shared client-side admin password
   with a real `profiles.is_admin` account; verify server-side in functions.
+- ⏳ **GitHub token in git remote** — origin URL has a personal access token in
+  plaintext in .git/config. Rotate it and switch to a credential helper / SSH.
 - 🧊 **Full RLS lockdown** — the app currently runs on permissive/loose row-level
   security. Tightening every table's policies so the DB enforces who-can-do-what
   is the big one: touches every flow (order, accept, payout, admin) and needs
