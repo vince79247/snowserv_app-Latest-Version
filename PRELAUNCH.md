@@ -38,6 +38,10 @@ Vince (Apple portal, decisions, etc.), not just code.
   "customer or provider?" step after social sign-in.
 
 ## Scale / reliability
+- ⏳ **Paid geocoder** — pricing/availability now geocodes the address (quote + order)
+  to match it to a geofenced zone. Currently uses free OSM Nominatim (rate-limited
+  ~1 req/s, not meant for commercial volume; debounced + result reused). Swap for
+  Google/Mapbox before real volume. Shared helper: lib/utils/geocode.dart.
 - ⏳ **Storm-burst load test** — simulate a spike (k6 / Artillery) on order→dispatch;
   the real risk for this app is bursts during storms, not steady traffic. Do before launch.
 - ⏳ **Database indexes** on hot paths: jobs(customer_id), jobs(status),

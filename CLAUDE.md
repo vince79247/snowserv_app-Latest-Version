@@ -35,12 +35,17 @@ Used for: role-based routing in Flutter (RoleRouter)
 id, user_id, address_line, city, state, zip
 
 ### service_areas
-id, name, zips (text[]), price_sidewalk, price_driveway, price_both, price_salting,
-is_active (bool), created_at. Drives REGIONAL pricing + who can order: a customer's
-address ZIP is matched to an active area (zips @> [zip]); that area's prices apply.
-No active area for the ZIP → can't order ("Not available in your area yet"). Managed
-in the admin panel's "Areas" tab. Public SELECT via RLS (so the pre-signup quote can
-read prices with the anon key).
+id, name, zips (text[], legacy), polygon (jsonb — ordered list of {lat,lng} vertices),
+price_sidewalk, price_driveway, price_both, price_salting, is_active (bool), created_at.
+Drives REGIONAL pricing + who can order via GEOFENCED ZONES: the customer's address is
+geocoded to a lat/lng point, then tested (point-in-polygon, client-side in Dart —
+lib/utils/geo.dart matchZone) against each active zone's `polygon`; the matching zone's
+prices apply. No matching zone → can't order ("Not available in your area yet"). Managed
+in the admin panel's "Areas" tab via a map-based polygon drawer (lib/screens/admin/
+zone_editor_screen.dart). `zips` is a LEGACY fallback: matchZone falls back to zips @> [zip]
+only for zones that have no polygon yet (migration safety) or when geocoding failed.
+Public SELECT via RLS (so the pre-signup quote can read zones with the anon key).
+REQUIRES: `ALTER TABLE service_areas ADD COLUMN IF NOT EXISTS polygon jsonb;`
 
 ### waitlist
 id, email, zip, address, created_at. Captured when someone's ZIP isn't served yet
@@ -75,8 +80,9 @@ lib/
 ```
 
 ## Pricing
-- REGIONAL: prices come from the matched service_areas row (per ZIP), editable in
-  the admin "Areas" tab — NOT hardcoded. Values below are the Yonkers launch defaults.
+- REGIONAL: prices come from the matched service_areas zone (geofenced polygon that
+  the geocoded address falls inside), editable in the admin "Areas" tab — NOT hardcoded.
+  Values below are the Yonkers launch defaults.
 - Sidewalk only: $50
 - Driveway only: $100
 - Sidewalk + Driveway: $125
@@ -205,7 +211,12 @@ Cloudflare DNS. The app's "Contact Support" links point to support@snowserv.app.
 ## SQL to run (if not done yet)
 ```sql
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_intent_id text;
+-- Geofenced pricing zones (polygon boundary per service_areas row):
+ALTER TABLE service_areas ADD COLUMN IF NOT EXISTS polygon jsonb;
 ```
+After running the polygon migration, open each existing zone in the admin "Areas" tab
+and draw its boundary (tap the map) → Save. Until a zone has a polygon, ordering in it
+falls back to its legacy `zips` list.
 
 ## macOS entitlements
 Both network.client and network.server enabled in macos/Runner/DebugProfile.entitlements

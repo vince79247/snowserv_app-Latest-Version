@@ -3,13 +3,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_stripe/flutter_stripe.dart' hide Card;
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/dispatch.dart';
 import '../../utils/legal.dart';
+import '../../utils/geo.dart';
+import '../../utils/geocode.dart';
 import 'address_screen.dart';
 import 'job_history_screen.dart';
 import '../faq_screen.dart';
@@ -35,10 +37,18 @@ class _CustomerHomeState extends State<CustomerHome> {
   double? snowDepthInches;
   String? _stripeCustomerId;
   Map<String, dynamic>? _savedCard;
-  // The active service area matching the current order address ZIP (null = the
-  // ZIP isn't served, or we don't have a ZIP yet). Prices come from here.
+  // The active service area (pricing zone) matching the current order address
+  // (null = the address isn't in a served zone, or we don't have one yet).
+  // Prices come from here.
   Map<String, dynamic>? _serviceArea;
   bool _checkingArea = false;
+  // Geocoded order address, cached from the availability check so createJob can
+  // reuse it for job_lat/lng without geocoding a second time.
+  double? _orderLat;
+  double? _orderLng;
+  // Debounces availability re-checks while the "someone else" address is typed
+  // (each check geocodes, which is rate-limited).
+  Timer? _areaDebounce;
   bool _isAdmin = false;
   final Map<String, String> _prevJobStatuses = {};
   bool _completedDialogShowing = false;
@@ -58,13 +68,23 @@ class _CustomerHomeState extends State<CustomerHome> {
     subscribeToJobs();
     _loadSavedCard();
     _loadIsAdmin();
-    // Re-check availability as the "someone else" ZIP is typed.
-    _otherZipController.addListener(_refreshServiceArea);
+    // Re-check availability (debounced) as the "someone else" address is typed.
+    _otherAddressController.addListener(_scheduleAreaRefresh);
+    _otherCityController.addListener(_scheduleAreaRefresh);
+    _otherStateController.addListener(_scheduleAreaRefresh);
+    _otherZipController.addListener(_scheduleAreaRefresh);
+  }
+
+  // Debounce typing so we geocode at most once the user pauses.
+  void _scheduleAreaRefresh() {
+    _areaDebounce?.cancel();
+    _areaDebounce = Timer(const Duration(milliseconds: 700), _refreshServiceArea);
   }
 
   @override
   void dispose() {
     _jobsChannel?.unsubscribe();
+    _areaDebounce?.cancel();
     _otherAddressController.dispose();
     _otherCityController.dispose();
     _otherStateController.dispose();
@@ -332,8 +352,9 @@ class _CustomerHomeState extends State<CustomerHome> {
   int get _priceBoth => (_serviceArea?['price_both'] as num?)?.round() ?? 0;
   int get _priceSalting => (_serviceArea?['price_salting'] as num?)?.round() ?? 0;
 
-  // The ZIP that determines pricing for this order — the "someone else" address
-  // when that toggle is on, otherwise the customer's saved address.
+  // The ZIP for the current order — the "someone else" address when that toggle
+  // is on, otherwise the customer's saved address. Used for waitlist capture and
+  // as a legacy fallback when a zone has no polygon yet.
   String? get _orderZip {
     final z = orderingForSomeoneElse
         ? _otherZipController.text.trim()
@@ -341,27 +362,67 @@ class _CustomerHomeState extends State<CustomerHome> {
     return (z == null || z.isEmpty) ? null : z;
   }
 
-  // Look up the active service area covering the current order ZIP.
+  // The full order address (map) to geocode, or null if it's not complete
+  // enough to price yet.
+  Map<String, dynamic>? get _orderAddressForGeo {
+    if (orderingForSomeoneElse) {
+      final line = _otherAddressController.text.trim();
+      final city = _otherCityController.text.trim();
+      final state = _otherStateController.text.trim();
+      final zip = _otherZipController.text.trim();
+      if (line.isEmpty || city.isEmpty || state.isEmpty || zip.length < 5) return null;
+      return {'address_line': line, 'city': city, 'state': state, 'zip': zip};
+    }
+    final a = savedAddress;
+    if (a == null) return null;
+    return {
+      'address_line': a['address_line'],
+      'city': a['city'],
+      'state': a['state'],
+      'zip': a['zip'],
+    };
+  }
+
+  bool get _orderAddressReady => _orderAddressForGeo != null;
+
+  // Geocode the current order address and match it to an active pricing zone
+  // (polygon geofence, with a legacy ZIP fallback). Caches the geocoded point
+  // so createJob can reuse it for job_lat/lng.
   Future<void> _refreshServiceArea() async {
-    final zip = _orderZip;
-    if (zip == null || zip.length < 5) {
-      if (mounted) setState(() { _serviceArea = null; _checkingArea = false; });
+    final addr = _orderAddressForGeo;
+    if (addr == null) {
+      if (mounted) {
+        setState(() {
+          _serviceArea = null;
+          _orderLat = null;
+          _orderLng = null;
+          _checkingArea = false;
+        });
+      }
       return;
     }
     if (mounted) setState(() => _checkingArea = true);
     try {
-      final rows = await supabase
-          .from('service_areas')
-          .select()
-          .eq('is_active', true)
-          .contains('zips', [zip]);
+      final geo = await geocodeAddress(addr);
+      final rows = await supabase.from('service_areas').select().eq('is_active', true);
+      final zones = (rows as List).map((r) => Map<String, dynamic>.from(r)).toList();
+      final match = matchZone(geo?['lat'], geo?['lng'], zip: _orderZip, zones: zones);
       if (!mounted) return;
       setState(() {
-        _serviceArea = rows.isNotEmpty ? Map<String, dynamic>.from(rows.first) : null;
+        _serviceArea = match;
+        _orderLat = geo?['lat'];
+        _orderLng = geo?['lng'];
         _checkingArea = false;
       });
     } catch (_) {
-      if (mounted) setState(() { _serviceArea = null; _checkingArea = false; });
+      if (mounted) {
+        setState(() {
+          _serviceArea = null;
+          _orderLat = null;
+          _orderLng = null;
+          _checkingArea = false;
+        });
+      }
     }
   }
 
@@ -467,27 +528,6 @@ class _CustomerHomeState extends State<CustomerHome> {
     } catch (e) {
       debugPrint('Load saved card error: $e');
     }
-  }
-
-  Future<Map<String, double>?> _geocodeAddress(Map<String, dynamic> address) async {
-    try {
-      final query = Uri.encodeComponent(
-        '${address['address_line']}, ${address['city']}, ${address['state']} ${address['zip']}');
-      final res = await http.get(
-        Uri.parse('https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1'),
-        headers: {'User-Agent': 'SnowServApp/1.0'},
-      ).timeout(const Duration(seconds: 5));
-      if (res.statusCode == 200) {
-        final results = jsonDecode(res.body) as List;
-        if (results.isNotEmpty) {
-          return {
-            'lat': double.parse(results[0]['lat']),
-            'lng': double.parse(results[0]['lon']),
-          };
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
   Future<void> createJob() async {
@@ -657,15 +697,16 @@ class _CustomerHomeState extends State<CustomerHome> {
 
       final notes = _customerNotesController.text.trim();
 
-      final addressForGeo = orderingForSomeoneElse ? {
-        'address_line': _otherAddressController.text.trim(),
-        'city': _otherCityController.text.trim(),
-        'state': _otherStateController.text.trim(),
-        'zip': _otherZipController.text.trim(),
-      } : savedAddress;
-      final geo = addressForGeo != null ? await _geocodeAddress(addressForGeo) : null;
-      final jobLat = geo?['lat'];
-      final jobLng = geo?['lng'];
+      // Reuse the point geocoded during the availability check; geocode once
+      // more only if we somehow don't have it (e.g. matched via ZIP fallback).
+      double? jobLat = _orderLat;
+      double? jobLng = _orderLng;
+      if (jobLat == null || jobLng == null) {
+        final addressForGeo = _orderAddressForGeo;
+        final geo = addressForGeo != null ? await geocodeAddress(addressForGeo) : null;
+        jobLat = geo?['lat'];
+        jobLng = geo?['lng'];
+      }
 
       final result = await supabase.from('jobs').insert({
         'status': 'requested',
@@ -1199,13 +1240,13 @@ class _CustomerHomeState extends State<CustomerHome> {
                   Text('Checking availability in your area…', style: TextStyle(color: Colors.grey)),
                 ]),
               ),
-            if (!_checkingArea && orderingForSomeoneElse && _orderZip == null)
+            if (!_checkingArea && orderingForSomeoneElse && !_orderAddressReady)
               const Padding(
                 padding: EdgeInsets.only(top: 16),
                 child: Text('Enter the service address above to see pricing.',
                     style: TextStyle(color: Colors.grey)),
               ),
-            if (!_checkingArea && _orderZip != null && _serviceArea == null)
+            if (!_checkingArea && _orderAddressReady && _serviceArea == null)
               _buildNotAvailableBanner(),
             if (_serviceArea != null) ...[
               const SizedBox(height: 16),

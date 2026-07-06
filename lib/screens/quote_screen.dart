@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
+import '../utils/geo.dart';
+import '../utils/geocode.dart';
 
 final _supabase = Supabase.instance.client;
 
@@ -50,14 +52,23 @@ class _QuoteScreenState extends State<QuoteScreen> {
     }
     setState(() => _loading = true);
     try {
+      // Geocode the address, then test the point against each active zone's
+      // polygon (falling back to its ZIP list for zones not yet drawn).
+      final geo = await geocodeAddress({
+        'address_line': _addressCtrl.text.trim(),
+        'city': _cityCtrl.text.trim(),
+        'state': _stateCtrl.text.trim(),
+        'zip': zip,
+      });
       final rows = await _supabase
           .from('service_areas')
           .select()
-          .eq('is_active', true)
-          .contains('zips', [zip]);
+          .eq('is_active', true);
+      final zones = (rows as List).map((r) => Map<String, dynamic>.from(r)).toList();
+      final match = matchZone(geo?['lat'], geo?['lng'], zip: zip, zones: zones);
       if (!mounted) return;
       setState(() {
-        _area = rows.isNotEmpty ? Map<String, dynamic>.from(rows.first) : null;
+        _area = match;
         _searched = true;
         _loading = false;
       });

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme.dart';
 import '../../utils/job_helpers.dart';
+import '../../utils/geo.dart';
+import 'zone_editor_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -174,7 +176,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ],
               ),
             ),
-            Tab(text: 'Areas (${serviceAreas.length})'),
+            Tab(text: 'Zones (${serviceAreas.length})'),
           ],
         ),
       ),
@@ -275,9 +277,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete service area?'),
+        title: const Text('Delete zone?'),
         content: Text(
-            'Remove "${area['name']}"? Customers in its ZIPs will no longer be able to order.'),
+            'Remove "${area['name']}"? Customers inside its boundary will no longer be able to order.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           ElevatedButton(
@@ -293,79 +295,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
+  // Opens the map-based zone editor. The editor handles the insert/update and
+  // pops true on save, so we just reload afterward.
   Future<void> _showAreaEditor([Map<String, dynamic>? area]) async {
-    final nameCtrl = TextEditingController(text: area?['name']?.toString() ?? '');
-    final zipsCtrl = TextEditingController(text: (area?['zips'] as List?)?.join(', ') ?? '');
-    final sidewalkCtrl = TextEditingController(text: area?['price_sidewalk']?.toString() ?? '50');
-    final drivewayCtrl = TextEditingController(text: area?['price_driveway']?.toString() ?? '100');
-    final bothCtrl = TextEditingController(text: area?['price_both']?.toString() ?? '125');
-    final saltingCtrl = TextEditingController(text: area?['price_salting']?.toString() ?? '40');
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(area == null ? 'Add Service Area' : 'Edit Service Area'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Area name (e.g. Yonkers)')),
-              const SizedBox(height: 8),
-              TextField(
-                controller: zipsCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'ZIP codes (comma-separated)',
-                  hintText: '10701, 10704, 10710',
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(children: [
-                Expanded(child: TextField(controller: sidewalkCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Sidewalk \$'))),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: drivewayCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Driveway \$'))),
-              ]),
-              const SizedBox(height: 8),
-              Row(children: [
-                Expanded(child: TextField(controller: bothCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Both \$'))),
-                const SizedBox(width: 8),
-                Expanded(child: TextField(controller: saltingCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Salting \$'))),
-              ]),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
-        ],
-      ),
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ZoneEditorScreen(zone: area)),
     );
-    if (saved != true) return;
-
-    final zips = zipsCtrl.text
-        .split(',')
-        .map((z) => z.trim())
-        .where((z) => z.isNotEmpty)
-        .toList();
-    final payload = {
-      'name': nameCtrl.text.trim(),
-      'zips': zips,
-      'price_sidewalk': num.tryParse(sidewalkCtrl.text.trim()) ?? 0,
-      'price_driveway': num.tryParse(drivewayCtrl.text.trim()) ?? 0,
-      'price_both': num.tryParse(bothCtrl.text.trim()) ?? 0,
-      'price_salting': num.tryParse(saltingCtrl.text.trim()) ?? 0,
-    };
-    try {
-      if (area == null) {
-        await supabase.from('service_areas').insert({...payload, 'is_active': true});
-      } else {
-        await supabase.from('service_areas').update(payload).eq('id', area['id']);
-      }
-      loadAll();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
-      }
-    }
+    if (saved == true) loadAll();
   }
 
   Widget _buildServiceAreasTab() {
@@ -378,7 +315,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             child: ElevatedButton.icon(
               onPressed: () => _showAreaEditor(),
               icon: const Icon(Icons.add_location_alt),
-              label: const Text('Add Service Area'),
+              label: const Text('Add Zone'),
             ),
           ),
         ),
@@ -388,7 +325,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   child: Padding(
                     padding: EdgeInsets.all(24),
                     child: Text(
-                      'No service areas yet.\nAdd one to start accepting orders in that ZIP.',
+                      'No zones yet.\nAdd one and draw its boundary to start accepting orders there.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey),
                     ),
@@ -399,7 +336,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   itemBuilder: (context, i) {
                     final a = serviceAreas[i];
                     final active = a['is_active'] == true;
-                    final zips = (a['zips'] as List?)?.join(', ') ?? '';
+                    final pointCount = parsePolygon(a['polygon']).length;
+                    final mapped = pointCount >= 3;
                     return Card(
                       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                       child: Padding(
@@ -410,7 +348,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                             Row(
                               children: [
                                 Expanded(
-                                  child: Text(a['name']?.toString() ?? 'Area',
+                                  child: Text(a['name']?.toString() ?? 'Zone',
                                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: SnowServColors.navy)),
                                 ),
                                 Text(active ? 'Active' : 'Off',
@@ -418,8 +356,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                 Switch(value: active, onChanged: (_) => _toggleAreaActive(a)),
                               ],
                             ),
-                            Text('ZIPs: ${zips.isEmpty ? '—' : zips}',
-                                style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                            Row(children: [
+                              Icon(mapped ? Icons.check_circle : Icons.warning_amber_rounded,
+                                  size: 15, color: mapped ? Colors.green : Colors.orange),
+                              const SizedBox(width: 4),
+                              Text(
+                                mapped ? 'Mapped ($pointCount points)' : 'Not mapped yet — draw a boundary',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    color: mapped ? Colors.black87 : Colors.orange.shade800),
+                              ),
+                            ]),
                             const SizedBox(height: 4),
                             Text(
                               'Sidewalk \$${a['price_sidewalk']}  •  Driveway \$${a['price_driveway']}  •  Both \$${a['price_both']}  •  Salting +\$${a['price_salting']}',
