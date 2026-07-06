@@ -46,6 +46,8 @@ function getNotificationContent(status: string): { title: string; body: string }
   switch (status) {
     case 'cancelled':
       return { title: 'Job Cancelled', body: 'The customer cancelled this job.' }
+    case 'auto_assigned':
+      return { title: 'New Job Assigned', body: 'Auto-accept picked up a job for you — open the app to view it.' }
     default:
       return null
   }

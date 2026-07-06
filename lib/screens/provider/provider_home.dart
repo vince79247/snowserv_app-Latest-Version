@@ -45,6 +45,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   int _secondsRemaining = _kDispatchSeconds;
   bool _declining = false;
   bool _isAdmin = false;
+  bool _autoAccept = false;
 
   @override
   void initState() {
@@ -121,7 +122,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     try {
       final results = await supabase
           .from('providers')
-          .select('id, is_online, rating, total_jobs')
+          .select('id, is_online, rating, total_jobs, auto_accept')
           .eq('user_id', supabase.auth.currentUser!.id)
           .limit(1);
       if (results.isEmpty) return;
@@ -134,6 +135,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           isOnline = wasOnline;
           _rating = (data['rating'] as num?)?.toDouble();
           _totalJobs = data['total_jobs'] as int?;
+          _autoAccept = data['auto_accept'] == true;
         });
         loadActiveJobs();
         if (wasOnline) {
@@ -146,6 +148,21 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading provider profile: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleAutoAccept(bool value) async {
+    if (providerId == null) return;
+    setState(() => _autoAccept = value);
+    try {
+      await supabase.from('providers').update({'auto_accept': value}).eq('id', providerId!);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _autoAccept = !value); // revert on failure
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update auto-accept: $e')),
         );
       }
     }
@@ -1337,6 +1354,24 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                 activeColor: Colors.green,
                 onChanged: providerId != null ? toggleOnline : null,
               ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: SnowServColors.glacier),
+              ),
+              child: SwitchListTile(
+                title: const Text('Auto-accept jobs while online',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: SnowServColors.navy)),
+                subtitle: const Text(
+                    'Jobs routed to you are accepted automatically — no offer to catch, nothing to miss.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                value: _autoAccept,
+                activeColor: SnowServColors.iceBlue,
+                onChanged: providerId != null ? _toggleAutoAccept : null,
               ),
             ),
             if (_rating != null || _totalJobs != null) ...[

@@ -59,7 +59,8 @@ growth) · **PRO** (needs an attorney/CPA — don't guess).
   may not glance at their phone for a few minutes; too short = missed jobs, too long
   = customer waits. Consider making it configurable and tuning from real behavior.
   Closely tied to auto-accept below.
-- **Auto-accept when on duty** — NOW (decision, meaty). Optional auto-accept would
+- **Auto-accept when on duty** — ✅ BUILT 2026-07-06 (opt-in toggle on provider home;
+  auto-assigns in both dispatch paths — client + cron; load-aware still applies). Optional auto-accept would
   remove the "did I miss a job?" stress and speed up assignment. Risks: a provider
   auto-lands a job that's too far / more than they can handle. My take: offer it as
   an **opt-in toggle** ("Auto-accept jobs while online"), keep manual as the default,

@@ -137,6 +137,21 @@ lib/
 5. Reject job → provider added to rejected_providers, job re-dispatched to next nearest
 6. Cancel accepted job → confirmation dialog, job reset to requested, re-dispatched, customer notified
 
+## Dispatch (how jobs are routed)
+- Two dispatchers, kept in sync: the client `dispatchToNearest` (lib/utils/dispatch.dart,
+  runs at order time / on decline) and a pg_cron `dispatch_jobs()` running every minute
+  (supabase/migrations/*dispatch* — the always-on workhorse that expires stale offers
+  and dispatches queued jobs regardless of any app being open).
+- LOAD-AWARE ranking (both paths): fewest active jobs first, then proximity — no hard
+  cap, so nothing is stranded when everyone is busy.
+- AUTO-ACCEPT (providers.auto_accept, opt-in toggle on provider home): a job routed to
+  an auto-accept provider is assigned directly (status=assigned) instead of a pending
+  offer — no countdown to miss. Notified via notify-provider status 'auto_assigned'
+  (client path only — the cron can't call edge functions, so cron auto-assigns are
+  silent until the provider's app refreshes; acceptable for now).
+- NOTE: cron expires offers at 3 min but the provider UI countdown is 4 min
+  (_kDispatchSeconds=240) — a known minor mismatch, not yet reconciled.
+
 ## Provider Service Agreement (anti-harvesting)
 - Provider-specific contract with a Non-Circumvention / Non-Solicitation clause
   (no taking SnowServ customers off-platform). Source text: docs/provider_service_agreement.md

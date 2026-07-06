@@ -30,7 +30,7 @@ Future<void> dispatchToNearest(
   try {
     final providers = await supabase
         .from('providers')
-        .select('id, current_lat, current_lng')
+        .select('id, current_lat, current_lng, auto_accept')
         .eq('is_online', true)
         .eq('registration_status', 'approved');
 
@@ -84,18 +84,37 @@ Future<void> dispatchToNearest(
       return dist2(lat, lng, aLat, aLng).compareTo(dist2(lat, lng, bLat, bLng));
     });
 
-    await supabase.from('jobs').update({
-      'dispatched_to': available.first['id'],
-      'dispatched_at': DateTime.now().toUtc().toIso8601String(),
-      if (lat != null) 'job_lat': lat,
-      if (lng != null) 'job_lng': lng,
-    }).eq('id', jobId);
+    final chosen = available.first;
+    if (chosen['auto_accept'] == true) {
+      // Provider is on auto-accept: assign the job straight away (no offer /
+      // countdown), so they never have to watch their phone to catch it.
+      await supabase.from('jobs').update({
+        'status': 'assigned',
+        'provider_id': chosen['id'],
+        'dispatched_to': null,
+        'dispatched_at': null,
+        if (lat != null) 'job_lat': lat,
+        if (lng != null) 'job_lng': lng,
+      }).eq('id', jobId);
+      // Let them know a job landed on their plate. Fire-and-forget.
+      try {
+        await supabase.functions
+            .invoke('notify-provider', body: {'job_id': jobId, 'status': 'auto_assigned'});
+      } catch (_) {}
+    } else {
+      await supabase.from('jobs').update({
+        'dispatched_to': chosen['id'],
+        'dispatched_at': DateTime.now().toUtc().toIso8601String(),
+        if (lat != null) 'job_lat': lat,
+        if (lng != null) 'job_lng': lng,
+      }).eq('id', jobId);
 
-    // Push a notification to only the provider we just dispatched to — never a
-    // broadcast. Fire-and-forget; a failed push shouldn't undo the dispatch.
-    try {
-      await supabase.functions.invoke('notify-dispatch', body: {'job_id': jobId});
-    } catch (_) {}
+      // Push a notification to only the provider we just dispatched to — never a
+      // broadcast. Fire-and-forget; a failed push shouldn't undo the dispatch.
+      try {
+        await supabase.functions.invoke('notify-dispatch', body: {'job_id': jobId});
+      } catch (_) {}
+    }
   } catch (e) {
     // Swallow — a failed dispatch leaves the job queued for the next attempt.
     // ignore: avoid_print
