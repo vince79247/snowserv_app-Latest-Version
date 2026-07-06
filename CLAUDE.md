@@ -113,8 +113,14 @@ lib/
 - provider-documents: PRIVATE. Registration stores the object PATH (not a URL) in
   providers.dl_photo_url / insurance_photo_url. Admin views via the admin-doc-url
   function (password-gated signed URLs) — customers/providers/public cannot read it.
-- Admin panel auth is still the client-side password (admin_screen _adminPassword),
-  now also server-verified for doc access. Real admin auth = separate hardening item.
+## Admin access
+- Admin is identified by profiles.is_admin (boolean). No shared password anymore.
+- An "Admin Panel" entry shows in the account menu (customer + provider home) only
+  for is_admin users → opens AdminPanelScreen directly.
+- admin-doc-url (and future admin-only server actions) verify the caller's login
+  token maps to an is_admin profile. To grant admin: set profiles.is_admin=true.
+- NOT yet done: locking down RLS so the DB enforces admin-only writes broadly
+  (see PRELAUNCH.md — full RLS lockdown is a dedicated pre-launch task).
 
 ## Provider flow
 1. Toggle online → loads available jobs (status=requested, dispatched_to=this provider)
