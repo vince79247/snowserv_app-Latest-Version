@@ -86,6 +86,12 @@ class _RoleRouterState extends State<RoleRouter> {
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.requestPermission();
       debugPrint('FCM auth status: ${settings.authorizationStatus}');
+      // iOS hides notification banners while the app is in the foreground by
+      // default. A provider sitting on the "Waiting for jobs" screen must still
+      // see the "New Job Offer!" alert, so opt into foreground presentation.
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true, badge: true, sound: true,
+      );
       if (settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional) {
         // iOS requires APNs token before FCM token — retry up to 15 times

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
@@ -25,7 +26,7 @@ class ProviderHome extends StatefulWidget {
   State<ProviderHome> createState() => _ProviderHomeState();
 }
 
-class _ProviderHomeState extends State<ProviderHome> {
+class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver {
   bool isOnline = false;
   String? providerId;
   double? _rating;
@@ -38,6 +39,7 @@ class _ProviderHomeState extends State<ProviderHome> {
   List<Map<String, dynamic>> _waitingJobs = [];
   bool loading = false;
   RealtimeChannel? _jobsChannel;
+  StreamSubscription? _fcmSub;
   Timer? _countdownTimer;
   int _secondsRemaining = _kDispatchSeconds;
   bool _declining = false;
@@ -46,13 +48,34 @@ class _ProviderHomeState extends State<ProviderHome> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     loadProviderRecord();
     _loadIsAdmin();
+    // Realtime is the primary refresh path, but websockets can drop. Any push
+    // (dispatch, cancel, etc.) also refreshes the board so a cancelled job
+    // can't linger on the dashboard.
+    _fcmSub = FirebaseMessaging.onMessage.listen((_) => _refreshBoard());
+  }
+
+  void _refreshBoard() {
+    loadDispatchedJob();
+    loadActiveJobs();
+    loadWaitingJobs();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // While the app is backgrounded (e.g. the provider is in Apple Maps after
+    // accepting a job) realtime and FCM onMessage are suspended, so a job
+    // cancelled meanwhile is missed. Refresh the board on return so it clears.
+    if (state == AppLifecycleState.resumed) _refreshBoard();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _jobsChannel?.unsubscribe();
+    _fcmSub?.cancel();
     _stopCountdown();
     super.dispose();
   }
