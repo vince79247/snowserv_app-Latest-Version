@@ -246,11 +246,11 @@ const _providerSections = [
   _FaqSection('How Dispatching Works', [
     _FaqItem(
       'How are jobs assigned to me?',
-      'When a customer places an order, our system finds the nearest available online provider and sends them the job. You\'ll get a push notification and have 4 minutes to accept or decline. If you don\'t respond in time, the job moves to the next nearest provider.',
+      'When a customer places an order, our system offers it to the best-matched online provider — balanced by both distance and current workload, so it goes to a nearby provider with the fewest jobs already lined up. You\'ll get a push notification and have 4 minutes to accept or decline. If you don\'t respond in time, the job moves to the next best provider.',
     ),
     _FaqItem(
       'Can I receive more than one job at a time?',
-      'Yes. You\'ll receive a new job offer even while working on your current one, so there\'s no idle time between jobs. You accept each job individually, and there\'s no limit on how many you can line up — accept as much work as you can handle, and decline the rest. Accepted jobs appear in your Active Jobs list.',
+      'Yes — you\'ll get new offers even while working on your current one, so there\'s no idle time, and there\'s no hard cap on how many you line up. But dispatch is workload-aware: the more jobs you\'re already holding, the more likely a new nearby order goes to a less-busy provider first, so customers don\'t wait behind a long backlog. Take what you can genuinely get to soon and keep your queue moving to stay first in line for work in your area. Customers can see how many jobs are ahead of theirs, so finishing promptly protects their trust — and your standing.',
     ),
     _FaqItem(
       'What happens if I decline a job?',

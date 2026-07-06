@@ -7,13 +7,17 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'job_helpers.dart';
 
-/// Finds the nearest eligible provider for [jobId] and dispatches to them.
+/// Finds the best eligible provider for [jobId] and dispatches to them.
 ///
-/// Eligibility: online, approved, and not in [rejected]. There is no queue cap —
-/// providers accept each job manually (with a countdown), so they self-regulate.
-/// Ranking is by proximity to [lat]/[lng] — for a provider who already has an
-/// active job, distance is measured from that job's location (where they'll
-/// finish), otherwise from their current GPS.
+/// Eligibility: online, approved, and not in [rejected]. Ranking is LOAD-AWARE:
+/// the provider with the fewest active jobs wins first, with proximity to
+/// [lat]/[lng] as the tie-breaker. This keeps any one provider from hoarding
+/// the queue (so later customers don't wait behind a long backlog) while never
+/// stranding a job — if everyone is busy it still goes to the least-loaded
+/// provider. No hard cap: providers can stack jobs when demand genuinely
+/// exceeds supply (e.g. mid-storm), they just stop being first pick once
+/// someone else is freer. For a busy provider, distance is measured from their
+/// current job's location (where they'll finish), otherwise from current GPS.
 ///
 /// Does nothing if no eligible provider is available (the job stays queued).
 Future<void> dispatchToNearest(
@@ -50,32 +54,35 @@ Future<void> dispatchToNearest(
       }
     }
 
-    // Exclude only rejected providers — no queue cap.
+    // Exclude only rejected providers (load-aware ranking handles balancing).
     final available = (providers as List).where((p) {
       return !rejected.contains(p['id'].toString());
     }).toList();
 
     if (available.isEmpty) return;
 
-    if (lat != null && lng != null) {
-      available.sort((a, b) {
-        final aInfo = providerActiveJob[a['id'].toString()];
-        final bInfo = providerActiveJob[b['id'].toString()];
-        final aLat = (aInfo != null && aInfo['job_lat'] != null)
-            ? (aInfo['job_lat'] as num).toDouble()
-            : (a['current_lat'] ?? 0).toDouble();
-        final aLng = (aInfo != null && aInfo['job_lng'] != null)
-            ? (aInfo['job_lng'] as num).toDouble()
-            : (a['current_lng'] ?? 0).toDouble();
-        final bLat = (bInfo != null && bInfo['job_lat'] != null)
-            ? (bInfo['job_lat'] as num).toDouble()
-            : (b['current_lat'] ?? 0).toDouble();
-        final bLng = (bInfo != null && bInfo['job_lng'] != null)
-            ? (bInfo['job_lng'] as num).toDouble()
-            : (b['current_lng'] ?? 0).toDouble();
-        return dist2(lat, lng, aLat, aLng).compareTo(dist2(lat, lng, bLat, bLng));
-      });
-    }
+    // Load-aware: fewest active jobs first, then nearest as the tie-breaker.
+    available.sort((a, b) {
+      final aInfo = providerActiveJob[a['id'].toString()];
+      final bInfo = providerActiveJob[b['id'].toString()];
+      final aCount = (aInfo?['count'] as int?) ?? 0;
+      final bCount = (bInfo?['count'] as int?) ?? 0;
+      if (aCount != bCount) return aCount.compareTo(bCount);
+      if (lat == null || lng == null) return 0;
+      final aLat = (aInfo != null && aInfo['job_lat'] != null)
+          ? (aInfo['job_lat'] as num).toDouble()
+          : (a['current_lat'] ?? 0).toDouble();
+      final aLng = (aInfo != null && aInfo['job_lng'] != null)
+          ? (aInfo['job_lng'] as num).toDouble()
+          : (a['current_lng'] ?? 0).toDouble();
+      final bLat = (bInfo != null && bInfo['job_lat'] != null)
+          ? (bInfo['job_lat'] as num).toDouble()
+          : (b['current_lat'] ?? 0).toDouble();
+      final bLng = (bInfo != null && bInfo['job_lng'] != null)
+          ? (bInfo['job_lng'] as num).toDouble()
+          : (b['current_lng'] ?? 0).toDouble();
+      return dist2(lat, lng, aLat, aLng).compareTo(dist2(lat, lng, bLat, bLng));
+    });
 
     await supabase.from('jobs').update({
       'dispatched_to': available.first['id'],

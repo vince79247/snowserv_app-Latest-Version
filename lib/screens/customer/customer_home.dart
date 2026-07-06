@@ -31,6 +31,8 @@ class _CustomerHomeState extends State<CustomerHome> {
   bool salting = false;
   bool loading = false;
   List<Map<String, dynamic>> myJobs = [];
+  // jobId -> number of the assigned provider's jobs queued ahead of this one.
+  final Map<String, int> _jobsAhead = {};
   Map<String, dynamic>? savedAddress;
   RealtimeChannel? _jobsChannel;
   double surgeMultiplier = 1.0;
@@ -224,6 +226,7 @@ class _CustomerHomeState extends State<CustomerHome> {
         _prevJobStatuses[jobId] = newStatus;
       }
       setState(() => myJobs = newJobs);
+      _refreshQueuePositions();
       if (jobJustCompleted) _showJobCompleteDialog();
     } catch (e) {
       if (mounted) {
@@ -231,6 +234,29 @@ class _CustomerHomeState extends State<CustomerHome> {
             .showSnackBar(SnackBar(content: Text('Error loading jobs: $e')));
       }
     }
+  }
+
+  // How many of the assigned provider's jobs are queued ahead of each of the
+  // customer's active jobs (ordered oldest-first, the way providers work them).
+  // Powers the honest "N jobs ahead of you" line instead of a made-up ETA.
+  Future<void> _refreshQueuePositions() async {
+    final assigned = myJobs.where(
+        (j) => j['status'] == 'assigned' && j['provider_id'] != null && j['created_at'] != null);
+    final Map<String, int> ahead = {};
+    for (final j in assigned) {
+      try {
+        final rows = await supabase
+            .from('jobs')
+            .select('id')
+            .eq('provider_id', j['provider_id'])
+            .inFilter('status', ['assigned', 'in_progress'])
+            .lt('created_at', j['created_at']);
+        ahead[j['id'].toString()] = (rows as List).length;
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _jobsAhead
+      ..clear()
+      ..addAll(ahead));
   }
 
   void _showAccountSheet() {
@@ -1070,15 +1096,38 @@ class _CustomerHomeState extends State<CustomerHome> {
                             statusBadge(job['status']),
                           ],
                         ),
-                        if (job['status'] == 'assigned' && job['eta_minutes'] != null) ...[
+                        // Honest queue position instead of a made-up minute ETA:
+                        // "N jobs ahead of you" / "You're next" once we know the
+                        // provider's backlog; nothing until it's computed.
+                        if (job['status'] == 'assigned' &&
+                            _jobsAhead.containsKey(job['id'].toString())) ...[
+                          const SizedBox(height: 8),
+                          Builder(builder: (_) {
+                            final ahead = _jobsAhead[job['id'].toString()]!;
+                            return Row(
+                              children: [
+                                Icon(ahead > 0 ? Icons.people_outline : Icons.local_shipping_outlined,
+                                    size: 14, color: Colors.grey),
+                                const SizedBox(width: 4),
+                                Text(
+                                  ahead > 0
+                                      ? '$ahead job${ahead == 1 ? '' : 's'} ahead of you'
+                                      : "You're next — your provider is on the way",
+                                  style: const TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            );
+                          }),
+                        ],
+                        if (job['status'] == 'in_progress') ...[
                           const SizedBox(height: 8),
                           Row(
-                            children: [
-                              const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                              const SizedBox(width: 4),
+                            children: const [
+                              Icon(Icons.ac_unit, size: 14, color: Colors.grey),
+                              SizedBox(width: 4),
                               Text(
-                                'Provider arriving in ~${job['eta_minutes']} min',
-                                style: const TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600),
+                                'Your provider is working on your job',
+                                style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600),
                               ),
                             ],
                           ),
