@@ -53,12 +53,21 @@ function getNotificationContent(status: string): { title: string; body: string }
   }
 }
 
+// CORS: the app runs on WEB too — the browser preflights functions.invoke,
+// so answer OPTIONS and stamp responses or browser calls are blocked.
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
     const { job_id, status } = await req.json()
 
     const notification = getNotificationContent(status)
-    if (!notification) return new Response(JSON.stringify({ skipped: true }), { status: 200 })
+    if (!notification) return new Response(JSON.stringify({ skipped: true }), { status: 200, headers: cors })
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
@@ -67,21 +76,21 @@ Deno.serve(async (req: Request) => {
       .select('provider_id')
       .eq('id', job_id)
       .single()
-    if (!job?.provider_id) return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
+    if (!job?.provider_id) return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
 
     const { data: provider } = await supabase
       .from('providers')
       .select('user_id')
       .eq('id', job.provider_id)
       .single()
-    if (!provider?.user_id) return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
+    if (!provider?.user_id) return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
 
     const { data: profile } = await supabase
       .from('profiles')
       .select('fcm_token')
       .eq('id', provider.user_id)
       .single()
-    if (!profile?.fcm_token) return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
+    if (!profile?.fcm_token) return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
 
     const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')!)
     const accessToken = await getAccessToken(serviceAccount)
@@ -91,8 +100,8 @@ Deno.serve(async (req: Request) => {
       await supabase.from('profiles').update({ fcm_token: null }).eq('id', provider.user_id)
     }
 
-    return new Response(JSON.stringify({ sent: ok ? 1 : 0 }), { headers: { 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ sent: ok ? 1 : 0 }), { headers: { ...cors, 'Content-Type': 'application/json' } })
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors })
   }
 })

@@ -71,7 +71,16 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
   return true
 }
 
+// CORS: the app runs on WEB too — the browser preflights functions.invoke,
+// so answer OPTIONS and stamp responses or browser calls are blocked.
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
     const { job_id } = await req.json()
 
@@ -86,7 +95,7 @@ Deno.serve(async (req) => {
       .eq('id', job_id)
       .single()
 
-    if (!job) return new Response('Job not found', { status: 404 })
+    if (!job) return new Response('Job not found', { status: 404, headers: cors })
 
     const services = []
     if (job.driveway) services.push('Driveway')
@@ -100,7 +109,7 @@ Deno.serve(async (req) => {
       .eq('is_online', true)
 
     if (!onlineProviders || onlineProviders.length === 0) {
-      return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
+      return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
     }
 
     const userIds = onlineProviders.map((p: any) => p.user_id)
@@ -111,7 +120,7 @@ Deno.serve(async (req) => {
       .not('fcm_token', 'is', null)
 
     if (!profiles || profiles.length === 0) {
-      return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
+      return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
     }
 
     const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')!)
@@ -138,6 +147,6 @@ Deno.serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors })
   }
 })

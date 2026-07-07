@@ -63,7 +63,16 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
   return true
 }
 
+// CORS: the app runs on WEB too — the browser preflights functions.invoke,
+// so answer OPTIONS and stamp responses or browser calls are blocked.
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
     const { job_id } = await req.json()
 
@@ -79,7 +88,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (!job?.dispatched_to) {
-      return new Response(JSON.stringify({ sent: 0, reason: 'no dispatched provider' }), { status: 200 })
+      return new Response(JSON.stringify({ sent: 0, reason: 'no dispatched provider' }), { status: 200, headers: cors })
     }
 
     const { data: provider } = await supabase
@@ -88,7 +97,7 @@ Deno.serve(async (req) => {
       .eq('id', job.dispatched_to)
       .single()
     if (!provider?.user_id) {
-      return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
+      return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
     }
 
     const { data: profile } = await supabase
@@ -97,7 +106,7 @@ Deno.serve(async (req) => {
       .eq('id', provider.user_id)
       .single()
     if (!profile?.fcm_token) {
-      return new Response(JSON.stringify({ sent: 0 }), { status: 200 })
+      return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
     }
 
     const services = []
@@ -124,6 +133,6 @@ Deno.serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors })
   }
 })

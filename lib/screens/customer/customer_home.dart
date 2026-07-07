@@ -5,7 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:http/http.dart' as http;
 import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/legal.dart';
@@ -199,12 +199,9 @@ class _CustomerHomeState extends State<CustomerHome> {
   }
 
   Future<Map<String, dynamic>> _fetchWeather(String url) async {
-    final client = HttpClient();
-    final request = await client.getUrl(Uri.parse(url));
-    final response = await request.close();
-    final body = await response.transform(const Utf8Decoder()).join();
-    client.close();
-    return jsonDecode(body) as Map<String, dynamic>;
+    // package:http (not dart:io HttpClient) so storm pricing works on WEB too.
+    final res = await http.get(Uri.parse(url));
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   void subscribeToJobs() {

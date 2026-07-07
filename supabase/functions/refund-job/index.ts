@@ -1,8 +1,18 @@
+// CORS: the app now runs on WEB too, where the browser preflights every
+// functions.invoke (Authorization header) — without these headers the call is
+// blocked client-side and cancel/refund breaks in the browser.
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
     const { job_id } = await req.json()
     if (!job_id) {
-      return new Response(JSON.stringify({ error: 'Missing job_id' }), { status: 400 })
+      return new Response(JSON.stringify({ error: 'Missing job_id' }), { status: 400, headers: cors })
     }
 
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')!
@@ -23,7 +33,7 @@ Deno.serve(async (req: Request) => {
     const paymentIntentId = jobs?.[0]?.payment_intent_id
 
     if (!paymentIntentId) {
-      return new Response(JSON.stringify({ error: 'No payment intent on file for this job' }), { status: 400 })
+      return new Response(JSON.stringify({ error: 'No payment intent on file for this job' }), { status: 400, headers: cors })
     }
 
     // Issue full refund via Stripe
@@ -34,7 +44,7 @@ Deno.serve(async (req: Request) => {
     )
     const pi = await piRes.json()
     if (pi.error) {
-      return new Response(JSON.stringify({ error: pi.error.message }), { status: 400 })
+      return new Response(JSON.stringify({ error: pi.error.message }), { status: 400, headers: cors })
     }
 
     // Not captured yet (still just a hold) → cancel the authorization. This
@@ -57,11 +67,11 @@ Deno.serve(async (req: Request) => {
       )
       const canceled = await cancelRes.json()
       if (canceled.error) {
-        return new Response(JSON.stringify({ error: canceled.error.message }), { status: 400 })
+        return new Response(JSON.stringify({ error: canceled.error.message }), { status: 400, headers: cors })
       }
       return new Response(
         JSON.stringify({ action: 'released', status: canceled.status }),
-        { headers: { 'Content-Type': 'application/json' } }
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -69,7 +79,7 @@ Deno.serve(async (req: Request) => {
     if (pi.status === 'canceled') {
       return new Response(
         JSON.stringify({ action: 'released', status: 'canceled', already: true }),
-        { headers: { 'Content-Type': 'application/json' } }
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -89,15 +99,15 @@ Deno.serve(async (req: Request) => {
     const refund = await refundRes.json()
 
     if (refund.error) {
-      return new Response(JSON.stringify({ error: refund.error.message }), { status: 400 })
+      return new Response(JSON.stringify({ error: refund.error.message }), { status: 400, headers: cors })
     }
 
     return new Response(
       JSON.stringify({ action: 'refunded', refund_id: refund.id, status: refund.status }),
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: { ...cors, 'Content-Type': 'application/json' } }
     )
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
-    return new Response(JSON.stringify({ error: msg }), { status: 500 })
+    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: cors })
   }
 })

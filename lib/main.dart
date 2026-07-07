@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -16,8 +18,14 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // Firebase/FCM is mobile-only for now: initializeApp() without explicit
+  // FirebaseOptions THROWS on web (white-screens the app before anything
+  // renders). Web push would need firebase config for web + a VAPID key +
+  // service worker — a separate feature; web users can order without push.
+  if (!kIsWeb) {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
 
   // Payments run through Stripe Checkout (hosted page) now — no client-side
   // Stripe SDK to initialize. The publishable key lives server-side / on the
@@ -32,6 +40,19 @@ void main() async {
 
 final supabase = Supabase.instance.client;
 
+// Web-only scroll behavior: lets every pointer type (including a plain mouse
+// click-drag) scroll, so desktop users aren't stuck when wheel events miss.
+class _WebScrollBehavior extends MaterialScrollBehavior {
+  const _WebScrollBehavior();
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -42,6 +63,33 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: buildSnowServTheme(),
       home: const AuthGate(),
+      // WEB: the UI is phone-first, so on a wide desktop browser cap it at a
+      // phone-ish column centered on a frost backdrop instead of stretching
+      // edge-to-edge. Mobile builds (and narrow browser windows) are untouched
+      // because the constraint only bites when the window is wider than 520.
+      builder: (context, child) {
+        if (!kIsWeb || child == null) return child ?? const SizedBox.shrink();
+        return ColoredBox(
+          color: SnowServColors.frost,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Material(
+                elevation: 4,
+                shadowColor: SnowServColors.glacier,
+                clipBehavior: Clip.antiAlias,
+                // Desktop-web scrolling is finicky: wheel/trackpad only works
+                // with the cursor over a scrollable. Allow mouse DRAG scrolling
+                // too (like swiping on a phone) so the page always moves.
+                child: ScrollConfiguration(
+                  behavior: const _WebScrollBehavior(),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -81,6 +129,9 @@ class _RoleRouterState extends State<RoleRouter> {
   }
 
   Future<void> initNotifications() async {
+    // No Firebase app on web (see main) — every FirebaseMessaging call would
+    // throw. Web push is a later feature.
+    if (kIsWeb) return;
     try {
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.requestPermission();
