@@ -18,9 +18,10 @@ growth) · **PRO** (needs an attorney/CPA — don't guess).
   Heads-up: a web app still needs internet, so it doesn't solve *no cell signal* —
   only offline-first or SMS/phone ordering would, and that's a big separate lift.
   What a web app *does* buy you: reach (desktop users, people who won't install an
-  app, better SEO). Flutter web can reuse this codebase; main hurdle is Stripe on
-  web (flutter_stripe is mobile-first — would likely need Stripe Checkout/Elements
-  for the web flow). Admin web is already unblocked (flutter build web).
+  app, better SEO). Flutter web can reuse this codebase; the Stripe-on-web hurdle is
+  now RESOLVED — payments migrated to Stripe Checkout 2026-07-07, so `flutter build
+  web` compiles and the customer payment flow works in a browser. (Mac/Windows are
+  served by this web app, not native desktop builds.) Admin web already unblocked.
 
 ## Product scope
 - **Commercial jobs** — LATER (decision). Commercial (lots, complexes, seasonal
@@ -56,9 +57,10 @@ growth) · **PRO** (needs an attorney/CPA — don't guess).
     connected account). Register for a sales-tax permit per state BEFORE collecting.
   - Stripe does calc/collect/report; a tax advisor + registrations/filing are on you.
     Build this deliberately BEFORE going multi-state; retrofitting live is the nightmare.
-- **Apple Pay** — SOON. A payment method surfaced through Stripe; needs a merchant
-  ID in the Apple Developer account + Stripe config. Moderate effort. (Already on
-  the "not built" list in CLAUDE.md.)
+- **Apple Pay / Google Pay** — MOSTLY FREE NOW. The 2026-07-07 Stripe Checkout
+  migration surfaces the wallet buttons automatically on the hosted page where the
+  device/browser supports them. Remaining: register the web domain in Stripe for
+  Apple Pay-on-web, and confirm on a real iPhone. No custom payment-sheet work.
 - **Discount / promo codes** — SOON/LATER. Stripe has built-in Coupons + Promotion
   Codes; simplest path is to apply a Stripe promo code at payment rather than a
   fully custom system. Needs a code-entry field at checkout + price adjustment.

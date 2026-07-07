@@ -93,17 +93,48 @@ lib/
 - Platform commission: 30% (admin panel), provider payout: 70%
 - Payouts: 7-day rolling batch via admin panel
 
-## Payment flow (Stripe)
-- flutter_stripe v13 (required for iOS 26 compatibility)
-- iOS uses Swift Package Manager only — CocoaPods fully deintegrated
-- Flow: createPaymentMethod → confirmPayment → store payment_intent_id on job
-- Saved card: stored in users table (card_pm_id, card_last4, card_brand, card_exp_month, card_exp_year)
-- Stripe customer ID stored in users.stripe_customer_id
+## Payment flow (Stripe Checkout)
+- Migrated OFF flutter_stripe → **Stripe Checkout** (hosted page) 2026-07-07 so ONE
+  code path serves iOS, Android AND web (Mac/Windows use the web app in a browser).
+  flutter_stripe was mobile-only and broke `flutter build web`; Checkout also brings
+  Apple Pay / Google Pay for free on its page. NO client-side Stripe SDK anymore.
+- iOS still uses Swift Package Manager only — CocoaPods fully deintegrated.
+- Flow (lib/screens/customer/customer_home.dart `createJob`):
+  1. Client calls `create-checkout-session` with amount + ALL job fields in `metadata`
+     + platform return URLs → gets a hosted Checkout `url`.
+  2. Client opens it: web = same-tab redirect (`launchUrl(webOnlyWindowName:'_self')`);
+     mobile = in-app browser (`LaunchMode.inAppBrowserView`). No job inserted here.
+  3. Customer pays on Stripe's page → authorizes the HOLD (capture_method: manual).
+  4. `stripe-webhook` (checkout.session.completed) is the SOURCE OF TRUTH: inserts the
+     address (for "someone else" orders) + job (status=requested) with
+     payment_intent_id = session.payment_intent, mirrors card→users, calls the
+     `dispatch_jobs()` RPC. Robust across the web redirect / a closed tab.
+  5. Job shows in-app via Realtime (`subscribeToJobs`) / loadMyJobs.
+- Return URLs: web → app origin `?checkout=success|cancel` (app reloads → snackbar via
+  `_handleWebCheckoutReturn`); mobile → the `checkout-return` edge fn HTML page.
+- Saved cards: Checkout manages them (pass the Stripe customer; setup_future_usage=
+  off_session). users.card_* is now just a "card on file" chip, filled by the webhook.
+  `get-payment-methods` + `create-payment-intent` are now UNUSED (kept as fallback).
+- Stripe customer ID stored in users.stripe_customer_id.
 - Stripe publishable key: pk_test_51TlZBgBYwOCAVVcUcMmYaVCyiv7YF8unZA7afdyHkAFauYaxiLVwU8Z4fhWScwRgm7cAmC5H6kGYfHT03tRuyvbX00MR63QKKG
-- Stripe secret key: stored as Supabase secret STRIPE_SECRET_KEY — never commit
+- Stripe secret key: stored as Supabase secret STRIPE_SECRET_KEY — never commit.
+- Stripe webhook signing secret: STRIPE_WEBHOOK_SECRET (Supabase secret, never commit).
+  ⚠️ NEEDS YOU (one-time, or payment→job never fires): Stripe Dashboard → Webhooks →
+  add endpoint https://swttuujhcgpcsrxgupzv.supabase.co/functions/v1/stripe-webhook,
+  event `checkout.session.completed`, then
+  `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`.
 
 ## Edge functions (supabase/functions/)
-- create-payment-intent: creates Stripe PaymentIntent, returns client_secret + payment_intent_id
+- create-checkout-session: creates a Stripe Checkout Session (capture_method manual =
+  HOLD), embeds all job fields in metadata, returns the hosted-page `url`. Has CORS
+  (called from the web app). Replaced create-payment-intent.
+- stripe-webhook: verify_jwt=false; verifies the Stripe signature, and on
+  checkout.session.completed idempotently creates the address+job with the held PI,
+  mirrors the card onto users, and calls dispatch_jobs(). Needs STRIPE_WEBHOOK_SECRET.
+- checkout-return: verify_jwt=false; tiny HTML success/cancel page for the mobile
+  in-app browser to land on after Checkout (owned https return URL, no extra hosting).
+- create-payment-intent: LEGACY/unused (flutter_stripe era) — kept, safe to delete.
+- get-payment-methods: LEGACY/unused (Checkout shows saved cards itself) — kept.
 - refund-job: looks up payment_intent_id on job, issues full Stripe refund
 - notify-providers: notifies providers of new job
 - notify-provider: notifies single provider (e.g. cancellation)
@@ -194,7 +225,10 @@ Customer can toggle "Ordering for someone else" to enter a different service add
 - Real-time job updates via Supabase Realtime (requires Realtime enabled on jobs table in Supabase dashboard)
 
 ## What's NOT built yet
-- Apple Pay
+- Apple Pay as a dedicated integration — NOTE: Stripe Checkout now surfaces Apple Pay
+  / Google Pay automatically on its hosted page where the device/browser supports it
+  (web Apple Pay needs a one-time Stripe domain registration). So the wallet buttons
+  largely come "for free" with the Checkout migration.
 
 ## Deliberately NOT doing (decided, do not re-propose)
 - Modifying an order after it's placed (e.g. "add salting" later). Considered and
@@ -211,12 +245,16 @@ Customer can toggle "Ordering for someone else" to enter a different service add
 - Android platform scaffolding exists (android/ dir tracked)
 
 ## Payment model (authorize-and-capture)
-- Order places an authorization HOLD (create-payment-intent: capture_method manual)
+- Order places an authorization HOLD via Stripe Checkout
+  (create-checkout-session sets payment_intent_data[capture_method]=manual). The
+  Checkout Session still yields a normal PaymentIntent in requires_capture, so the
+  hold model is unchanged from the old flutter_stripe flow — capture-payment and
+  refund-job operate on jobs.payment_intent_id exactly as before.
 - Provider STARTING the job captures the hold (capture-payment, idempotent), called
   from markInProgress (status → in_progress). Accept does NOT capture — it stays a
   hold through requested/assigned. Chosen 2026-07-06 so a customer who cancels before
   work begins is never charged (customers can only cancel before In Progress anyway).
-  The payment sheet shows a "this is a hold, not a charge" note; FAQ matches.
+  The order screen shows a "this is a hold, not a charge" note; FAQ matches.
 - Cancel before start RELEASES the hold instantly (refund-job cancels the PI);
   cancel after capture issues a real refund. refund-job returns action:
   released|refunded so the customer sees the right message.
@@ -256,4 +294,6 @@ Both network.client and network.server enabled in macos/Runner/DebugProfile.enti
 ## iOS
 - Minimum deployment target: iOS 14+
 - Swift Package Manager only (CocoaPods fully removed)
-- flutter_stripe v13 required for iOS 26
+- flutter_stripe REMOVED 2026-07-07 (payments now via Stripe Checkout hosted page —
+  see "Payment flow"). No native Stripe SDK, so the old "flutter_stripe v13 for iOS 26"
+  constraint no longer applies.

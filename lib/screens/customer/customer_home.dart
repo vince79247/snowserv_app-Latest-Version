@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_stripe/flutter_stripe.dart' hide Card;
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../../theme.dart';
 import '../../utils/job_helpers.dart';
-import '../../utils/dispatch.dart';
 import '../../utils/legal.dart';
 import '../../utils/geo.dart';
 import '../../utils/geocode.dart';
@@ -18,6 +17,11 @@ import '../faq_screen.dart';
 import '../admin/admin_screen.dart';
 
 final supabase = Supabase.instance.client;
+
+// Base URL for Supabase Edge Functions — used to build the mobile Checkout
+// return URL (the checkout-return page shown in the in-app browser). The web
+// build returns to its own origin instead, so it never uses this.
+const _kFunctionsBase = 'https://swttuujhcgpcsrxgupzv.supabase.co/functions/v1';
 
 class CustomerHome extends StatefulWidget {
   const CustomerHome({super.key});
@@ -75,6 +79,32 @@ class _CustomerHomeState extends State<CustomerHome> {
     _otherCityController.addListener(_scheduleAreaRefresh);
     _otherStateController.addListener(_scheduleAreaRefresh);
     _otherZipController.addListener(_scheduleAreaRefresh);
+    _handleWebCheckoutReturn();
+  }
+
+  // On web, Stripe Checkout redirects back to our origin with ?checkout=success|
+  // cancel. The order itself is created by the stripe-webhook (and shows up via
+  // Realtime / loadMyJobs) — this just confirms the outcome to the customer.
+  void _handleWebCheckoutReturn() {
+    if (!kIsWeb) return;
+    final outcome = Uri.base.queryParameters['checkout'];
+    if (outcome == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (outcome == 'success') {
+        loadMyJobs();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment received! Finding a provider near you...'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else if (outcome == 'cancel') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Checkout canceled — no charge was made.')),
+        );
+      }
+    });
   }
 
   // Debounce typing so we geocode at most once the user pauses.
@@ -700,103 +730,8 @@ class _CustomerHomeState extends State<CustomerHome> {
       if (salting) services.add('Salting');
       final description = 'SnowServ: ${services.join(' + ')}';
 
-      final intentResponse = await supabase.functions.invoke(
-        'create-payment-intent',
-        body: {
-          'amount_cents': amountCents,
-          'job_description': description,
-          if (_stripeCustomerId != null) 'stripe_customer_id': _stripeCustomerId,
-          if (_stripeCustomerId == null) 'user_email': supabase.auth.currentUser?.email,
-          if (_savedCard != null) 'payment_method_id': _savedCard!['id'],
-        },
-      );
-      final clientSecret = intentResponse.data['client_secret'] as String?;
-      final returnedCustomerId = intentResponse.data['stripe_customer_id'] as String?;
-      final paymentIntentId = intentResponse.data['payment_intent_id'] as String?;
-      if (clientSecret == null) throw Exception('Payment setup failed: ${intentResponse.data}');
-
-
-      if (!mounted) return;
-      final paid = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (_) => _PaymentSheet(
-          clientSecret: clientSecret,
-          amount: getFinalPrice(),
-          description: description,
-          savedCard: _savedCard,
-          onSaveCard: (shouldSave, cardDetails) async {
-            if (!shouldSave || cardDetails == null) return;
-            try {
-              final userId = supabase.auth.currentUser?.id;
-              if (userId == null) {
-                debugPrint('Save card: no current user');
-                return;
-              }
-              debugPrint('Saving card for user $userId: ${cardDetails['id']}');
-              final rows = await supabase.from('users').update({
-                if (returnedCustomerId != null) 'stripe_customer_id': returnedCustomerId,
-                'card_pm_id': cardDetails['id'],
-                'card_last4': cardDetails['last4'],
-                'card_brand': cardDetails['brand'],
-                'card_exp_month': cardDetails['exp_month'],
-                'card_exp_year': cardDetails['exp_year'],
-              }).eq('id', userId).select('card_pm_id');
-              debugPrint('Card save result: $rows');
-              if (rows.isEmpty) {
-                debugPrint('Card save: update matched 0 rows (RLS or ID mismatch)');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Card not saved — permission issue. Check Supabase RLS.'), backgroundColor: Colors.red),
-                  );
-                }
-                return;
-              }
-              if (returnedCustomerId != null) _stripeCustomerId = returnedCustomerId;
-              if (mounted) {
-                setState(() => _savedCard = cardDetails);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Card saved!'), backgroundColor: Colors.green),
-                );
-              }
-            } catch (e) {
-              debugPrint('Save card error: $e');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Card save failed: $e'), backgroundColor: Colors.red),
-                );
-              }
-            }
-          },
-        ),
-      );
-      if (paid != true) {
-        setState(() => loading = false);
-        return;
-      }
-
-      String addressId;
-      if (orderingForSomeoneElse) {
-        final addr = await supabase.from('addresses').insert({
-          'user_id': supabase.auth.currentUser!.id,
-          'address_line': _otherAddressController.text.trim(),
-          'city': _otherCityController.text.trim(),
-          'state': _otherStateController.text.trim(),
-          'zip': _otherZipController.text.trim(),
-        }).select('id').single();
-        addressId = addr['id'].toString();
-      } else {
-        addressId = savedAddress!['id'].toString();
-      }
-
-      final notes = _customerNotesController.text.trim();
-
-      // Reuse the point geocoded during the availability check; geocode once
-      // more only if we somehow don't have it (e.g. matched via ZIP fallback).
+      // Geocode the service address (reuse the point cached during the
+      // availability check; geocode once more only if we somehow don't have it).
       double? jobLat = _orderLat;
       double? jobLng = _orderLng;
       if (jobLat == null || jobLng == null) {
@@ -806,26 +741,79 @@ class _CustomerHomeState extends State<CustomerHome> {
         jobLng = geo?['lng'];
       }
 
-      final result = await supabase.from('jobs').insert({
-        'status': 'requested',
-        'customer_id': supabase.auth.currentUser!.id,
-        'address_id': addressId,
-        'walkway': selectedService == 'sidewalk' || selectedService == 'sidewalk_driveway',
-        'driveway': selectedService == 'driveway' || selectedService == 'sidewalk_driveway',
-        'salting': salting,
-        'base_price': getTotalBase(),
-        'surge_multiplier': surgeMultiplier,
-        'final_price': getFinalPrice(),
-        if (paymentIntentId != null) 'payment_intent_id': paymentIntentId,
-        if (notes.isNotEmpty) 'customer_notes': notes,
-        if (jobLat != null) 'job_lat': jobLat,
-        if (jobLng != null) 'job_lng': jobLng,
-      }).select('id').single();
+      final notes = _customerNotesController.text.trim();
+      final userId = supabase.auth.currentUser!.id;
 
-      // Dispatch to the nearest provider — dispatchToNearest handles notifying
-      // that single provider. (No broadcast to everyone.)
-      await dispatchToNearest(supabase, result['id'].toString(), [], jobLat, jobLng);
-      await loadMyJobs();
+      // Everything the stripe-webhook needs to create the job AFTER payment is
+      // authorized. The job is NOT inserted here — creating it server-side keeps
+      // the order alive across the Checkout redirect (the web app reloads on
+      // return) and even if the customer closes the tab. For "ordering for
+      // someone else" the raw address rides along so the webhook inserts it —
+      // no orphan address row if the customer abandons Checkout.
+      final metadata = <String, dynamic>{
+        'customer_id': userId,
+        'address_mode': orderingForSomeoneElse ? 'new' : 'saved',
+        'walkway': (selectedService == 'sidewalk' || selectedService == 'sidewalk_driveway').toString(),
+        'driveway': (selectedService == 'driveway' || selectedService == 'sidewalk_driveway').toString(),
+        'salting': salting.toString(),
+        'base_price': getTotalBase().toString(),
+        'surge_multiplier': surgeMultiplier.toString(),
+        'final_price': getFinalPrice().toString(),
+        if (notes.isNotEmpty) 'customer_notes': notes,
+        if (jobLat != null) 'job_lat': jobLat.toString(),
+        if (jobLng != null) 'job_lng': jobLng.toString(),
+      };
+      if (orderingForSomeoneElse) {
+        metadata['addr_line'] = _otherAddressController.text.trim();
+        metadata['addr_city'] = _otherCityController.text.trim();
+        metadata['addr_state'] = _otherStateController.text.trim();
+        metadata['addr_zip'] = _otherZipController.text.trim();
+      } else {
+        metadata['address_id'] = savedAddress!['id'].toString();
+      }
+
+      // Platform-appropriate return URLs. Web returns to the app's own origin so
+      // it reloads and shows the new job; mobile lands on the checkout-return
+      // page shown inside the in-app browser.
+      final String successUrl;
+      final String cancelUrl;
+      if (kIsWeb) {
+        final origin = Uri.base.origin;
+        successUrl = '$origin/?checkout=success';
+        cancelUrl = '$origin/?checkout=cancel';
+      } else {
+        successUrl = '$_kFunctionsBase/checkout-return?status=success';
+        cancelUrl = '$_kFunctionsBase/checkout-return?status=cancel';
+      }
+
+      final sessionResponse = await supabase.functions.invoke(
+        'create-checkout-session',
+        body: {
+          'amount_cents': amountCents,
+          'job_description': description,
+          if (_stripeCustomerId != null) 'stripe_customer_id': _stripeCustomerId,
+          'user_email': supabase.auth.currentUser?.email,
+          'success_url': successUrl,
+          'cancel_url': cancelUrl,
+          'metadata': metadata,
+        },
+      );
+      final checkoutUrl = sessionResponse.data?['url'] as String?;
+      if (checkoutUrl == null) throw Exception('Payment setup failed: ${sessionResponse.data}');
+      final returnedCustomerId = sessionResponse.data?['stripe_customer_id'] as String?;
+      if (returnedCustomerId != null) _stripeCustomerId = returnedCustomerId;
+
+      // Open the hosted Stripe Checkout page. Web = same-tab redirect (the app
+      // reloads on return); mobile = in-app browser. The job is created by the
+      // stripe-webhook once payment is authorized, then dispatched server-side —
+      // so we neither insert the job nor dispatch here anymore.
+      final uri = Uri.parse(checkoutUrl);
+      if (kIsWeb) {
+        await launchUrl(uri, webOnlyWindowName: '_self');
+        return; // Navigating away; nothing else to do on web.
+      }
+      final launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      if (!launched) throw Exception('Could not open the payment page.');
       if (mounted) {
         setState(() {
           orderingForSomeoneElse = false;
@@ -836,9 +824,16 @@ class _CustomerHomeState extends State<CustomerHome> {
           _customerNotesController.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request placed! Finding a provider near you...')),
+          const SnackBar(
+            content: Text('Complete your payment in the browser — your order will '
+                'appear here once payment is confirmed.'),
+            duration: Duration(seconds: 6),
+          ),
         );
       }
+      // Realtime shows the webhook-created job automatically; refresh too in case
+      // Realtime is momentarily disconnected.
+      await loadMyJobs();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -1490,6 +1485,46 @@ class _CustomerHomeState extends State<CustomerHome> {
                 prefixIcon: Icon(Icons.notes_outlined),
               ),
             ),
+            const SizedBox(height: 12),
+            // Reassure the customer this places a hold, not a charge. (Used to
+            // live in the in-app payment sheet, which Stripe Checkout replaced.)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: SnowServColors.frost,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: SnowServColors.glacier),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Icon(Icons.lock_clock_outlined, size: 18, color: SnowServColors.iceBlue),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "You'll pay securely on the next screen. This places a hold — "
+                      "you're only charged when a provider starts the job, so if you "
+                      "cancel before then, you're never charged.",
+                      style: TextStyle(fontSize: 12, color: SnowServColors.navy, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_savedCard != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.credit_card, size: 16, color: Colors.grey),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Card on file ${(_savedCard!['brand'] ?? '').toString().toUpperCase()} '
+                    '•••• ${_savedCard!['last4']} — change it at checkout',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: loading ? null : createJob,
@@ -1506,282 +1541,6 @@ class _CustomerHomeState extends State<CustomerHome> {
           ],
         ),
       ),
-      ),
-    );
-  }
-}
-
-class _PaymentSheet extends StatefulWidget {
-  final String clientSecret;
-  final int amount;
-  final String description;
-  final Map<String, dynamic>? savedCard;
-  final Future<void> Function(bool shouldSave, Map<String, dynamic>? cardDetails)? onSaveCard;
-  const _PaymentSheet({
-    required this.clientSecret,
-    required this.amount,
-    required this.description,
-    this.savedCard,
-    this.onSaveCard,
-  });
-
-  @override
-  State<_PaymentSheet> createState() => _PaymentSheetState();
-}
-
-class _PaymentSheetState extends State<_PaymentSheet> {
-  final _nameController = TextEditingController();
-  final _zipController = TextEditingController();
-  bool _paying = false;
-  String? _error;
-  late bool _usingSavedCard;
-  bool _saveCard = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _usingSavedCard = widget.savedCard != null;
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _zipController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pay() async {
-    if (!_usingSavedCard) {
-      if (_nameController.text.trim().isEmpty) {
-        setState(() => _error = 'Please enter the name on your card.');
-        return;
-      }
-      if (_zipController.text.trim().length < 5) {
-        setState(() => _error = 'Please enter a valid billing ZIP code.');
-        return;
-      }
-    }
-    setState(() { _paying = true; _error = null; });
-    try {
-      if (_usingSavedCard && widget.savedCard != null) {
-        await Stripe.instance.confirmPayment(
-          paymentIntentClientSecret: widget.clientSecret,
-          data: PaymentMethodParams.cardFromMethodId(
-            paymentMethodData: PaymentMethodDataCardFromMethod(
-              paymentMethodId: widget.savedCard!['id'],
-            ),
-          ),
-        );
-      } else {
-        // Create PM first so we have the ID before confirming
-        final pm = await Stripe.instance.createPaymentMethod(
-          params: PaymentMethodParams.card(
-            paymentMethodData: PaymentMethodData(
-              billingDetails: BillingDetails(
-                name: _nameController.text.trim(),
-                address: Address(
-                  postalCode: _zipController.text.trim(),
-                  city: null, country: null, line1: null, line2: null, state: null,
-                ),
-              ),
-            ),
-          ),
-        );
-        await Stripe.instance.confirmPayment(
-          paymentIntentClientSecret: widget.clientSecret,
-          data: PaymentMethodParams.cardFromMethodId(
-            paymentMethodData: PaymentMethodDataCardFromMethod(
-              paymentMethodId: pm.id,
-            ),
-          ),
-        );
-        if (widget.onSaveCard != null) {
-          final cardDetails = <String, dynamic>{
-            'id': pm.id,
-            'last4': pm.card.last4 ?? '',
-            'brand': pm.card.brand ?? 'unknown',
-            'exp_month': pm.card.expMonth ?? 0,
-            'exp_year': pm.card.expYear ?? 0,
-          };
-          await widget.onSaveCard!(_saveCard, cardDetails);
-        }
-      }
-      if (mounted) Navigator.pop(context, true);
-    } on StripeException catch (e) {
-      if (e.error.code == FailureCode.Canceled) {
-        if (mounted) Navigator.pop(context, false);
-      } else {
-        setState(() => _error = e.error.localizedMessage ?? e.error.message ?? 'Payment failed.');
-      }
-    } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _paying = false);
-    }
-  }
-
-  String _cardBrandIcon(String brand) {
-    switch (brand.toLowerCase()) {
-      case 'visa': return 'VISA';
-      case 'mastercard': return 'MC';
-      case 'amex': return 'AMEX';
-      case 'discover': return 'DISC';
-      default: return brand.toUpperCase();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final card = widget.savedCard;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Payment', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(widget.description, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          const SizedBox(height: 16),
-
-          // Saved card section
-          if (card != null && _usingSavedCard) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: SnowServColors.iceBlue, width: 1.5),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: SnowServColors.navy,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      _cardBrandIcon(card['brand'] ?? ''),
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('••••  ••••  ••••  ${card['last4']}',
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: 1)),
-                        Text('Exp ${card['exp_month']}/${card['exp_year']}',
-                            style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.check_circle, color: SnowServColors.iceBlue, size: 20),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => setState(() => _usingSavedCard = false),
-              child: const Text('Use a different card'),
-            ),
-          ] else ...[
-            // New card entry form
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Name on Card',
-                prefixIcon: Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: 12),
-            const Text('Card Number · MM/YY · CVC',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 6),
-            CardField(
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _zipController,
-              decoration: const InputDecoration(
-                labelText: 'Billing ZIP Code',
-                prefixIcon: Icon(Icons.location_on_outlined),
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              maxLength: 5,
-            ),
-            if (card != null) ...[
-              TextButton(
-                onPressed: () => setState(() => _usingSavedCard = true),
-                child: Text('Use saved card (••••${card['last4']})'),
-              ),
-            ] else ...[
-              const SizedBox(height: 4),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _saveCard,
-                onChanged: (val) => setState(() => _saveCard = val ?? true),
-                activeColor: SnowServColors.iceBlue,
-                title: const Text('Save card for future payments',
-                    style: TextStyle(fontSize: 13)),
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
-            ],
-          ],
-
-          if (_error != null) ...[
-            const SizedBox(height: 4),
-            Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
-          ],
-          const SizedBox(height: 12),
-          // Reassure the customer this is an authorization hold, not a charge —
-          // shown at the moment of payment (not just buried in the FAQ).
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: SnowServColors.frost,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: SnowServColors.glacier),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Icon(Icons.lock_clock_outlined, size: 18, color: SnowServColors.iceBlue),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "This places a hold — you're not charged yet. Your card is only "
-                    "charged when a provider starts the job, so if you cancel before "
-                    "then, you're never charged.",
-                    style: TextStyle(fontSize: 12, color: SnowServColors.navy, height: 1.3),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: _paying ? null : _pay,
-            child: _paying
-                ? const SizedBox(height: 20, width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text('Pay \$${widget.amount}'),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-        ],
       ),
     );
   }

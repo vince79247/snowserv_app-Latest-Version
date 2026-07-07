@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/customer/customer_home.dart';
 import 'screens/provider/provider_home.dart';
@@ -20,9 +19,9 @@ void main() async {
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  Stripe.publishableKey = 'pk_test_51TlZBgBYwOCAVVcUcMmYaVCyiv7YF8unZA7afdyHkAFauYaxiLVwU8Z4fhWScwRgm7cAmC5H6kGYfHT03tRuyvbX00MR63QKKG';
-  await Stripe.instance.applySettings();
-
+  // Payments run through Stripe Checkout (hosted page) now — no client-side
+  // Stripe SDK to initialize. The publishable key lives server-side / on the
+  // Checkout Session, and Checkout works on iOS, Android AND web.
   await Supabase.initialize(
     url: 'https://swttuujhcgpcsrxgupzv.supabase.co',
     publishableKey: 'sb_publishable_SnyCvdfwgHOQe-NB0D8Ipw_DUI9uWRe',

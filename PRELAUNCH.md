@@ -26,12 +26,38 @@ Low-risk momentum any time: a TestFlight build on your own iPhone, and a marketi
 website / pre-signup quote page — the latter needs NONE of the above (no payments).
 
 ## Handoff — where we left off (2026-07-07 session)
-Everything below is committed AND pushed to GitHub branch `geofenced-pricing-zones`
-(not merged to main). Git auth is the IDE's GitHub OAuth login (leaked PAT deleted).
-Supabase project is CLI-linked — Claude can run migrations (`supabase db push`) and
-deploy edge functions. All new migrations applied; notify-provider redeployed.
+The Stripe-Checkout payments migration below is DONE IN THE WORKING TREE but NOT yet
+committed/pushed (commit when ready) — everything ABOVE it was already committed +
+pushed to GitHub branch `geofenced-pricing-zones` (not merged to main). Git auth is the
+IDE's GitHub OAuth login (leaked PAT deleted). Supabase project is CLI-linked — Claude
+can run migrations (`supabase db push`) and deploy edge functions.
 
-**Shipped this session (all committed + verified on the iOS sims unless noted):**
+**⚠️ Checkout is NOT live end-to-end until you do this ONE Stripe step:** in the Stripe
+Dashboard → Developers → Webhooks, add an endpoint
+`https://swttuujhcgpcsrxgupzv.supabase.co/functions/v1/stripe-webhook` subscribed to
+`checkout.session.completed`, then set its signing secret:
+`supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`. Until then the webhook returns
+400 and paying on Checkout won't create a job. (STRIPE_SECRET_KEY already set.)
+
+**Shipped the Stripe Checkout migration (working tree, verified — `flutter build web`
+now succeeds, which flutter_stripe used to break):**
+- NEW edge fns (deployed): create-checkout-session (Session, capture_method=manual =
+  the HOLD, job fields in metadata, CORS for web), stripe-webhook (verify_jwt=false;
+  Stripe-signature check; idempotent address+job insert with the held PI; mirrors card
+  →users; calls dispatch_jobs() RPC), checkout-return (verify_jwt=false; HTML return
+  page for the mobile in-app browser). config.toml updated for the two verify_jwt=false.
+- Client (customer_home.dart): createJob now opens hosted Checkout (web = same-tab
+  redirect; mobile = in-app browser) instead of the in-app card sheet; deleted
+  `_PaymentSheet`/CardField; job insert + dispatch moved server-side (webhook). Kept the
+  "hold, not a charge" note + a "card on file" chip on the order screen; web return
+  handled by `_handleWebCheckoutReturn` (`?checkout=success|cancel`).
+- Removed flutter_stripe from pubspec + main.dart. Also had to bump transitive
+  `cross_file` (an image_picker dep) — its old pin used `UnmodifiableUint8ListView`,
+  removed in current Dart, and was the NEXT thing breaking `flutter build web`.
+- capture-payment + refund-job carried over UNCHANGED (still key off payment_intent_id).
+  create-payment-intent + get-payment-methods are now unused legacy (kept, safe to del).
+
+**Shipped the PRIOR session (all committed + verified on the iOS sims unless noted):**
 - Geofenced pricing zones — ZIP matching → drawn polygons. Admin map drawer
   (zone_editor_screen.dart, flutter_map), matchZone in lib/utils/geo.dart, Yonkers
   polygon drawn. `zips` kept as legacy fallback.
@@ -51,24 +77,26 @@ deploy edge functions. All new migrations applied; notify-provider redeployed.
 - Trust messaging: "No contracts / no monthly / no hidden fees" (customer + provider).
 - DB indexes on hot job/provider paths; GitHub-token leak closed.
 
-**➡️ NEXT TASK (what to start the new chat on): migrate payments to Stripe Checkout.**
-- Why: app uses `flutter_stripe` (custom PaymentIntent flow) which is MOBILE-ONLY
-  (iOS/Android) and won't compile for web (`flutter build web` currently FAILS on it).
-  Goal is multi-platform: iOS, Android, + WEB — and Mac/Windows are served by the WEB
-  app in a browser, NOT native desktop builds. Checkout = one integration for all +
-  free Apple Pay/Google Pay + native Stripe Tax.
-- MUST preserve the authorize-and-capture model: create the Checkout Session with
-  `payment_intent_data.capture_method='manual'` → hold at order, capture at provider
-  START, release on cancel-before-start. Underlying object stays a PaymentIntent, so
-  capture-payment + refund-job carry over — grab `session.payment_intent`, store on the
-  job like today. Confirmed with Vince this keeps the "no charge unless provider starts"
-  promise intact.
-- Part of the SAME epic as Stripe Connect + Sales Tax (see ROADMAP) — platform is the
-  tax collector of record; ideally design together.
+**✅ Stripe Checkout migration — DONE (see the shipped block above).** Was the mobile-
+only flutter_stripe blocking `flutter build web`; now one hosted-Checkout path for iOS,
+Android + web, hold model preserved. Remaining to make it live end-to-end: the ONE
+Stripe webhook step at the top of this Handoff (endpoint + STRIPE_WEBHOOK_SECRET).
+
+**➡️ NEXT TASK options (pick with Vince):**
+1. **Wire up + test Checkout end-to-end** — do the Stripe webhook step, then a full
+   test-mode order on each of iOS sim, web (`flutter run -d chrome`), and Android:
+   pay → confirm the webhook creates the job → provider START captures the hold →
+   cancel-before-start releases it. Verify saved-card reuse + the "card on file" chip,
+   and Apple/Google Pay showing on the hosted page. Also register the web domain for
+   Apple Pay in Stripe if we want the Apple Pay button on web.
+2. **Stripe Connect + Sales Tax epic** (ROADMAP) — the Checkout migration was designed
+   as the front half of this. Platform is tax collector of record; design together.
+3. **Web app polish** — now that `flutter build web` works, the Flutter web app is
+   unblocked (real admin auth + a hosting/deploy target still needed).
 
 **Other open threads:** marketing website (separate, SEO-friendly, NOT Flutter web);
-web app (Flutter web, unblocked once Checkout replaces flutter_stripe); founder critical
-path = LLC + EIN + CPA/sales-tax (gates real money). See "Go-live blockers" above.
+founder critical path = LLC + EIN + CPA/sales-tax (gates real money). See "Go-live
+blockers" above.
 
 ## Security hardening
 - ✅ Firebase iOS API key restricted to bundle id (Google Cloud Console)

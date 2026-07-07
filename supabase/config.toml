@@ -1,4 +1,16 @@
 
+# Stripe calls this with its own signature (no Supabase JWT) — auth is the
+# signature check inside the function, so JWT verification must be off.
+[functions.stripe-webhook]
+enabled = true
+verify_jwt = false
+
+# Public return page shown in the mobile in-app browser after Checkout — it's a
+# top-level browser navigation from Stripe, so no JWT.
+[functions.checkout-return]
+enabled = true
+verify_jwt = false
+
 [functions.notify-providers]
 enabled = true
 verify_jwt = false
