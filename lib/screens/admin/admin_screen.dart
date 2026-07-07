@@ -130,6 +130,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
+  // Admin "preferred driver" override: while on, this provider jumps to the
+  // front of dispatch (both the server cron and in-app dispatcher rank
+  // is_preferred first) — but only while they're online/eligible. Remember to
+  // turn it off. See migration 20260707064500_preferred_driver_override.sql.
+  Future<void> togglePreferred(String providerId, bool value) async {
+    await supabase
+        .from('providers')
+        .update({'is_preferred': value}).eq('id', providerId);
+    loadAll();
+  }
+
   Color statusColor(String status) {
     switch (status) {
       case 'requested': return Colors.orange;
@@ -1008,6 +1019,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                   color: Colors.red,
                                   fontWeight: FontWeight.w600)),
                         ],
+                        // Preferred-driver override active — visible at a glance
+                        // so the admin remembers it's on.
+                        if (p['is_preferred'] == true) ...[
+                          const SizedBox(width: 6),
+                          Icon(Icons.star, size: 13, color: Colors.amber.shade700),
+                          Text(' Preferred',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.amber.shade700,
+                                  fontWeight: FontWeight.w700)),
+                        ],
                       ],
                     ),
                   ),
@@ -1109,6 +1131,42 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         ],
                       ),
                     ] else if (isApproved) ...[
+                      // Preferred-driver override: feed new jobs to this driver
+                      // first (while they're online). Toggle off to return to
+                      // the normal load-aware dispatch.
+                      Container(
+                        decoration: BoxDecoration(
+                          color: p['is_preferred'] == true
+                              ? Colors.amber.withOpacity(0.12)
+                              : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: p['is_preferred'] == true
+                                ? Colors.amber.shade700
+                                : SnowServColors.glacier,
+                          ),
+                        ),
+                        child: SwitchListTile(
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 12),
+                          dense: true,
+                          activeThumbColor: Colors.amber.shade700,
+                          secondary: Icon(Icons.star,
+                              color: p['is_preferred'] == true
+                                  ? Colors.amber.shade700
+                                  : Colors.grey),
+                          title: const Text('Preferred driver',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 14)),
+                          subtitle: const Text(
+                              'Gets first pick of new jobs while online. '
+                              'Remember to turn off.',
+                              style: TextStyle(fontSize: 11)),
+                          value: p['is_preferred'] == true,
+                          onChanged: (v) => togglePreferred(p['id'], v),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(

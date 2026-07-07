@@ -183,6 +183,12 @@ lib/
   and dispatches queued jobs regardless of any app being open).
 - LOAD-AWARE ranking (both paths): fewest active jobs first, then proximity — no hard
   cap, so nothing is stranded when everyone is busy.
+- PREFERRED-DRIVER OVERRIDE (providers.is_preferred, admin-panel toggle on the provider
+  card): the admin's "take care of a certain driver" lever. Adds is_preferred DESC as
+  the TOP sort key in BOTH dispatchers, so a flagged provider gets first pick of new
+  jobs — but only while otherwise ELIGIBLE (online, approved, hasn't declined that job);
+  offline/declined falls through to normal ranking, so nothing is stranded on them.
+  Toggle off to return to normal. Gold star shows on the admin provider card while on.
 - AUTO-ACCEPT (providers.auto_accept, opt-in toggle on provider home): a job routed to
   an auto-accept provider is assigned directly (status=assigned) instead of a pending
   offer — no countdown to miss. Provider notified via notify-provider status

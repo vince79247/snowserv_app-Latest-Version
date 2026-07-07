@@ -30,7 +30,7 @@ Future<void> dispatchToNearest(
   try {
     final providers = await supabase
         .from('providers')
-        .select('id, current_lat, current_lng, auto_accept')
+        .select('id, current_lat, current_lng, auto_accept, is_preferred')
         .eq('is_online', true)
         .eq('registration_status', 'approved');
 
@@ -61,8 +61,12 @@ Future<void> dispatchToNearest(
 
     if (available.isEmpty) return;
 
-    // Load-aware: fewest active jobs first, then nearest as the tie-breaker.
+    // Preferred driver first (admin override), then load-aware: fewest active
+    // jobs, then nearest. Kept in sync with dispatch_jobs() (SQL cron).
     available.sort((a, b) {
+      final aPref = a['is_preferred'] == true;
+      final bPref = b['is_preferred'] == true;
+      if (aPref != bPref) return aPref ? -1 : 1;
       final aInfo = providerActiveJob[a['id'].toString()];
       final bInfo = providerActiveJob[b['id'].toString()];
       final aCount = (aInfo?['count'] as int?) ?? 0;
