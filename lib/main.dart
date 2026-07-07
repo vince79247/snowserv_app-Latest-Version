@@ -9,6 +9,7 @@ import 'screens/customer/customer_home.dart';
 import 'screens/provider/provider_home.dart';
 import 'screens/provider/provider_registration_screen.dart';
 import 'theme.dart';
+import 'utils/web_layout.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -69,21 +70,28 @@ class MyApp extends StatelessWidget {
       // because the constraint only bites when the window is wider than 520.
       builder: (context, child) {
         if (!kIsWeb || child == null) return child ?? const SizedBox.shrink();
-        return ColoredBox(
-          color: SnowServColors.frost,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Material(
-                elevation: 4,
-                shadowColor: SnowServColors.glacier,
-                clipBehavior: Clip.antiAlias,
-                // Desktop-web scrolling is finicky: wheel/trackpad only works
-                // with the cursor over a scrollable. Allow mouse DRAG scrolling
-                // too (like swiping on a phone) so the page always moves.
-                child: ScrollConfiguration(
-                  behavior: const _WebScrollBehavior(),
-                  child: child,
+        // The column width is a notifier so the admin panel can widen to full
+        // width and restore on exit (see web_layout.dart / openAdminPanel).
+        return ValueListenableBuilder<double>(
+          valueListenable: webContentMaxWidth,
+          // Desktop-web scrolling is finicky: wheel/trackpad only works with the
+          // cursor over a scrollable. Allow mouse DRAG scrolling too (like
+          // swiping on a phone) so the page always moves. Passed as the cached
+          // child so it isn't rebuilt when only the width changes.
+          child: ScrollConfiguration(
+            behavior: const _WebScrollBehavior(),
+            child: child,
+          ),
+          builder: (context, maxWidth, scrollChild) => ColoredBox(
+            color: SnowServColors.frost,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Material(
+                  elevation: 4,
+                  shadowColor: SnowServColors.glacier,
+                  clipBehavior: Clip.antiAlias,
+                  child: scrollChild,
                 ),
               ),
             ),

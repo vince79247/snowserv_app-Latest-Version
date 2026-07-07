@@ -142,6 +142,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   @override
   Widget build(BuildContext context) {
+    // On a wide screen (desktop browser) show every section at once as a
+    // multi-column DASHBOARD — no tab-clicking. On a phone keep the tabs.
+    final wide = MediaQuery.of(context).size.width >= 900;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Panel'),
@@ -152,53 +155,142 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             child: const Text('Log Out', style: TextStyle(color: Colors.white)),
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          // High-contrast labels on the navy app bar (defaults render dim blue/grey).
-          labelColor: Colors.white,
-          unselectedLabelColor: SnowServColors.glacier,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
-          tabs: [
-            Tab(text: 'Jobs (${jobs.length})'),
-            Tab(text: 'Customers (${users.where((u) => !providers.map((p) => p['user_id']?.toString()).toSet().contains(u['id']?.toString())).length})'),
-            Tab(text: 'Providers (${providers.length})'),
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Payouts'),
-                  if (pendingPayouts.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    CircleAvatar(
-                      radius: 8,
-                      backgroundColor: Colors.red,
-                      child: Text('${pendingPayouts.length}',
-                          style: const TextStyle(fontSize: 10, color: Colors.white)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Tab(text: 'Zones (${serviceAreas.length})'),
-          ],
-        ),
+        bottom: wide ? null : _buildTabBar(),
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
+          : (wide
+              ? _buildDashboard()
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildJobsTab(),
+                    _buildUsersTab(),
+                    _buildProvidersTab(),
+                    _buildPayoutsTab(),
+                    _buildServiceAreasTab(),
+                  ],
+                )),
+    );
+  }
+
+  int get _customerCount => users
+      .where((u) => !providers
+          .map((p) => p['user_id']?.toString())
+          .toSet()
+          .contains(u['id']?.toString()))
+      .length;
+
+  TabBar _buildTabBar() {
+    return TabBar(
+      controller: _tabController,
+      isScrollable: true,
+      // High-contrast labels on the navy app bar (defaults render dim blue/grey).
+      labelColor: Colors.white,
+      unselectedLabelColor: SnowServColors.glacier,
+      indicatorColor: Colors.white,
+      indicatorWeight: 3,
+      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+      tabs: [
+        Tab(text: 'Jobs (${jobs.length})'),
+        Tab(text: 'Customers ($_customerCount)'),
+        Tab(text: 'Providers (${providers.length})'),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Payouts'),
+              if (pendingPayouts.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                CircleAvatar(
+                  radius: 8,
+                  backgroundColor: Colors.red,
+                  child: Text('${pendingPayouts.length}',
+                      style: const TextStyle(fontSize: 10, color: Colors.white)),
+                ),
+              ],
+            ],
+          ),
+        ),
+        Tab(text: 'Zones (${serviceAreas.length})'),
+      ],
+    );
+  }
+
+  // Wide-screen dashboard: two columns of fixed-height panels, each reusing a
+  // tab builder. Panels scroll internally; the page scrolls if the columns run
+  // past the viewport. Everything visible without a single tab click.
+  Widget _buildDashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
               children: [
-                _buildJobsTab(),
-                _buildUsersTab(),
-                _buildProvidersTab(),
-                _buildPayoutsTab(),
-                _buildServiceAreasTab(),
+                _dashPanel('Jobs (${jobs.length})', Icons.work_outline,
+                    _buildJobsTab(), 640),
+                _dashPanel(
+                    pendingPayouts.isEmpty
+                        ? 'Payouts'
+                        : 'Payouts (${pendingPayouts.length} due)',
+                    Icons.payments_outlined,
+                    _buildPayoutsTab(),
+                    480),
+                _dashPanel('Zones (${serviceAreas.length})', Icons.map_outlined,
+                    _buildServiceAreasTab(), 460),
               ],
             ),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                _dashPanel('Providers (${providers.length})',
+                    Icons.local_shipping_outlined, _buildProvidersTab(), 640),
+                _dashPanel('Customers ($_customerCount)', Icons.people_outline,
+                    _buildUsersTab(), 560),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dashPanel(String title, IconData icon, Widget child, double height) {
+    return Padding(
+      padding: const EdgeInsets.all(6),
+      child: SizedBox(
+        height: height,
+        child: Card(
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          elevation: 2,
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                color: SnowServColors.navy,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  children: [
+                    Icon(icon, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Text(title,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15)),
+                  ],
+                ),
+              ),
+              Expanded(child: child),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

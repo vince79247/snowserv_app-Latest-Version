@@ -15,6 +15,7 @@ import 'address_screen.dart';
 import 'job_history_screen.dart';
 import '../faq_screen.dart';
 import '../admin/admin_screen.dart';
+import '../../utils/web_layout.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -321,8 +322,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                   title: const Text('Admin Panel'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const AdminPanelScreen()));
+                    openAdminPanel(context, const AdminPanelScreen());
                   },
                 ),
                 const Divider(height: 1, indent: 16, endIndent: 16),

@@ -15,6 +15,7 @@ import 'job_history_screen.dart';
 import 'provider_agreement_screen.dart';
 import '../faq_screen.dart';
 import '../admin/admin_screen.dart';
+import '../../utils/web_layout.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -507,8 +508,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                   title: const Text('Admin Panel'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const AdminPanelScreen()));
+                    openAdminPanel(context, const AdminPanelScreen());
                   },
                 ),
                 const Divider(height: 1, indent: 16, endIndent: 16),
