@@ -14,6 +14,7 @@ import '../../utils/legal.dart';
 import 'job_history_screen.dart';
 import 'provider_agreement_screen.dart';
 import '../faq_screen.dart';
+import '../edit_profile_screen.dart';
 import '../admin/admin_screen.dart';
 import '../../utils/web_layout.dart';
 
@@ -533,6 +534,17 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                       ),
                     );
                   }
+                },
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.badge_outlined, color: SnowServColors.navy),
+                title: const Text('My Info'),
+                subtitle: const Text('Edit your name & phone'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const EditProfileScreen()));
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
