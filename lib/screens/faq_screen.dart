@@ -172,6 +172,10 @@ const _customerSections = [
       'Sidewalk clearing: \$50\nDriveway clearing: \$100\nSidewalk + Driveway: \$125\nSalting add-on: +\$40\n\nPrices vary by service area, and may be higher during heavy snowfall (see storm pricing below).',
     ),
     _FaqItem(
+      'Are there any contracts or hidden fees?',
+      'No. There are no contracts, no monthly or subscription fees, and no hidden fees — you simply pay per job at the price shown before you confirm. Order only when you need snow removed.',
+    ),
+    _FaqItem(
       'What is storm pricing?',
       'During heavier snow, the job takes more time and effort, so prices adjust automatically based on current snow depth:\n\nUp to 3 inches: standard price\n3–6 inches: 1.3× multiplier\n6–10 inches: 1.7× multiplier\n10+ inches: 2.3× multiplier\n\nThe storm pricing level is always shown on the order screen before you pay.',
     ),
@@ -273,6 +277,10 @@ const _providerSections = [
     _FaqItem(
       'How much do I earn per job?',
       'You keep 70% of the total job price. The remaining 30% covers platform fees, payment processing, insurance, and app maintenance.\n\nExample: A \$125 driveway + sidewalk job pays you \$87.50.',
+    ),
+    _FaqItem(
+      'Are there any fees or contracts to work with SnowServ?',
+      'No. There are no sign-up fees, no monthly or subscription fees, and no contract locking you in. You keep 70% of every job; the only deduction is the 30% platform commission, shown upfront, which covers payment processing, insurance, and app maintenance. Work as much or as little as you want.',
     ),
     _FaqItem(
       'How does storm pricing affect my pay?',

@@ -121,6 +121,25 @@ class _QuoteScreenState extends State<QuoteScreen> {
           const SizedBox(height: 4),
           const Text("Enter your address and we'll show what SnowServ costs in your area.",
               style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.verified_outlined, color: Colors.green.shade700, size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('No contracts. No monthly fees. No hidden fees — just pay per job.',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _addressCtrl,

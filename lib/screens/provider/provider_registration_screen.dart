@@ -424,6 +424,25 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.verified_outlined, color: Colors.green.shade700, size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('No sign-up fees. No monthly fees. No contract — you keep 70% of every job.',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
+                ),
+              ],
+            ),
+          ),
           const Text('Provider Type', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
