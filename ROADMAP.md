@@ -36,12 +36,26 @@ growth) · **PRO** (needs an attorney/CPA — don't guess).
   yourself. **Stripe Connect** is the standard marketplace fix: providers onboard
   connected accounts, payments split automatically (your fee + their share), and
   Stripe handles payout compliance + 1099-Ks. Much better to adopt *before* volume.
-  Strong recommend.
-- **Stripe Tax / sales tax** — PRO. Whether NY taxes residential snow removal (and
-  whether it's "sales tax on a service") is state-specific and genuinely uncertain —
-  get a NY CPA to confirm taxability and nexus. Once the rules are known, **Stripe
-  Tax** can auto-calculate and collect at checkout. Don't launch charging real money
-  without settling this.
+  Strong recommend. NOTE: design this together with Sales Tax below — they're one
+  payments epic (the platform is the tax collector of record, so tax must not flow to
+  a provider's connected account).
+- **Sales tax via Stripe Tax** — PRO + design-with-Connect (decided 2026-07-06:
+  charge the customer, NEVER take it out of commission). NY (and counties) tax this;
+  it's state-specific nationwide.
+  - Model: tax rides ON TOP as its own line — Subtotal (service) + Tax = Total.
+    Provider = 70% of the pre-tax subtotal, platform = 30%; the tax portion stays with
+    the platform to remit and is NOT part of the 70/30 split.
+  - Tech: Stripe Tax auto-calculates by the customer's address + a service "tax code"
+    (so per-state taxability is Stripe's job, not ours) and monitors nexus as we grow.
+    Our custom PaymentIntent flow isn't auto like Checkout — call the Stripe Tax
+    Calculation API server-side in create-payment-intent, add the tax to the intent,
+    record a Tax Transaction for reporting.
+  - Nationwide crux: MARKETPLACE FACILITATOR laws make the PLATFORM the collector/
+    remitter of record in most states (not each provider) — so tax + Stripe Connect
+    are ONE payments epic, designed together (tax must not flow to a provider's
+    connected account). Register for a sales-tax permit per state BEFORE collecting.
+  - Stripe does calc/collect/report; a tax advisor + registrations/filing are on you.
+    Build this deliberately BEFORE going multi-state; retrofitting live is the nightmare.
 - **Apple Pay** — SOON. A payment method surfaced through Stripe; needs a merchant
   ID in the Apple Developer account + Stripe config. Moderate effort. (Already on
   the "not built" list in CLAUDE.md.)
