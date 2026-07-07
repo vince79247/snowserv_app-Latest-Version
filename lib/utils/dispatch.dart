@@ -30,7 +30,7 @@ Future<void> dispatchToNearest(
   try {
     final providers = await supabase
         .from('providers')
-        .select('id, current_lat, current_lng, auto_accept, is_preferred')
+        .select('id, current_lat, current_lng, auto_accept, preferred_until')
         .eq('is_online', true)
         .eq('registration_status', 'approved');
 
@@ -61,34 +61,59 @@ Future<void> dispatchToNearest(
 
     if (available.isEmpty) return;
 
-    // Preferred driver first (admin override), then load-aware: fewest active
-    // jobs, then nearest. Kept in sync with dispatch_jobs() (SQL cron).
-    available.sort((a, b) {
-      final aPref = a['is_preferred'] == true;
-      final bPref = b['is_preferred'] == true;
-      if (aPref != bPref) return aPref ? -1 : 1;
-      final aInfo = providerActiveJob[a['id'].toString()];
-      final bInfo = providerActiveJob[b['id'].toString()];
-      final aCount = (aInfo?['count'] as int?) ?? 0;
-      final bCount = (bInfo?['count'] as int?) ?? 0;
-      if (aCount != bCount) return aCount.compareTo(bCount);
-      if (lat == null || lng == null) return 0;
-      final aLat = (aInfo != null && aInfo['job_lat'] != null)
-          ? (aInfo['job_lat'] as num).toDouble()
-          : (a['current_lat'] ?? 0).toDouble();
-      final aLng = (aInfo != null && aInfo['job_lng'] != null)
-          ? (aInfo['job_lng'] as num).toDouble()
-          : (a['current_lng'] ?? 0).toDouble();
-      final bLat = (bInfo != null && bInfo['job_lat'] != null)
-          ? (bInfo['job_lat'] as num).toDouble()
-          : (b['current_lat'] ?? 0).toDouble();
-      final bLng = (bInfo != null && bInfo['job_lng'] != null)
-          ? (bInfo['job_lng'] as num).toDouble()
-          : (b['current_lng'] ?? 0).toDouble();
-      return dist2(lat, lng, aLat, aLng).compareTo(dist2(lat, lng, bLat, bLng));
-    });
+    // Provider's effective location for distance: a busy provider is measured
+    // from their current job (where they'll finish), else their GPS. Returns
+    // null when unknown.
+    double? distOf(Map<String, dynamic> p) {
+      if (lat == null || lng == null) return null;
+      final info = providerActiveJob[p['id'].toString()];
+      final pLat = (info != null && info['job_lat'] != null)
+          ? (info['job_lat'] as num).toDouble()
+          : (p['current_lat'] as num?)?.toDouble();
+      final pLng = (info != null && info['job_lng'] != null)
+          ? (info['job_lng'] as num).toDouble()
+          : (p['current_lng'] as num?)?.toDouble();
+      if (pLat == null || pLng == null) return null;
+      return dist2(lat, lng, pLat, pLng);
+    }
 
-    final chosen = available.first;
+    int loadOf(Map<String, dynamic> p) =>
+        (providerActiveJob[p['id'].toString()]?['count'] as int?) ?? 0;
+
+    // Normal winner: fewest active jobs, then nearest.
+    available.sort((a, b) {
+      final la = loadOf(a), lb = loadOf(b);
+      if (la != lb) return la.compareTo(lb);
+      final da = distOf(a) ?? double.infinity;
+      final db = distOf(b) ?? double.infinity;
+      return da.compareTo(db);
+    });
+    final normalWinner = available.first;
+    final normalDist = distOf(normalWinner) ?? double.infinity;
+
+    // Nearest PREFERRED driver whose override is still live and whose distance we
+    // can measure. Admin override: they win ONLY if equal-or-closer than the
+    // normal winner (never sent a worse-distance job). Kept in sync with
+    // dispatch_jobs() (SQL cron). Auto-expires via preferred_until.
+    final nowUtc = DateTime.now().toUtc();
+    Map<String, dynamic>? preferred;
+    double preferredDist = double.infinity;
+    for (final p in available) {
+      final pu = p['preferred_until'];
+      if (pu == null) continue;
+      final until = DateTime.tryParse(pu.toString());
+      if (until == null || !until.toUtc().isAfter(nowUtc)) continue;
+      final d = distOf(p);
+      if (d == null) continue; // need a known location to prove closeness
+      if (d < preferredDist) {
+        preferredDist = d;
+        preferred = p;
+      }
+    }
+
+    final chosen = (preferred != null && preferredDist <= normalDist)
+        ? preferred
+        : normalWinner;
     if (chosen['auto_accept'] == true) {
       // Provider is on auto-accept: assign the job straight away (no offer /
       // countdown), so they never have to watch their phone to catch it.

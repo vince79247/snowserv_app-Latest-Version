@@ -130,15 +130,66 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
-  // Admin "preferred driver" override: while on, this provider jumps to the
-  // front of dispatch (both the server cron and in-app dispatcher rank
-  // is_preferred first) — but only while they're online/eligible. Remember to
-  // turn it off. See migration 20260707064500_preferred_driver_override.sql.
-  Future<void> togglePreferred(String providerId, bool value) async {
-    await supabase
-        .from('providers')
-        .update({'is_preferred': value}).eq('id', providerId);
+  // Admin "preferred driver" override (providers.preferred_until). While live,
+  // this provider wins a new job only when they're EQUAL-OR-CLOSER than the
+  // driver who'd otherwise get it (never sent a worse-distance job), and it
+  // auto-expires at preferred_until. See migration
+  // 20260707071500_preferred_driver_expiry_distance.sql + lib/utils/dispatch.dart.
+
+  // True while the override is still live (future timestamp).
+  bool _isPreferred(Map<String, dynamic> p) {
+    final pu = p['preferred_until'];
+    if (pu == null) return false;
+    final until = DateTime.tryParse(pu.toString());
+    return until != null && until.toUtc().isAfter(DateTime.now().toUtc());
+  }
+
+  // "3h 12m left" style remaining-time label (empty if not preferred).
+  String _preferredRemaining(Map<String, dynamic> p) {
+    final pu = p['preferred_until'];
+    if (pu == null) return '';
+    final until = DateTime.tryParse(pu.toString());
+    if (until == null) return '';
+    final left = until.toUtc().difference(DateTime.now().toUtc());
+    if (left.isNegative) return '';
+    final h = left.inHours;
+    final m = left.inMinutes % 60;
+    return h > 0 ? '${h}h ${m}m left' : '${m}m left';
+  }
+
+  Future<void> _setPreferred(String providerId, Duration? forDuration) async {
+    await supabase.from('providers').update({
+      'preferred_until': forDuration == null
+          ? null
+          : DateTime.now().toUtc().add(forDuration).toIso8601String(),
+    }).eq('id', providerId);
     loadAll();
+  }
+
+  // Asks how long to prefer the driver; returns null if cancelled.
+  Future<Duration?> _promptPreferredDuration() {
+    return showDialog<Duration>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('Prefer this driver for how long?'),
+        children: [
+          for (final opt in const [
+            ['4 hours', 4],
+            ['8 hours (a shift)', 8],
+            ['24 hours', 24],
+          ])
+            SimpleDialogOption(
+              onPressed: () =>
+                  Navigator.pop(context, Duration(hours: opt[1] as int)),
+              child: Text(opt[0] as String),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
   }
 
   Color statusColor(String status) {
@@ -1020,11 +1071,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                   fontWeight: FontWeight.w600)),
                         ],
                         // Preferred-driver override active — visible at a glance
-                        // so the admin remembers it's on.
-                        if (p['is_preferred'] == true) ...[
+                        // (with time left) so the admin remembers it's on.
+                        if (_isPreferred(p)) ...[
                           const SizedBox(width: 6),
                           Icon(Icons.star, size: 13, color: Colors.amber.shade700),
-                          Text(' Preferred',
+                          Text(' Preferred · ${_preferredRemaining(p)}',
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.amber.shade700,
@@ -1131,41 +1182,53 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         ],
                       ),
                     ] else if (isApproved) ...[
-                      // Preferred-driver override: feed new jobs to this driver
-                      // first (while they're online). Toggle off to return to
-                      // the normal load-aware dispatch.
-                      Container(
-                        decoration: BoxDecoration(
-                          color: p['is_preferred'] == true
-                              ? Colors.amber.withOpacity(0.12)
-                              : Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: p['is_preferred'] == true
-                                ? Colors.amber.shade700
-                                : SnowServColors.glacier,
-                          ),
-                        ),
-                        child: SwitchListTile(
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 12),
-                          dense: true,
-                          activeThumbColor: Colors.amber.shade700,
-                          secondary: Icon(Icons.star,
-                              color: p['is_preferred'] == true
+                      // Preferred-driver override: while live, this driver wins a
+                      // new job only when they're equal-or-closer than whoever
+                      // would otherwise get it (never sent a worse-distance job).
+                      // Auto-expires; toggle off any time to end it early.
+                      Builder(builder: (_) {
+                        final pref = _isPreferred(p);
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: pref
+                                ? Colors.amber.withOpacity(0.12)
+                                : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: pref
                                   ? Colors.amber.shade700
-                                  : Colors.grey),
-                          title: const Text('Preferred driver',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w600, fontSize: 14)),
-                          subtitle: const Text(
-                              'Gets first pick of new jobs while online. '
-                              'Remember to turn off.',
-                              style: TextStyle(fontSize: 11)),
-                          value: p['is_preferred'] == true,
-                          onChanged: (v) => togglePreferred(p['id'], v),
-                        ),
-                      ),
+                                  : SnowServColors.glacier,
+                            ),
+                          ),
+                          child: SwitchListTile(
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12),
+                            dense: true,
+                            activeThumbColor: Colors.amber.shade700,
+                            secondary: Icon(Icons.star,
+                                color: pref ? Colors.amber.shade700 : Colors.grey),
+                            title: const Text('Preferred driver',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 14)),
+                            subtitle: Text(
+                                pref
+                                    ? 'Wins nearby jobs when equal-or-closer than the '
+                                        'next driver · ${_preferredRemaining(p)}'
+                                    : 'Favor this driver for close jobs, for a set time. '
+                                        'Never sent a farther job than normal.',
+                                style: const TextStyle(fontSize: 11)),
+                            value: pref,
+                            onChanged: (v) async {
+                              if (v) {
+                                final dur = await _promptPreferredDuration();
+                                if (dur != null) _setPreferred(p['id'], dur);
+                              } else {
+                                _setPreferred(p['id'], null);
+                              }
+                            },
+                          ),
+                        );
+                      }),
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,

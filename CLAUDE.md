@@ -183,12 +183,16 @@ lib/
   and dispatches queued jobs regardless of any app being open).
 - LOAD-AWARE ranking (both paths): fewest active jobs first, then proximity — no hard
   cap, so nothing is stranded when everyone is busy.
-- PREFERRED-DRIVER OVERRIDE (providers.is_preferred, admin-panel toggle on the provider
-  card): the admin's "take care of a certain driver" lever. Adds is_preferred DESC as
-  the TOP sort key in BOTH dispatchers, so a flagged provider gets first pick of new
-  jobs — but only while otherwise ELIGIBLE (online, approved, hasn't declined that job);
-  offline/declined falls through to normal ranking, so nothing is stranded on them.
-  Toggle off to return to normal. Gold star shows on the admin provider card while on.
+- PREFERRED-DRIVER OVERRIDE (providers.preferred_until timestamptz, admin-panel toggle
+  on the provider card): the admin's "take care of a certain driver" lever. RELATIVE
+  rule (not a fixed radius, not an unconditional bump): while the override is live, the
+  preferred driver wins a new job ONLY when they're EQUAL-OR-CLOSER to it than the
+  driver who'd otherwise be picked — so they're never sent a worse-distance job; the
+  override just lets them win the close calls (incl. beating a less-busy-but-farther
+  driver). AUTO-EXPIRES at preferred_until (admin picks 4h/8h/24h; no cron). Both
+  dispatchers implement it identically: dispatch_jobs() picks the normal winner + the
+  nearest live-preferred driver and swaps only if pref_dist <= normal_dist; the client
+  dispatchToNearest mirrors this. Admin card shows a gold "Preferred · Nh left" badge.
 - AUTO-ACCEPT (providers.auto_accept, opt-in toggle on provider home): a job routed to
   an auto-accept provider is assigned directly (status=assigned) instead of a pending
   offer — no countdown to miss. Provider notified via notify-provider status
