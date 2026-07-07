@@ -29,7 +29,11 @@ macos/.symlinks/
 
 # IDE
 .idea/
+.vscode/
 *.swp
+
+# Supabase CLI cache (regenerated on every CLI run; pooler-url holds a DB host)
+supabase/.temp/
 
 # Secrets
 *firebase-adminsdk*.json
