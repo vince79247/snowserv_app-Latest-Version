@@ -243,6 +243,52 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           .contains(u['id']?.toString()))
       .length;
 
+  // ---- Computed admin metrics (all from already-loaded data) --------------
+
+  String _customerName(dynamic customerId) {
+    final u = users.firstWhere(
+        (x) => x['id']?.toString() == customerId?.toString(),
+        orElse: () => const {});
+    final name = (u['name'] as String?)?.trim();
+    return (name != null && name.isNotEmpty) ? name : 'Unknown';
+  }
+
+  num _jobPrice(Map<String, dynamic> j) =>
+      (j['final_price'] ?? j['base_price'] ?? 0) as num;
+
+  // A provider's currently-accepted/in-progress jobs (storm monitoring).
+  List<Map<String, dynamic>> _activeJobsFor(String providerId) => jobs
+      .where((j) =>
+          j['provider_id']?.toString() == providerId &&
+          (j['status'] == 'assigned' || j['status'] == 'in_progress'))
+      .toList();
+
+  List<Map<String, dynamic>> _completedFor(String providerId) => jobs
+      .where((j) =>
+          j['provider_id']?.toString() == providerId &&
+          j['status'] == 'completed')
+      .toList();
+
+  // Platform-wide earnings from completed jobs. Provider take = 70%, platform 30%.
+  num get _completedRevenue => jobs
+      .where((j) => j['status'] == 'completed')
+      .fold<num>(0, (s, j) => s + _jobPrice(j));
+  num get _platformEarnings => _completedRevenue * 0.30;
+  num get _providerEarnings => _completedRevenue * 0.70;
+
+  Widget _earnTile(String label, num amount, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('\$${amount.round()}',
+            style: TextStyle(
+                color: color, fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(label,
+            style: const TextStyle(color: Colors.white60, fontSize: 11)),
+      ],
+    );
+  }
+
   TabBar _buildTabBar() {
     return TabBar(
       controller: _tabController,
@@ -641,6 +687,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     ],
                   ],
                 ),
+                Row(
+                  children: [
+                    const Icon(Icons.person, size: 13, color: SnowServColors.navy),
+                    const SizedBox(width: 4),
+                    Text(_customerName(job['customer_id']),
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: SnowServColors.navy)),
+                  ],
+                ),
                 if (job['addresses'] != null)
                   Text(
                     '${job['addresses']['address_line']}, ${job['addresses']['city']}',
@@ -993,6 +1050,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               final hasVehicle = p['has_vehicle'] == true;
               final hasSalt = p['has_salt'] == true;
 
+              final activeJobs = _activeJobsFor(p['id'].toString());
+              final completed = _completedFor(p['id'].toString());
+              final earned = completed.fold<num>(0, (s, j) => s + _jobPrice(j)) * 0.70;
+
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 shape: RoundedRectangleBorder(
@@ -1057,6 +1118,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         Text(' ${p['total_jobs'] ?? 0} jobs',
                             style: const TextStyle(
                                 fontSize: 12, color: Colors.grey)),
+                        // Live workload — the storm-monitoring at-a-glance.
+                        if (activeJobs.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.bolt, size: 13, color: SnowServColors.iceBlue),
+                          Text(' ${activeJobs.length} active',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: SnowServColors.iceBlue,
+                                  fontWeight: FontWeight.w700)),
+                        ],
                         // Post-start cancels charge the customer then bail —
                         // the most abusable provider move, so flag repeats.
                         if ((p['cancelled_after_start_count'] ?? 0) > 0) ...[
@@ -1086,6 +1157,64 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                   children: [
                     const Divider(height: 16),
+                    // Earnings (this driver's 70% take of their completed jobs).
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.payments, size: 16, color: Colors.green.shade700),
+                          const SizedBox(width: 8),
+                          Text(
+                              'Earned \$${earned.round()}  ·  ${completed.length} completed',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green.shade800)),
+                        ],
+                      ),
+                    ),
+                    // Live workload — the accepted/in-progress jobs (storms).
+                    if (activeJobs.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Active now (${activeJobs.length})',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: SnowServColors.iceBlue)),
+                      ),
+                      const SizedBox(height: 4),
+                      ...activeJobs.map((j) {
+                        final addr = j['addresses'];
+                        final where = addr != null
+                            ? '${addr['address_line']}, ${addr['city']}'
+                            : 'Address on file';
+                        final inProg = j['status'] == 'in_progress';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            children: [
+                              Icon(inProg ? Icons.play_circle : Icons.check_circle_outline,
+                                  size: 14,
+                                  color: inProg ? Colors.blue : Colors.orange),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '$where  ·  ${describeJob(j)}  ·  ${inProg ? 'In progress' : 'Accepted'}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                    const SizedBox(height: 10),
                     // Equipment section
                     const Align(
                       alignment: Alignment.centerLeft,
@@ -1362,6 +1491,35 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
     return Column(
       children: [
+        // All-time earnings from completed jobs (your 30% vs. providers' 70%).
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: SnowServColors.navy,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Earnings (completed jobs)',
+                  style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _earnTile('Your cut (30%)', _platformEarnings, Colors.white),
+                  _earnTile('Providers (70%)', _providerEarnings,
+                      SnowServColors.glacier),
+                  _earnTile('Total', _completedRevenue, Colors.amber),
+                ],
+              ),
+            ],
+          ),
+        ),
         Container(
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
