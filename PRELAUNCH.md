@@ -4,6 +4,27 @@ Living list of what must happen before real users, in rough priority order.
 Status: ✅ done · 🔨 in progress · ⏳ todo · 🧊 later. "Needs you" = requires
 Vince (Apple portal, decisions, etc.), not just code.
 
+## 🚦 Go-live blockers (ordered) — the checklist to a public launch
+These gate taking REAL money from REAL users on ANY platform (iOS *or* web) — none can
+be safely retrofitted once live. Pure features/UX are NOT here; ship those via updates
+anytime. (Added 2026-07-07.)
+1. **Business + legal** (you + CPA/attorney) — form the LLC + EIN and settle sales-tax
+   handling. Gates real revenue. See ROADMAP.md → Payments, tax & legal.
+2. **Live Stripe** — swap test keys (pk_test/sk_test) for LIVE keys under the entity's
+   Stripe account. Test mode = no real charges.
+3. **RLS lockdown** — tighten row-level security so the DB enforces access before real
+   users hit the API (see Security hardening below). The heavyweight.
+4. **App Store essentials** (iOS only) — privacy-policy URL in App Store Connect,
+   metadata + screenshots, and test on a REAL iPhone (not just simulators).
+
+NOT launch blockers — do before you SCALE, not before the first pilot:
+- Stripe Connect + Sales Tax epic (design now; a small controlled pilot can run on the
+  current manual-payout model — but don't scale without Connect).
+- Load test (k6/Artillery) — traffic is tiny at first; matters before multi-town/storm scale.
+
+Low-risk momentum any time: a TestFlight build on your own iPhone, and a marketing
+website / pre-signup quote page — the latter needs NONE of the above (no payments).
+
 ## Handoff — where we left off (last session)
 - Shipped & deployed: regional pricing (service_areas) + availability gate +
   pre-signup quote; storm pricing; real admin auth (profiles.is_admin, no shared
