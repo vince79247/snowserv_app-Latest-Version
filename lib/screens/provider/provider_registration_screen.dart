@@ -541,7 +541,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           const Divider(height: 24),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('I have salt',
+            title: const Text('I have deicer',
                 style: TextStyle(fontWeight: FontWeight.w600)),
             subtitle: const Text('Bag, spreader, or any supply of ice melt / salt',
                 style: TextStyle(fontSize: 12)),

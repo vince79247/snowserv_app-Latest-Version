@@ -735,7 +735,7 @@ class _CustomerHomeState extends State<CustomerHome> {
       final services = <String>[];
       if (selectedService == 'sidewalk' || selectedService == 'sidewalk_driveway') services.add('Sidewalk');
       if (selectedService == 'driveway' || selectedService == 'sidewalk_driveway') services.add('Driveway');
-      if (salting) services.add('Salting');
+      if (salting) services.add('Deicer');
       final description = 'SnowServ: ${services.join(' + ')}';
 
       // Geocode the service address (reuse the point cached during the
@@ -1388,7 +1388,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                   border: Border.all(color: salting ? SnowServColors.iceBlue : SnowServColors.glacier, width: 2),
                 ),
                 child: SwitchListTile(
-                  title: const Text('Add Salting',
+                  title: const Text('Add Deicer',
                       style: TextStyle(fontWeight: FontWeight.w600, color: SnowServColors.navy)),
                   subtitle: Text('+\$$_priceSalting', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                   value: salting,

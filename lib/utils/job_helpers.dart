@@ -2,12 +2,12 @@
 // Consolidated here so the same logic isn't copy-pasted (and allowed to drift)
 // across multiple files.
 
-/// Human-readable service description, e.g. "Driveway + Sidewalk + Salting".
+/// Human-readable service description, e.g. "Driveway + Sidewalk + Deicer".
 String describeJob(Map<String, dynamic> job) {
   final List<String> services = [];
   if (job['driveway'] == true) services.add('Driveway');
   if (job['walkway'] == true) services.add('Sidewalk');
-  if (job['salting'] == true) services.add('Salting');
+  if (job['salting'] == true) services.add('Deicer');
   return services.isEmpty ? 'Service' : services.join(' + ');
 }
 

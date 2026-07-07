@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
     const services = []
     if (job.driveway) services.push('Driveway')
     if (job.walkway) services.push('Sidewalk')
-    if (job.salting) services.push('Salting')
+    if (job.salting) services.push('Deicer')
     const serviceDesc = services.join(' + ') || 'Service'
 
     const { data: onlineProviders } = await supabase

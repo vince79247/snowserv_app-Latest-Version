@@ -468,7 +468,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                             ]),
                             const SizedBox(height: 4),
                             Text(
-                              'Sidewalk \$${a['price_sidewalk']}  •  Driveway \$${a['price_driveway']}  •  Both \$${a['price_both']}  •  Salting +\$${a['price_salting']}',
+                              'Sidewalk \$${a['price_sidewalk']}  •  Driveway \$${a['price_driveway']}  •  Both \$${a['price_both']}  •  Deicer +\$${a['price_salting']}',
                               style: const TextStyle(fontSize: 12, color: Colors.grey),
                             ),
                             Row(
@@ -1033,7 +1033,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       _infoRow('VIN', p['vehicle_vin']),
                       _infoRow('Plate', p['vehicle_plate']),
                     ],
-                    _infoRow('Has salt', hasSalt ? 'Yes' : 'No'),
+                    _infoRow('Has deicer', hasSalt ? 'Yes' : 'No'),
                     const SizedBox(height: 10),
                     // Identity section
                     const Align(

@@ -226,7 +226,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
           row('Sidewalk only', p('price_sidewalk')),
           row('Driveway only', p('price_driveway')),
           row('Sidewalk + Driveway', p('price_both')),
-          row('Salting add-on', p('price_salting')),
+          row('Deicer add-on', p('price_salting')),
           const SizedBox(height: 8),
           const Text('Prices may be higher during heavy snow (storm pricing).',
               style: TextStyle(fontSize: 12, color: Colors.grey)),

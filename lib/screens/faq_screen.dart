@@ -151,7 +151,7 @@ const _customerSections = [
     ),
     _FaqItem(
       'How do I place an order?',
-      'Add your service address, select the services you need (driveway, sidewalk, or both), choose whether you want salting, and complete payment. Our system immediately begins finding the nearest available provider.',
+      'Add your service address, select the services you need (driveway, sidewalk, or both), choose whether you want deicer, and complete payment. Our system immediately begins finding the nearest available provider.',
     ),
     _FaqItem(
       'Can I order for someone else?',
@@ -169,7 +169,7 @@ const _customerSections = [
   _FaqSection('Pricing & Payment', [
     _FaqItem(
       'What does it cost?',
-      'Sidewalk clearing: \$50\nDriveway clearing: \$100\nSidewalk + Driveway: \$125\nSalting add-on: +\$40\n\nPrices vary by service area, and may be higher during heavy snowfall (see storm pricing below).',
+      'Sidewalk clearing: \$50\nDriveway clearing: \$100\nSidewalk + Driveway: \$125\nDeicer add-on: +\$40\n\nPrices vary by service area, and may be higher during heavy snowfall (see storm pricing below).',
     ),
     _FaqItem(
       'Are there any contracts or hidden fees?',
@@ -240,7 +240,7 @@ const _providerSections = [
     ),
     _FaqItem(
       'What do I need to qualify?',
-      'You need a valid driver\'s license, a vehicle capable of snow removal, active liability insurance, and a bank account for payouts. Crew size and salt availability are helpful but not required.',
+      'You need a valid driver\'s license, a vehicle capable of snow removal, active liability insurance, and a bank account for payouts. Crew size and deicer availability are helpful but not required.',
     ),
     _FaqItem(
       'How do I go online to receive jobs?',

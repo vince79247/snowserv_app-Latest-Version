@@ -267,7 +267,7 @@ class _ZoneEditorScreenState extends State<ZoneEditorScreen> {
                 Row(children: [
                   Expanded(child: TextField(controller: _bothCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Both \$'))),
                   const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: _saltingCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Salting \$'))),
+                  Expanded(child: TextField(controller: _saltingCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Deicer \$'))),
                 ]),
               ],
             ),
