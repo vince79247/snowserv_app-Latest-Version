@@ -24,8 +24,10 @@ Vince (Apple portal, decisions, etc.), not just code.
 - ✅ Secrets server-side only (Stripe secret, service role, Firebase admin)
 - 🔨 **Real admin authentication** — replace the shared client-side admin password
   with a real `profiles.is_admin` account; verify server-side in functions.
-- ⏳ **GitHub token in git remote** — origin URL has a personal access token in
-  plaintext in .git/config. Rotate it and switch to a credential helper / SSH.
+- ✅ **GitHub token in git remote** — removed the token from the origin URL; now uses
+  the macOS Keychain credential helper with a fine-grained PAT (Contents: Read/write,
+  scoped to snowserv_app-Latest-Version). Branch pushed 2026-07-07.
+  ⚠️ FINAL STEP for Vince: revoke the OLD leaked token on GitHub.
 - 🧊 **Full RLS lockdown** — the app currently runs on permissive/loose row-level
   security. Tightening every table's policies so the DB enforces who-can-do-what
   is the big one: touches every flow (order, accept, payout, admin) and needs
