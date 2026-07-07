@@ -88,6 +88,14 @@ Deno.serve(async (req: Request) => {
     body.append('payment_intent_data[capture_method]', 'manual')
     body.append('payment_intent_data[description]', job_description ?? 'SnowServ snow removal')
 
+    // Reinforce the hold promise ON Stripe's hosted page (a line near the Pay
+    // button), so it matches the app's order-screen note. Must stay consistent
+    // with the authorize-and-capture model — charged only on provider START.
+    body.append(
+      'custom_text[submit][message]',
+      'This places a hold — your card is only charged when a provider starts your job.',
+    )
+
     if (customerId) {
       body.append('customer', customerId)
       // Save the card to the customer so it's offered on the next order.

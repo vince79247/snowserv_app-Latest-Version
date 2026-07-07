@@ -25,19 +25,36 @@ NOT launch blockers — do before you SCALE, not before the first pilot:
 Low-risk momentum any time: a TestFlight build on your own iPhone, and a marketing
 website / pre-signup quote page — the latter needs NONE of the above (no payments).
 
-## Handoff — where we left off (2026-07-07 session)
-The Stripe-Checkout payments migration below is DONE IN THE WORKING TREE but NOT yet
-committed/pushed (commit when ready) — everything ABOVE it was already committed +
-pushed to GitHub branch `geofenced-pricing-zones` (not merged to main). Git auth is the
-IDE's GitHub OAuth login (leaked PAT deleted). Supabase project is CLI-linked — Claude
-can run migrations (`supabase db push`) and deploy edge functions.
+## Handoff — where we left off (2026-07-07 session, late-night part 2)
+Everything committed + pushed to GitHub branch `geofenced-pricing-zones` (not merged to
+main; the branch is the de-facto dev branch — 20+ commits ahead, main has none of it;
+consider merging to main and cutting named branches going forward). Git auth is the
+IDE's GitHub OAuth login. Supabase CLI-linked — Claude can run migrations, deploy edge
+functions, and run one-off SQL via `supabase db query --linked "..."`.
 
-**⚠️ Checkout is NOT live end-to-end until you do this ONE Stripe step:** in the Stripe
-Dashboard → Developers → Webhooks, add an endpoint
-`https://swttuujhcgpcsrxgupzv.supabase.co/functions/v1/stripe-webhook` subscribed to
-`checkout.session.completed`, then set its signing secret:
-`supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`. Until then the webhook returns
-400 and paying on Checkout won't create a job. (STRIPE_SECRET_KEY already set.)
+**✅ Stripe Checkout is LIVE end-to-end in TEST mode (verified on the sims tonight):**
+webhook endpoint registered in the Stripe sandbox (checkout.session.completed),
+STRIPE_WEBHOOK_SECRET set. Verified: order → hold → webhook creates job → dispatch →
+provider Start captures → post-start-cancel path exercised. Cancel-before-start
+releases the hold (seen as payment_intent.canceled in Stripe events).
+⚠️ When going LIVE: register a SECOND webhook endpoint in Live mode (different whsec_).
+
+**Also shipped tonight (committed):**
+- POST-START CANCEL POLICY (decided w/ Vince): provider cancelling after Start keeps
+  the charge; job re-dispatches already paid (idempotent capture = no double charge);
+  honest customer push (notify-customer 'provider_cancelled_after_start': "no extra
+  charge / cancel for a full refund"); providers.cancelled_after_start_count +
+  increment_post_start_cancel RPC (migration applied); red admin-panel badge. Payout
+  self-reconciles: 70% goes to whoever COMPLETES (payout keys off jobs.provider_id at
+  completion; cancel wipes provider_id).
+- Payment copy scrubbed to match the hold model (never "payment received"): return
+  page, snackbars, plus custom_text hold note ON the Stripe Checkout page itself.
+- Account-menu bottom sheets (provider + customer) made scrollable — fixed the
+  14px bottom overflow on iPhone 16 (menus had outgrown the sheet).
+- ADMIN ACCOUNTS: profiles.is_admin=true on BOTH vcitarella2004@yahoo.com (customer)
+  and amalficoastvacation@yahoo.com (provider, approved) so Vince has admin from the
+  provider side too. Revisit account count at RLS lockdown.
+- ROADMAP: dual-role accounts entry (one login, both roles — decide post-launch).
 
 **Shipped the Stripe Checkout migration (working tree, verified — `flutter build web`
 now succeeds, which flutter_stripe used to break):**
@@ -83,12 +100,11 @@ Android + web, hold model preserved. Remaining to make it live end-to-end: the O
 Stripe webhook step at the top of this Handoff (endpoint + STRIPE_WEBHOOK_SECRET).
 
 **➡️ NEXT TASK options (pick with Vince):**
-1. **Wire up + test Checkout end-to-end** — do the Stripe webhook step, then a full
-   test-mode order on each of iOS sim, web (`flutter run -d chrome`), and Android:
-   pay → confirm the webhook creates the job → provider START captures the hold →
-   cancel-before-start releases it. Verify saved-card reuse + the "card on file" chip,
-   and Apple/Google Pay showing on the hosted page. Also register the web domain for
-   Apple Pay in Stripe if we want the Apple Pay button on web.
+1. **Finish Checkout platform coverage** — iOS sims are verified; still to test:
+   WEB (`flutter run -d chrome`: pay → redirect back → job appears) and Android.
+   Verify saved-card reuse + the "card on file" chip on a second order, and that
+   Apple/Google Pay show on the hosted page. Register the web domain in Stripe if we
+   want the Apple Pay button on web.
 2. **Stripe Connect + Sales Tax epic** (ROADMAP) — the Checkout migration was designed
    as the front half of this. Platform is tax collector of record; design together.
 3. **Web app polish** — now that `flutter build web` works, the Flutter web app is

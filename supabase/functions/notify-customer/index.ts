@@ -52,6 +52,14 @@ function getNotificationContent(status: string): { title: string; body: string }
       return { title: 'Job Complete!', body: 'Your snow removal is done. Tap to view your receipt.' }
     case 'provider_cancelled':
       return { title: 'Provider Cancelled', body: 'Your provider cancelled. We\'re finding you a new one.' }
+    case 'provider_cancelled_after_start':
+      // Post-start cancel: the card was already charged when work started, and
+      // the job re-dispatches still paid — be honest about the money state.
+      return {
+        title: 'Provider Had to Cancel',
+        body: 'Your provider couldn\'t finish — we\'re finding you a new one at no extra charge. ' +
+              'You won\'t be charged again. Prefer a full refund? Just cancel the job in the app.',
+      }
     default:
       return null
   }

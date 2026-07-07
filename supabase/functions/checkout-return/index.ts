@@ -12,10 +12,14 @@ Deno.serve((req: Request) => {
   const status = url.searchParams.get('status') ?? 'success'
   const success = status !== 'cancel'
 
-  const title = success ? 'Payment received' : 'Order canceled'
+  // NOTE: paying here only places an authorization HOLD (capture_method=manual).
+  // The card is NOT charged until a provider STARTS the job, so this copy must not
+  // say "payment received"/"charged" — that would contradict the hold promise.
+  const title = success ? "You're all set" : 'Order canceled'
   const emoji = success ? '❄️' : '↩️'
   const message = success
-    ? "You're all set — return to the SnowServ app and we'll find a provider near you."
+    ? "Your order is in — head back to the SnowServ app and we'll find a provider " +
+      "near you. Your card is only charged once a provider starts the job."
     : 'No charge was made. Return to the SnowServ app to try again.'
 
   const html = `<!doctype html>

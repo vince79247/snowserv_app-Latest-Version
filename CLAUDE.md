@@ -119,10 +119,10 @@ lib/
 - Stripe publishable key: pk_test_51TlZBgBYwOCAVVcUcMmYaVCyiv7YF8unZA7afdyHkAFauYaxiLVwU8Z4fhWScwRgm7cAmC5H6kGYfHT03tRuyvbX00MR63QKKG
 - Stripe secret key: stored as Supabase secret STRIPE_SECRET_KEY — never commit.
 - Stripe webhook signing secret: STRIPE_WEBHOOK_SECRET (Supabase secret, never commit).
-  ⚠️ NEEDS YOU (one-time, or payment→job never fires): Stripe Dashboard → Webhooks →
-  add endpoint https://swttuujhcgpcsrxgupzv.supabase.co/functions/v1/stripe-webhook,
-  event `checkout.session.completed`, then
-  `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`.
+  ✅ CONFIGURED 2026-07-07 (test mode): endpoint registered in the Stripe sandbox
+  (event checkout.session.completed), secret set, verified end-to-end (pay → webhook →
+  job created → dispatch → capture on provider Start; cancel releases the hold).
+  ⚠️ When going LIVE: add a SECOND endpoint in Live mode and set its different whsec_.
 
 ## Edge functions (supabase/functions/)
 - create-checkout-session: creates a Stripe Checkout Session (capture_method manual =
@@ -167,6 +167,14 @@ lib/
 4. Complete job → status becomes completed (photos + notes optional)
 5. Reject job → provider added to rejected_providers, job re-dispatched to next nearest
 6. Cancel accepted job → confirmation dialog, job reset to requested, re-dispatched, customer notified
+7. Cancel AFTER start (post-capture — decided 2026-07-07): the charge STAYS and the job
+   re-dispatches already paid (capture-payment is idempotent, so the next provider's
+   Start never double-charges). Customer gets an honest push (notify-customer status
+   'provider_cancelled_after_start': "no extra charge / won't be charged again / cancel
+   for a full refund" — cancel is available again since status is back to requested,
+   and refund-job sees the captured PI → full refund). Each post-start cancel increments
+   providers.cancelled_after_start_count (RPC increment_post_start_cancel, self-only)
+   and shows as a red warning on the admin panel's provider cards.
 
 ## Dispatch (how jobs are routed)
 - Two dispatchers, kept in sync: the client `dispatchToNearest` (lib/utils/dispatch.dart,

@@ -24,6 +24,14 @@ growth) · **PRO** (needs an attorney/CPA — don't guess).
   served by this web app, not native desktop builds.) Admin web already unblocked.
 
 ## Product scope
+- **Dual-role accounts (provider who is also a customer)** — SOON (decision), raised
+  2026-07-07 when Vince hit the one-account-per-email wall registering himself as a
+  provider. Auth is one account per email, and profiles.role is a single value that
+  routes to ONE home screen — so today a provider who wants to order service needs a
+  second email. Legit feature (Uber drivers can ride): would need role to become
+  multi-value (or a linked-accounts model), a home-screen switcher, and provisioning
+  of both users/providers records. Workaround for now: separate emails. Don't build
+  mid-prelaunch; decide after launch whether demand justifies it.
 - **Commercial jobs** — LATER (decision). Commercial (lots, complexes, seasonal
   contracts) doesn't fit the fixed per-service pricing model — scope varies too
   much. If pursued, do it as a separate **"Request a quote"** flow (customer

@@ -95,7 +95,7 @@ class _CustomerHomeState extends State<CustomerHome> {
         loadMyJobs();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Payment received! Finding a provider near you...'),
+            content: Text('Order placed! Finding a provider near you...'),
             backgroundColor: Colors.green,
           ),
         );
@@ -292,10 +292,19 @@ class _CustomerHomeState extends State<CustomerHome> {
   void _showAccountSheet() {
     showModalBottomSheet(
       context: context,
+      // Scrollable with a max height so the menu can never bottom-overflow as
+      // entries accumulate (Admin Panel row, legal links...). Same fix as the
+      // provider account sheet.
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Column(
@@ -364,6 +373,8 @@ class _CustomerHomeState extends State<CustomerHome> {
                 },
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),
@@ -825,8 +836,8 @@ class _CustomerHomeState extends State<CustomerHome> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Complete your payment in the browser — your order will '
-                'appear here once payment is confirmed.'),
+            content: Text('Finish in the browser to place your order — it will appear '
+                "here once it's placed. You're not charged until a provider starts."),
             duration: Duration(seconds: 6),
           ),
         );

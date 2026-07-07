@@ -476,10 +476,18 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   void _showAccountSheet() {
     showModalBottomSheet(
       context: context,
+      // Scrollable with a max height so the menu can never bottom-overflow as
+      // entries accumulate (Admin Panel row, agreement, legal links...).
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Column(
@@ -571,6 +579,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                 },
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),
@@ -768,7 +778,12 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
       builder: (_) => AlertDialog(
         title: const Text('Cancel This Job?'),
         content: Text(inProgress
-            ? 'You have already started this job. Are you sure you need to cancel? The customer will be notified and we will find another provider.'
+            // Post-start the customer's card has already been charged (Start
+            // captures the hold). The charge stays; the job re-dispatches paid.
+            ? 'You have already STARTED this job, so the customer has been charged. '
+              'The job will be reassigned to another provider to finish. '
+              'Cancelling after starting is recorded on your account — only do this '
+              'if you truly cannot finish (e.g. equipment failure).'
             : 'Are you sure you need to cancel? The customer will be notified and we will find another provider.'),
         actions: [
           TextButton(
@@ -794,7 +809,22 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         'dispatched_at': null,
         'rejected_providers': rejected,
       }).eq('id', jobId);
-      supabase.functions.invoke('notify-customer', body: {'job_id': jobId, 'status': 'provider_cancelled'});
+      if (inProgress) {
+        // Post-start cancel: the charge stays with the job (capture already
+        // happened; re-capture on the next Start is idempotent). Count it on
+        // this provider for admin visibility — best-effort, never blocks the
+        // cancel itself.
+        try {
+          await supabase.rpc('increment_post_start_cancel',
+              params: {'p_provider_id': providerId});
+        } catch (_) {}
+      }
+      // Distinct status post-start so the customer push can be honest about
+      // the charge ("you won't be charged again / cancel for a full refund").
+      supabase.functions.invoke('notify-customer', body: {
+        'job_id': jobId,
+        'status': inProgress ? 'provider_cancelled_after_start' : 'provider_cancelled',
+      });
       await dispatchToNearest(supabase, jobId, rejected,
           (job['job_lat'] as num?)?.toDouble(), (job['job_lng'] as num?)?.toDouble());
       loadActiveJobs();

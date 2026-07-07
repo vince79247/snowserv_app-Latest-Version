@@ -903,6 +903,19 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         Text(' ${p['total_jobs'] ?? 0} jobs',
                             style: const TextStyle(
                                 fontSize: 12, color: Colors.grey)),
+                        // Post-start cancels charge the customer then bail —
+                        // the most abusable provider move, so flag repeats.
+                        if ((p['cancelled_after_start_count'] ?? 0) > 0) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.warning_amber_rounded,
+                              size: 13, color: Colors.red),
+                          Text(
+                              ' ${p['cancelled_after_start_count']} cancel${p['cancelled_after_start_count'] == 1 ? '' : 's'} after start',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.w600)),
+                        ],
                       ],
                     ),
                   ),
