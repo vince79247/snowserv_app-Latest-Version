@@ -25,19 +25,50 @@ NOT launch blockers — do before you SCALE, not before the first pilot:
 Low-risk momentum any time: a TestFlight build on your own iPhone, and a marketing
 website / pre-signup quote page — the latter needs NONE of the above (no payments).
 
-## Handoff — where we left off (last session)
-- Shipped & deployed: regional pricing (service_areas) + availability gate +
-  pre-signup quote; storm pricing; real admin auth (profiles.is_admin, no shared
-  password — Admin Panel entry in the account menu for is_admin accounts);
-  provider-documents locked private + admin-only viewer. All edge functions
-  deployed & current; supabase secrets verified.
-- Admin account: vcitarella2004@yahoo.com (is_admin=true). Log in normally →
-  account menu → Admin Panel. Decided to KEEP this UX for now (not route straight
-  to admin) so the account can still test as a customer during the build.
-- ⏳ Verify later (manual): provider document viewing end-to-end — register a test
-  provider WITH photo uploads, then open them in admin (existing test providers
-  have nothing uploaded, so "View" shows nothing — that's correct, not a bug).
-- Next candidates: web admin (flutter build web — now unblocked) or Apple sign-in.
+## Handoff — where we left off (2026-07-07 session)
+Everything below is committed AND pushed to GitHub branch `geofenced-pricing-zones`
+(not merged to main). Git auth is the IDE's GitHub OAuth login (leaked PAT deleted).
+Supabase project is CLI-linked — Claude can run migrations (`supabase db push`) and
+deploy edge functions. All new migrations applied; notify-provider redeployed.
+
+**Shipped this session (all committed + verified on the iOS sims unless noted):**
+- Geofenced pricing zones — ZIP matching → drawn polygons. Admin map drawer
+  (zone_editor_screen.dart, flutter_map), matchZone in lib/utils/geo.dart, Yonkers
+  polygon drawn. `zips` kept as legacy fallback.
+- Admin tab contrast; one-active-order-per-address duplicate-order guard.
+- Payment: capture moved provider Accept → provider START (markInProgress); "this is
+  a hold, not a charge" note on the payment sheet; FAQ aligned.
+- Provider dashboard reliability: iOS foreground push presentation + resume/onMessage
+  refresh + markInProgress stale-job guard (both push bugs fixed).
+- Provider Service Agreement (anti-harvesting/non-circumvention) — in-app screen +
+  registration typed-signature + migration. DRAFT: needs NY attorney review + fill
+  [Company Legal Name].
+- App display name → "SnowServ" (iOS + Android).
+- Load-aware dispatch (client dispatchToNearest AND the pg_cron dispatch_jobs) +
+  queue-position display ("N jobs ahead") replacing the broken minute-ETA.
+- Auto-accept toggle (providers.auto_accept; assigns in both dispatch paths; cron
+  pushes via pg_net) + Directions button on the active-job card.
+- Trust messaging: "No contracts / no monthly / no hidden fees" (customer + provider).
+- DB indexes on hot job/provider paths; GitHub-token leak closed.
+
+**➡️ NEXT TASK (what to start the new chat on): migrate payments to Stripe Checkout.**
+- Why: app uses `flutter_stripe` (custom PaymentIntent flow) which is MOBILE-ONLY
+  (iOS/Android) and won't compile for web (`flutter build web` currently FAILS on it).
+  Goal is multi-platform: iOS, Android, + WEB — and Mac/Windows are served by the WEB
+  app in a browser, NOT native desktop builds. Checkout = one integration for all +
+  free Apple Pay/Google Pay + native Stripe Tax.
+- MUST preserve the authorize-and-capture model: create the Checkout Session with
+  `payment_intent_data.capture_method='manual'` → hold at order, capture at provider
+  START, release on cancel-before-start. Underlying object stays a PaymentIntent, so
+  capture-payment + refund-job carry over — grab `session.payment_intent`, store on the
+  job like today. Confirmed with Vince this keeps the "no charge unless provider starts"
+  promise intact.
+- Part of the SAME epic as Stripe Connect + Sales Tax (see ROADMAP) — platform is the
+  tax collector of record; ideally design together.
+
+**Other open threads:** marketing website (separate, SEO-friendly, NOT Flutter web);
+web app (Flutter web, unblocked once Checkout replaces flutter_stripe); founder critical
+path = LLC + EIN + CPA/sales-tax (gates real money). See "Go-live blockers" above.
 
 ## Security hardening
 - ✅ Firebase iOS API key restricted to bundle id (Google Cloud Console)
