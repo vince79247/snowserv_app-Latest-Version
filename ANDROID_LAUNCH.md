@@ -16,15 +16,11 @@ I can do in the repo · ✅ done.
       (and gitignore the keystore + key.properties). Do AFTER you make the keystore.
 
 ## 2. Firebase Android app (unlocks FCM push)
-- [ ] **[you]** Firebase console → project **snowserv-a5a29** → Add app → **Android**.
-      - Android package name: **`com.snowserv.app`** (must match exactly).
-      - App nickname: SnowServ Android. Debug signing SHA-1: optional for FCM.
-- [ ] **[you]** Download **`google-services.json`** → place in **`android/app/`**.
-- [ ] **[claude]** Apply the `com.google.gms.google-services` Gradle plugin
-      (settings.gradle.kts + app/build.gradle.kts). *Only after the json exists,
-      or the build fails.*
-- [ ] **[claude]** Add a white-silhouette `ic_notification` drawable + default
-      notification channel meta-data so pushes don't render as a gray square.
+- [x] **[claude]** Android app registered in Firebase (`com.snowserv.app`,
+      App ID `1:444628528819:android:ee770347be46998f2b4ac6`) via the Firebase CLI.
+- [x] **[claude]** `google-services.json` in `android/app/` (committed).
+- [x] **[claude]** `com.google.gms.google-services` Gradle plugin applied.
+- [x] **[claude]** White snowflake `ic_notification` drawable + navy tint meta-data.
 
 ## 3. Permissions (Android 13+)
 - [x] **[claude]** `POST_NOTIFICATIONS` declared (no notifications without it). — done.
@@ -33,10 +29,12 @@ I can do in the repo · ✅ done.
       Android 13+ (firebase_messaging `requestPermission()` handles this; verify on device).
 
 ## 4. Build & verify
+- [x] **[claude]** Debug APK **builds** with Firebase wired in. Required fixing a
+      ~2021-stale `pubspec.lock` (transitive plugins used `jcenter()`, removed in
+      Gradle 9) via `flutter pub upgrade` — 93 deps refreshed, no Dart errors.
 - [ ] **[you+claude]** `flutter run -d <android device/emulator>` — verify launch,
       login, order, dispatch, and a **real push job offer** landing on Android.
-- [ ] **[claude]** Confirm `Firebase.initializeApp()` succeeds on Android (fails today
-      until google-services.json + plugin are in place).
+      (Needs a physical Android phone or an emulator — none connected yet.)
 
 ## 5. Play Store prep (later)
 - [ ] **[you]** Google Play Developer account ($25 one-time).
