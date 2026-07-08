@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.snowserv_app"
+    namespace = "com.snowserv.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,8 +15,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.snowserv_app"
+        // Matches the iOS bundle ID; used for the Firebase Android app + Play Store.
+        applicationId = "com.snowserv.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
