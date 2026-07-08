@@ -9,6 +9,13 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  # Don't analyze the build cache — iOS/macOS SPM SourcePackages pull in
+  # third-party test/example files (e.g. firebase_messaging's own tests) that
+  # otherwise show up as hundreds of phantom "errors" in `flutter analyze`.
+  exclude:
+    - build/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

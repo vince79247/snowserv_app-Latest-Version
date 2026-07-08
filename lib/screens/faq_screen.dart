@@ -159,7 +159,7 @@ const _customerSections = [
     ),
     _FaqItem(
       'What happens after I place an order?',
-      'Your job is dispatched to the nearest available provider. Once a provider accepts, you\'ll see an estimated arrival time on your home screen and receive a notification. You can monitor the job status (Requested → Assigned → In Progress → Completed) in real time.',
+      'Your job is dispatched to the nearest available provider. Once a provider accepts, your home screen shows your place in their queue — how many jobs are ahead of yours — and you\'ll receive a notification. You can monitor the job status (Requested → Assigned → In Progress → Completed) in real time.',
     ),
     _FaqItem(
       'What if no provider is available?',
@@ -208,8 +208,8 @@ const _customerSections = [
   ]),
   _FaqSection('Service & Quality', [
     _FaqItem(
-      'How long until a provider arrives?',
-      'After a provider accepts your job, you\'ll see an estimated arrival time on your home screen. Actual arrival depends on the provider\'s distance and road conditions.',
+      'Where am I in line for a provider?',
+      'Providers work through their accepted jobs in order, so instead of a guessed arrival time we show you your place in line. Your home screen displays how many jobs are ahead of yours — for example "2 jobs ahead of you" — counting down to "You\'re next" as your provider finishes the jobs before you. When they start your job, the status changes to In Progress and you\'re notified. Exact timing still depends on snow conditions and how long each job ahead takes.',
     ),
     _FaqItem(
       'How do I rate my provider?',
