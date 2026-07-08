@@ -1,6 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// CORS: the admin "Run Payouts" button runs in the web admin, which preflights
+// functions.invoke — without this the browser blocks the call (payouts appear
+// to "do nothing").
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -20,7 +30,7 @@ Deno.serve(async (req: Request) => {
     if (error) throw new Error(error.message)
     if (!jobs || jobs.length === 0) {
       return new Response(JSON.stringify({ processed: 0, message: 'No payouts due' }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
@@ -122,10 +132,10 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(JSON.stringify({ processed: results.length, results }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
-    return new Response(JSON.stringify({ error: msg }), { status: 500 })
+    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: cors })
   }
 })
