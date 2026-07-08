@@ -246,13 +246,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   // ---- Computed admin metrics (all from already-loaded data) --------------
 
+  Map<String, dynamic> _customerRow(dynamic customerId) => users.firstWhere(
+      (x) => x['id']?.toString() == customerId?.toString(),
+      orElse: () => const {});
+
   String _customerName(dynamic customerId) {
-    final u = users.firstWhere(
-        (x) => x['id']?.toString() == customerId?.toString(),
-        orElse: () => const {});
-    final name = (u['name'] as String?)?.trim();
+    final name = (_customerRow(customerId)['name'] as String?)?.trim();
     return (name != null && name.isNotEmpty) ? name : 'Unknown';
   }
+
+  String? _customerPhone(dynamic customerId) =>
+      _customerRow(customerId)['phone'] as String?;
 
   num _jobPrice(Map<String, dynamic> j) =>
       (j['final_price'] ?? j['base_price'] ?? 0) as num;
@@ -769,6 +773,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                             color: SnowServColors.navy)),
                   ],
                 ),
+                _contactRow('Customer', _customerPhone(job['customer_id'])),
                 if (job['addresses'] != null)
                   Text(
                     '${job['addresses']['address_line']}, ${job['addresses']['city']}',
