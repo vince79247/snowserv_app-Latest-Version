@@ -2,6 +2,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Android 13+ requires this to show ANY notification (FCM job offers). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- geolocator: provider live location + customer address geocoding. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <application
         android:label="SnowServ"
         android:name="${applicationName}"
