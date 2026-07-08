@@ -32,7 +32,17 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: { token: fcmToken, notification: { title, body }, apns: { payload: { aps: { sound: 'default' } } } } }),
+    body: JSON.stringify({
+      message: {
+        token: fcmToken,
+        notification: { title, body },
+        // Time-Sensitive: auto-assigned jobs are urgent — ring through Focus/DND.
+        apns: {
+          headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
+          payload: { aps: { sound: 'default', 'interruption-level': 'time-sensitive' } },
+        },
+      },
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))

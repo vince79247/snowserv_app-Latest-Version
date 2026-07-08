@@ -52,7 +52,17 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message: { token: fcmToken, notification: { title, body }, apns: { payload: { aps: { sound: 'default' } } } },
+      message: {
+        token: fcmToken,
+        notification: { title, body },
+        // Time-Sensitive: a job offer is urgent — this rings through Focus /
+        // Do Not Disturb and gets top APNs delivery priority. Requires the
+        // Time Sensitive Notifications capability in the iOS app entitlements.
+        apns: {
+          headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
+          payload: { aps: { sound: 'default', 'interruption-level': 'time-sensitive' } },
+        },
+      },
     }),
   })
   if (!res.ok) {

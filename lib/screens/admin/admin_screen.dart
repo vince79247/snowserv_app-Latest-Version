@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,18 +27,45 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   List<Map<String, dynamic>> serviceAreas = [];
   bool loading = true;
   bool _payoutRunning = false;
+  // Cancelled jobs are kept (financial record) but hidden from the main list
+  // by default so they don't bury live work; this toggle reveals them.
+  bool _showCancelled = false;
+  // Silent 30s poll that keeps the live ticker / jobs / earnings fresh without
+  // flashing the loading spinner.
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
     loadAll();
+    // Keep the live ticker moving: re-pull jobs quietly every 30s.
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) _silentRefresh();
+    });
   }
 
   @override
   void dispose() {
+    _ticker?.cancel();
     _tabController.dispose();
     super.dispose();
+  }
+
+  // Lightweight refresh for the live ticker: re-pulls jobs only, with no
+  // loading spinner. Rebuilds the ticker (and updates "Xm ago" elapseds).
+  Future<void> _silentRefresh() async {
+    try {
+      final jobsData = await supabase
+          .from('jobs')
+          .select('*, addresses(*)')
+          .order('created_at', ascending: false);
+      if (mounted) {
+        setState(() => jobs = List<Map<String, dynamic>>.from(jobsData));
+      }
+    } catch (_) {
+      // Transient network blips shouldn't spam the admin — next tick retries.
+    }
   }
 
   Future<void> loadAll() async {
@@ -242,7 +270,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               : TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildJobsTab(),
+                    _buildJobsTab(includeTicker: true),
                     _buildUsersTab(),
                     _buildProvidersTab(),
                     _buildPayoutsTab(),
@@ -428,7 +456,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Payouts'),
+              const Text('Earnings'),
               if (pendingPayouts.isNotEmpty) ...[
                 const SizedBox(width: 6),
                 CircleAvatar(
@@ -446,41 +474,56 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  // Wide-screen dashboard: two columns of fixed-height panels, each reusing a
-  // tab builder. Panels scroll internally; the page scrolls if the columns run
-  // past the viewport. Everything visible without a single tab click.
+  // Wide-screen dashboard: columns of fixed-height panels, each reusing a tab
+  // builder. Panels scroll internally; the page scrolls if the columns run past
+  // the viewport. Everything visible without a single tab click.
+  //   >= 1100px  → THREE columns, with Earnings & Payouts in the middle.
+  //   900–1100px → two columns (earnings stacked in the left column).
   Widget _buildDashboard() {
+    final threeCol = MediaQuery.of(context).size.width >= 1100;
+
+    final jobsPanel = _dashPanel(
+        'Jobs (${jobs.length})', Icons.work_outline, _buildJobsTab(), 640);
+    final zonesPanel = _dashPanel('Zones (${serviceAreas.length})',
+        Icons.map_outlined, _buildServiceAreasTab(), 460);
+    final earningsPanel = _dashPanel(
+        pendingPayouts.isEmpty
+            ? 'Earnings & Payouts'
+            : 'Earnings & Payouts (${pendingPayouts.length} due)',
+        Icons.payments_outlined,
+        _buildPayoutsTab(),
+        threeCol ? 820 : 480);
+    final providersPanel = _dashPanel('Providers (${providers.length})',
+        Icons.local_shipping_outlined, _buildProvidersTab(), 640);
+    final customersPanel = _dashPanel('Customers ($_customerCount)',
+        Icons.people_outline, _buildUsersTab(), 560);
+
+    Widget col(List<Widget> panels) =>
+        Expanded(child: Column(children: panels));
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Column(
-              children: [
-                _dashPanel('Jobs (${jobs.length})', Icons.work_outline,
-                    _buildJobsTab(), 640),
-                _dashPanel(
-                    pendingPayouts.isEmpty
-                        ? 'Payouts'
-                        : 'Payouts (${pendingPayouts.length} due)',
-                    Icons.payments_outlined,
-                    _buildPayoutsTab(),
-                    480),
-                _dashPanel('Zones (${serviceAreas.length})', Icons.map_outlined,
-                    _buildServiceAreasTab(), 460),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                _dashPanel('Providers (${providers.length})',
-                    Icons.local_shipping_outlined, _buildProvidersTab(), 640),
-                _dashPanel('Customers ($_customerCount)', Icons.people_outline,
-                    _buildUsersTab(), 560),
-              ],
-            ),
+          // Live ops ticker spans the full width, above the columns.
+          _buildLiveTicker(),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: threeCol
+                ? [
+                    // Left: operations.
+                    col([jobsPanel, zonesPanel]),
+                    // Middle: the money view, front and centre.
+                    col([earningsPanel]),
+                    // Right: people.
+                    col([providersPanel, customersPanel]),
+                  ]
+                : [
+                    col([jobsPanel, earningsPanel, zonesPanel]),
+                    col([providersPanel, customersPanel]),
+                  ],
           ),
         ],
       ),
@@ -725,13 +768,208 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  Widget _buildJobsTab() {
-    if (jobs.isEmpty) return const Center(child: Text('No jobs yet.'));
+  // Driver display name for a job's provider_id, resolved from the loaded
+  // providers list (avoids an extra join on the jobs query).
+  String _providerName(dynamic providerId) {
+    if (providerId == null) return 'Unassigned';
+    final p = providers.firstWhere(
+        (p) => p['id']?.toString() == providerId.toString(),
+        orElse: () => <String, dynamic>{});
+    final n = p['users']?['name'];
+    return (n == null || n.toString().trim().isEmpty) ? 'Driver' : n.toString();
+  }
+
+  // Compact "N min ago" from an ISO timestamp.
+  String _ago(dynamic ts) {
+    final t = DateTime.tryParse(ts?.toString() ?? '')?.toLocal();
+    if (t == null) return '';
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+    if (d.inHours < 24) return '${d.inHours}h ago';
+    return '${d.inDays}d ago';
+  }
+
+  // LIVE ticker: jobs currently being worked (in_progress) or accepted and
+  // en route (assigned). Refreshed silently every 30s by _silentRefresh.
+  Widget _buildLiveTicker() {
+    final active = jobs
+        .where((j) =>
+            j['status'] == 'in_progress' || j['status'] == 'assigned')
+        .toList()
+      ..sort((a, b) {
+        int rank(Map j) => j['status'] == 'in_progress' ? 0 : 1;
+        final r = rank(a).compareTo(rank(b));
+        if (r != 0) return r;
+        return (b['created_at'] ?? '')
+            .toString()
+            .compareTo((a['created_at'] ?? '').toString());
+      });
+
+    final inProgress = active.where((j) => j['status'] == 'in_progress').length;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(6, 6, 6, 0),
+      decoration: BoxDecoration(
+        color: SnowServColors.navy,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _PulseDot(),
+              const SizedBox(width: 8),
+              const Text('LIVE',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      letterSpacing: 1.2)),
+              const SizedBox(width: 8),
+              Text(
+                active.isEmpty
+                    ? 'No active jobs right now'
+                    : '$inProgress in progress · ${active.length} active',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+          if (active.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 96,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: active.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => _tickerCard(active[i]),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _tickerCard(Map<String, dynamic> job) {
+    final started = job['status'] == 'in_progress';
+    final accent = started ? Colors.green : Colors.orange;
+    return Container(
+      width: 210,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(started ? 'IN PROGRESS' : 'EN ROUTE',
+                    style: TextStyle(
+                        color: accent.shade800,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold)),
+              ),
+              const Spacer(),
+              if (job['job_number'] != null)
+                Text('#${job['job_number']}',
+                    style:
+                        const TextStyle(fontSize: 10, color: Colors.grey)),
+            ],
+          ),
+          Text(describeJob(job),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: SnowServColors.navy)),
+          Row(children: [
+            const Icon(Icons.person, size: 12, color: Colors.grey),
+            const SizedBox(width: 3),
+            Expanded(
+              child: Text(_customerName(job['customer_id']),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12)),
+            ),
+          ]),
+          Row(children: [
+            const Icon(Icons.local_shipping, size: 12, color: Colors.grey),
+            const SizedBox(width: 3),
+            Expanded(
+              child: Text(_providerName(job['provider_id']),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+            Text(_ago(job['created_at']),
+                style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobsTab({bool includeTicker = false}) {
+    final cancelledCount =
+        jobs.where((j) => j['status'] == 'cancelled').length;
+    final visible = _showCancelled
+        ? jobs
+        : jobs.where((j) => j['status'] != 'cancelled').toList();
+
+    return Column(
+      children: [
+        if (includeTicker) _buildLiveTicker(),
+        if (cancelledCount > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Row(
+              children: [
+                const Spacer(),
+                FilterChip(
+                  label: Text('Show cancelled ($cancelledCount)'),
+                  selected: _showCancelled,
+                  onSelected: (v) => setState(() => _showCancelled = v),
+                  avatar: Icon(
+                    _showCancelled ? Icons.visibility : Icons.visibility_off,
+                    size: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: visible.isEmpty
+              ? Center(
+                  child: Text(jobs.isEmpty
+                      ? 'No jobs yet.'
+                      : 'No active jobs — cancelled ones are hidden.'))
+              : _jobsListView(visible),
+        ),
+      ],
+    );
+  }
+
+  Widget _jobsListView(List<Map<String, dynamic>> list) {
     return ListView.builder(
       padding: const EdgeInsets.all(12),
-      itemCount: jobs.length,
+      itemCount: list.length,
       itemBuilder: (context, i) {
-        final job = jobs[i];
+        final job = list[i];
         final hasNotes = job['provider_notes'] != null &&
             job['provider_notes'].toString().isNotEmpty;
         final photos = (job['completion_photos'] as List<dynamic>? ?? []);
@@ -1804,6 +2042,44 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             ),
           ),
       ],
+    );
+  }
+}
+
+// A small green dot that gently pulses — the "live" indicator on the ticker.
+// Self-contained (owns its AnimationController) so it can be dropped anywhere.
+class _PulseDot extends StatefulWidget {
+  const _PulseDot();
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween(begin: 0.35, end: 1.0).animate(_c),
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: const BoxDecoration(
+          color: Color(0xFF4CD964),
+          shape: BoxShape.circle,
+        ),
+      ),
     );
   }
 }
