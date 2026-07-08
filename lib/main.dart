@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -142,6 +143,12 @@ class _RoleRouterState extends State<RoleRouter> {
     if (kIsWeb) return;
     try {
       final messaging = FirebaseMessaging.instance;
+      // Persist any future token (rotation, or a late first fetch) unconditionally
+      // and FIRST, so a device can't end up with a stale/missing saved token even
+      // if the initial fetch below is slow. (This fragility is exactly what made
+      // push silently "stop working" after testing across sims/devices.)
+      messaging.onTokenRefresh.listen(_saveFcmToken);
+
       final settings = await messaging.requestPermission();
       debugPrint('FCM auth status: ${settings.authorizationStatus}');
       // iOS hides notification banners while the app is in the foreground by
@@ -152,32 +159,7 @@ class _RoleRouterState extends State<RoleRouter> {
       );
       if (settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional) {
-        // iOS requires APNs token before FCM token — retry up to 15 times
-        String? apnsToken;
-        for (int i = 0; i < 15; i++) {
-          apnsToken = await messaging.getAPNSToken();
-          if (apnsToken != null) break;
-          await Future.delayed(const Duration(seconds: 2));
-        }
-        if (apnsToken != null) {
-          final token = await messaging.getToken();
-          if (token != null) {
-            debugPrint('FCM token obtained: $token');
-            try {
-              await supabase.from('profiles').update({'fcm_token': token}).eq(
-                  'id', supabase.auth.currentUser!.id);
-              debugPrint('FCM token saved successfully');
-            } catch (saveErr) {
-              debugPrint('FCM token save error: $saveErr');
-            }
-          }
-        } else {
-          debugPrint('APNs token not available');
-        }
-        messaging.onTokenRefresh.listen((newToken) async {
-          await supabase.from('profiles').update({'fcm_token': newToken}).eq(
-              'id', supabase.auth.currentUser!.id);
-        });
+        await _fetchAndSaveFcmToken(messaging);
       }
     } catch (e) {
       debugPrint('FCM init error: $e');
@@ -195,6 +177,41 @@ class _RoleRouterState extends State<RoleRouter> {
         );
       }
     });
+  }
+
+  // Gets and saves the FCM token, retrying so a slow cold-launch registration
+  // doesn't leave the device without a saved token. iOS needs the APNs token
+  // before FCM can mint one; Android has no APNs step so it skips that wait.
+  Future<void> _fetchAndSaveFcmToken(FirebaseMessaging messaging) async {
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+    for (int i = 0; i < 20; i++) {
+      try {
+        if (isIOS && await messaging.getAPNSToken() == null) {
+          await Future.delayed(const Duration(seconds: 2));
+          continue;
+        }
+        final token = await messaging.getToken();
+        if (token != null) {
+          await _saveFcmToken(token);
+          return;
+        }
+      } catch (e) {
+        debugPrint('FCM token attempt $i failed: $e');
+      }
+      await Future.delayed(const Duration(seconds: 2));
+    }
+    debugPrint('FCM token not obtained after retries');
+  }
+
+  Future<void> _saveFcmToken(String token) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      await supabase.from('profiles').update({'fcm_token': token}).eq('id', userId);
+      debugPrint('FCM token saved');
+    } catch (e) {
+      debugPrint('FCM token save error: $e');
+    }
   }
 
   Future<void> loadRole() async {
