@@ -242,7 +242,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     try {
       final data = await supabase
           .from('jobs')
-          .select('*, addresses(*)')
+          // Join the customer so the provider can call them (gate, dog, etc.).
+          .select('*, addresses(*), users!jobs_customer_id_fkey(name, phone)')
           .eq('provider_id', providerId!)
           .inFilter('status', ['assigned', 'in_progress'])
           .order('created_at', ascending: true);
@@ -1528,6 +1529,47 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                   ],
                                 ),
                                 _addressRow(job),
+                                // Customer contact — call to sort out a gate, a
+                                // dog, where to pile snow, etc.
+                                Builder(builder: (_) {
+                                  final cust = job['users'];
+                                  final name = (cust?['name'] as String?)?.trim();
+                                  final phone = (cust?['phone'] as String?)?.trim();
+                                  if ((phone == null || phone.isEmpty)) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.person,
+                                            size: 15, color: SnowServColors.navy),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                              name?.isNotEmpty == true
+                                                  ? name!
+                                                  : 'Customer',
+                                              style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: SnowServColors.navy)),
+                                        ),
+                                        TextButton.icon(
+                                          onPressed: () => launchUrl(Uri(
+                                              scheme: 'tel',
+                                              path: phone.replaceAll(
+                                                  RegExp(r'[^0-9+]'), ''))),
+                                          icon: const Icon(Icons.call, size: 16),
+                                          label: Text(phone),
+                                          style: TextButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8),
+                                              minimumSize: const Size(0, 32)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
                                 Text(
                                   'Your pay: \$${providerPay(job)}',
                                   style: const TextStyle(

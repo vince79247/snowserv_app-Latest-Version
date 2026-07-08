@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/geo.dart';
@@ -52,7 +53,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           .order('created_at', ascending: false);
       final providersData = await supabase
           .from('providers')
-          .select('*, users!inner(name, email)')
+          .select('*, users!inner(name, email, phone)')
           .order('created_at', ascending: false);
       final payoutsData = await supabase
           .from('jobs')
@@ -275,6 +276,53 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       .fold<num>(0, (s, j) => s + _jobPrice(j));
   num get _platformEarnings => _completedRevenue * 0.30;
   num get _providerEarnings => _completedRevenue * 0.70;
+
+  Future<void> _dial(String scheme, String phone) async {
+    final uri = Uri(scheme: scheme, path: phone.replaceAll(RegExp(r'[^0-9+]'), ''));
+    if (!await launchUrl(uri) && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$phone')));
+    }
+  }
+
+  // Phone + Call/Text quick actions. The simplest "message a driver/customer"
+  // path — opens the phone's native dialer / Messages, no chat backend needed.
+  Widget _contactRow(String label, String? phone) {
+    final has = phone != null && phone.trim().isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.phone, size: 16, color: SnowServColors.navy),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(has ? '$label: $phone' : '$label: none on file',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: has ? SnowServColors.navy : Colors.grey)),
+          ),
+          if (has) ...[
+            TextButton.icon(
+              onPressed: () => _dial('tel', phone),
+              icon: const Icon(Icons.call, size: 16),
+              label: const Text('Call'),
+              style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 32)),
+            ),
+            TextButton.icon(
+              onPressed: () => _dial('sms', phone),
+              icon: const Icon(Icons.sms, size: 16),
+              label: const Text('Text'),
+              style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 32)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _earnTile(String label, num amount, Color color) {
     return Column(
@@ -651,22 +699,45 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Customer paid: \$${job['final_price'] ?? job['base_price']}',
-                          style: const TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15),
-                        ),
-                        Text(
-                          'Provider pay: \$${(((job['final_price'] ?? job['base_price'] ?? 0) as num) * 0.70).round()}  |  Commission: \$${(((job['final_price'] ?? job['base_price'] ?? 0) as num) * 0.30).round()}',
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                    Builder(builder: (_) {
+                      final status = job['status'];
+                      final amt = _jobPrice(job);
+                      final cancelled = status == 'cancelled';
+                      // Payment reflects the hold model: charged only once the
+                      // provider STARTS (in_progress/completed); requested/
+                      // assigned is a hold; cancelled = refunded/released.
+                      final charged =
+                          status == 'in_progress' || status == 'completed';
+                      final String payLabel;
+                      final Color payColor;
+                      if (cancelled) {
+                        payLabel = 'Refunded / hold released — not charged';
+                        payColor = Colors.grey;
+                      } else if (charged) {
+                        payLabel = 'Customer paid: \$${amt.round()}';
+                        payColor = Colors.green;
+                      } else {
+                        payLabel =
+                            'Hold placed (not charged yet): \$${amt.round()}';
+                        payColor = Colors.orange.shade800;
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(payLabel,
+                              style: TextStyle(
+                                  color: payColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15)),
+                          // The split only means anything once money is captured.
+                          if (!cancelled)
+                            Text(
+                              'Provider pay: \$${(amt * 0.70).round()}  |  Commission: \$${(amt * 0.30).round()}',
+                              style: const TextStyle(color: Colors.grey, fontSize: 12),
+                            ),
+                        ],
+                      );
+                    }),
                     if ((job['surge_multiplier'] ?? 1.0) > 1.0) ...[
                       const SizedBox(width: 6),
                       Container(
@@ -1157,6 +1228,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                   children: [
                     const Divider(height: 16),
+                    // Contact the driver (call/text) — storm coordination.
+                    _contactRow('Driver', p['users']?['phone'] as String?),
+                    const SizedBox(height: 8),
                     // Earnings (this driver's 70% take of their completed jobs).
                     Container(
                       width: double.infinity,
