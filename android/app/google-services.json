@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "444628528819",
+    "project_id": "snowserv-a5a29",
+    "storage_bucket": "snowserv-a5a29.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:444628528819:android:ee770347be46998f2b4ac6",
+        "android_client_info": {
+          "package_name": "com.snowserv.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTp8F0zUNdR6e_9e_iWNw_DGsksb1DLtQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
