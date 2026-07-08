@@ -328,17 +328,70 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  Widget _earnTile(String label, num amount, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('\$${amount.round()}',
-            style: TextStyle(
-                color: color, fontSize: 20, fontWeight: FontWeight.bold)),
-        Text(label,
-            style: const TextStyle(color: Colors.white60, fontSize: 11)),
-      ],
-    );
+  // Completed jobs clustered into "storms": runs of consecutive active days
+  // (a gap of >1 day starts a new storm), newest first. A snow business earns in
+  // bursts, so this reads far clearer than one all-time lump sum.
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  String _dateRange(DateTime a, DateTime b) {
+    if (a == b) return '${_months[a.month - 1]} ${a.day}, ${a.year}';
+    if (a.year == b.year && a.month == b.month) {
+      return '${_months[a.month - 1]} ${a.day}–${b.day}, ${a.year}';
+    }
+    return '${_months[a.month - 1]} ${a.day} – ${_months[b.month - 1]} ${b.day}, ${b.year}';
+  }
+
+  List<Map<String, dynamic>> _stormBuckets() {
+    final byDay = <DateTime, List<num>>{}; // day -> [count, revenue]
+    for (final j in jobs.where((j) => j['status'] == 'completed')) {
+      final created = DateTime.tryParse('${j['created_at']}')?.toLocal();
+      if (created == null) continue;
+      final day = DateTime(created.year, created.month, created.day);
+      final e = byDay.putIfAbsent(day, () => <num>[0, 0]);
+      e[0] += 1;
+      e[1] += _jobPrice(j);
+    }
+    if (byDay.isEmpty) return [];
+    final days = byDay.keys.toList()..sort();
+    final storms = <Map<String, dynamic>>[];
+    DateTime? start, end;
+    int cnt = 0;
+    num rev = 0;
+    void flush() {
+      final s = start, e = end;
+      if (s == null || e == null) return;
+      storms.add({
+        'label': _dateRange(s, e),
+        'jobs': cnt,
+        'revenue': rev,
+        'end': e,
+      });
+    }
+
+    for (final d in days) {
+      if (start == null) {
+        start = d;
+        end = d;
+        cnt = byDay[d]![0].toInt();
+        rev = byDay[d]![1];
+      } else if (d.difference(end!).inDays <= 1) {
+        end = d;
+        cnt += byDay[d]![0].toInt();
+        rev += byDay[d]![1];
+      } else {
+        flush();
+        start = d;
+        end = d;
+        cnt = byDay[d]![0].toInt();
+        rev = byDay[d]![1];
+      }
+    }
+    flush();
+    storms.sort((a, b) => (b['end'] as DateTime).compareTo(a['end'] as DateTime));
+    return storms;
   }
 
   TabBar _buildTabBar() {
@@ -1570,10 +1623,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
     return Column(
       children: [
-        // All-time earnings from completed jobs (your 30% vs. providers' 70%).
+        // Earnings — the hero number (your cut) up top, then a by-storm
+        // breakdown, since a snow business earns in storm bursts.
         Container(
           margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: SnowServColors.navy,
             borderRadius: BorderRadius.circular(12),
@@ -1581,24 +1635,72 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Earnings (completed jobs)',
+              const Text('YOUR EARNINGS · 30% commission',
                   style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _earnTile('Your cut (30%)', _platformEarnings, Colors.white),
-                  _earnTile('Providers (70%)', _providerEarnings,
-                      SnowServColors.glacier),
-                  _earnTile('Total', _completedRevenue, Colors.amber),
-                ],
-              ),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
+              const SizedBox(height: 4),
+              Text('\$${_platformEarnings.round()}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold)),
+              Text(
+                  'From \$${_completedRevenue.round()} collected  ·  providers earned \$${_providerEarnings.round()}',
+                  style: const TextStyle(
+                      color: SnowServColors.glacier, fontSize: 13)),
             ],
           ),
         ),
+        // Per-storm contribution (completed jobs clustered by active days).
+        Builder(builder: (_) {
+          final storms = _stormBuckets();
+          if (storms.isEmpty) return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: Text('Earnings by storm',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: SnowServColors.navy)),
+              ),
+              ...storms.map((s) {
+                final rev = s['revenue'] as num;
+                final cut = (rev * 0.30).round();
+                final jobCount = s['jobs'] as int;
+                return Card(
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: ListTile(
+                    leading:
+                        const Icon(Icons.ac_unit, color: SnowServColors.iceBlue),
+                    title: Text(s['label'] as String,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                        '$jobCount job${jobCount == 1 ? '' : 's'}  ·  \$${rev.round()} collected'),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('\$$cut',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade700,
+                                fontSize: 16)),
+                        const Text('your cut',
+                            style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        }),
         Container(
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
