@@ -5,6 +5,7 @@ import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/geo.dart';
 import 'zone_editor_screen.dart';
+import 'admin_map_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -212,6 +213,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       appBar: AppBar(
         title: const Text('Admin Panel'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            tooltip: 'Live map',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AdminMapScreen(
+                  providers: providers,
+                  serviceAreas: serviceAreas,
+                  jobs: jobs,
+                ),
+              ),
+            ),
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: loadAll),
           TextButton(
             onPressed: () => Navigator.pop(context),
