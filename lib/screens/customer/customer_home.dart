@@ -1024,8 +1024,11 @@ class _CustomerHomeState extends State<CustomerHome> {
     return Scaffold(
       appBar: AppBar(
         title: const Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('❄  SnowServ', style: TextStyle(letterSpacing: 1)),
+            Icon(Icons.ac_unit, size: 20, color: SnowServColors.iceBluLight),
+            SizedBox(width: 8),
+            Text('SnowServ', style: TextStyle(letterSpacing: 0.5)),
           ],
         ),
         actions: [

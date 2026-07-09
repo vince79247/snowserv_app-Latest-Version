@@ -82,7 +82,9 @@ ThemeData buildSnowServTheme() {
         foregroundColor: Colors.white,
         elevation: 0,
         shadowColor: Colors.transparent,
-        minimumSize: const Size.fromHeight(52),
+        // Height-only min (NOT Size.fromHeight, which forces infinite width and
+        // breaks buttons placed inside a Row). Full-width is opt-in per screen.
+        minimumSize: const Size(0, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(r)),
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.2),
@@ -92,7 +94,7 @@ ThemeData buildSnowServTheme() {
       style: FilledButton.styleFrom(
         backgroundColor: SnowServColors.iceBlue,
         foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(52),
+        minimumSize: const Size(0, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(r)),
         textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
       ),
@@ -101,7 +103,7 @@ ThemeData buildSnowServTheme() {
       style: OutlinedButton.styleFrom(
         foregroundColor: SnowServColors.iceBlue,
         side: const BorderSide(color: SnowServColors.glacier, width: 1.5),
-        minimumSize: const Size.fromHeight(48),
+        minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(r)),
         padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 18),
         textStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),

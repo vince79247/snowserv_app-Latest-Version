@@ -1134,6 +1134,53 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     );
   }
 
+  // Shown when the provider has no offer and no active jobs — keeps the screen
+  // feeling intentional (and reassuring) instead of blank.
+  Widget _buildIdleState() {
+    final online = isOnline;
+    return Padding(
+      padding: const EdgeInsets.only(top: 48),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: (online ? SnowServColors.iceBlue : SnowServColors.inkSoft)
+                  .withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              online ? Icons.ac_unit : Icons.nightlight_round,
+              size: 34,
+              color: online ? SnowServColors.iceBlue : SnowServColors.inkSoft,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            online ? "You're online" : "You're offline",
+            style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: SnowServColors.navy),
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              online
+                  ? "Waiting for jobs — we'll notify you the moment one comes in."
+                  : 'Toggle online above to start receiving job offers.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 14, height: 1.4, color: SnowServColors.inkSoft),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDispatchCard() {
     final job = _dispatchedJob!;
     final minutes = _secondsRemaining ~/ 60;
@@ -1341,8 +1388,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     return Scaffold(
       appBar: AppBar(
         title: const Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('❄  SnowServ', style: TextStyle(letterSpacing: 1)),
+            Icon(Icons.ac_unit, size: 20, color: SnowServColors.iceBluLight),
+            SizedBox(width: 8),
+            Text('SnowServ', style: TextStyle(letterSpacing: 0.5)),
           ],
         ),
         actions: [
@@ -1485,6 +1535,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                   children: [
                     // Dispatched job timer card
                     if (_dispatchedJob != null) _buildDispatchCard(),
+
+                    // Nothing on the plate: show an intentional idle state
+                    // instead of blank space.
+                    if (_dispatchedJob == null && activeJobs.isEmpty)
+                      _buildIdleState(),
 
                     // Active jobs
                     if (activeJobs.isNotEmpty) ...[
