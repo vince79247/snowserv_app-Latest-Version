@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../utils/legal.dart';
+import '../config/app_config.dart';
 
 class FaqScreen extends StatelessWidget {
   const FaqScreen({super.key});
@@ -19,9 +20,9 @@ class FaqScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
-            _FaqTab(sections: _customerSections),
+            const _FaqTab(sections: _customerSections),
             _FaqTab(sections: _providerSections),
           ],
         ),
@@ -228,7 +229,13 @@ const _customerSections = [
 
 // ─── PROVIDER CONTENT ─────────────────────────────────────────────────────────
 
-const _providerSections = [
+// Built at call time so the commission figures always match the live,
+// admin-set rate (AppConfig) — never a stale hardcoded 70/30.
+List<_FaqSection> get _providerSections {
+  final keep = (100 - AppConfig.commissionPct).round(); // provider %
+  final comm = AppConfig.commissionPct.round(); // platform %
+  final f = AppConfig.providerFraction;
+  return [
   _FaqSection('Getting Started', [
     _FaqItem(
       'How do I sign up as a provider?',
@@ -276,15 +283,15 @@ const _providerSections = [
   _FaqSection('Earnings & Payouts', [
     _FaqItem(
       'How much do I earn per job?',
-      'You keep 70% of the total job price. The remaining 30% covers platform fees, payment processing, insurance, and app maintenance.\n\nExample: A \$125 driveway + sidewalk job pays you \$87.50.',
+      'You keep $keep% of the total job price. The remaining $comm% covers platform fees, payment processing, insurance, and app maintenance.\n\nExample: A \$125 driveway + sidewalk job pays you \$${(125 * f).toStringAsFixed(2)}.',
     ),
     _FaqItem(
       'Are there any fees or contracts to work with SnowServ?',
-      'No. There are no sign-up fees, no monthly or subscription fees, and no contract locking you in. You keep 70% of every job; the only deduction is the 30% platform commission, shown upfront, which covers payment processing, insurance, and app maintenance. Work as much or as little as you want.',
+      'No. There are no sign-up fees, no monthly or subscription fees, and no contract locking you in. You keep $keep% of every job; the only deduction is the $comm% platform commission, shown upfront, which covers payment processing, insurance, and app maintenance. Work as much or as little as you want.',
     ),
     _FaqItem(
       'How does storm pricing affect my pay?',
-      'When it snows harder, storm pricing raises the total job price — and since you keep 70%, your pay scales up with it automatically. The same snow-depth tiers customers see apply to your earnings:\n\nUp to 3 inches: standard price\n3–6 inches: 1.3× multiplier\n6–10 inches: 1.7× multiplier\n10+ inches: 2.3× multiplier\n\nExample: a \$125 job during a 2.3× storm bills at \$287.50, so your 70% is \$201.25.',
+      'When it snows harder, storm pricing raises the total job price — and since you keep $keep%, your pay scales up with it automatically. The same snow-depth tiers customers see apply to your earnings:\n\nUp to 3 inches: standard price\n3–6 inches: 1.3× multiplier\n6–10 inches: 1.7× multiplier\n10+ inches: 2.3× multiplier\n\nExample: a \$125 job during a 2.3× storm bills at \$287.50, so your $keep% is \$${(287.50 * f).toStringAsFixed(2)}.',
     ),
     _FaqItem(
       'How long does it take to get paid?',
@@ -327,4 +334,5 @@ const _providerSections = [
       'Email us at support@snowserv.app. Include your name, the job ID if relevant, and a description of the issue. We aim to respond within 24 hours.',
     ),
   ]),
-];
+  ];
+}
