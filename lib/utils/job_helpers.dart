@@ -2,6 +2,8 @@
 // Consolidated here so the same logic isn't copy-pasted (and allowed to drift)
 // across multiple files.
 
+import '../config/app_config.dart';
+
 /// Human-readable service description, e.g. "Driveway + Sidewalk + Deicer".
 String describeJob(Map<String, dynamic> job) {
   final List<String> services = [];
@@ -17,10 +19,11 @@ String formatDate(String dateStr) {
   return '${date.month}/${date.day}/${date.year}';
 }
 
-/// Provider's take-home pay (70% of the job total), rounded to whole dollars.
+/// Provider's take-home pay (the provider's share of the job total, per the
+/// admin-configured commission), rounded to whole dollars.
 int providerPay(Map<String, dynamic> job) {
   final total = (job['final_price'] ?? job['base_price'] ?? 0) as num;
-  return (total * 0.70).round();
+  return (total * AppConfig.providerFraction).round();
 }
 
 /// Cheap squared-distance approximation for ranking providers by proximity.

@@ -10,6 +10,7 @@ import 'screens/customer/customer_home.dart';
 import 'screens/provider/provider_home.dart';
 import 'screens/provider/provider_registration_screen.dart';
 import 'theme.dart';
+import 'config/app_config.dart';
 import 'utils/web_layout.dart';
 
 @pragma('vm:entry-point')
@@ -36,6 +37,9 @@ void main() async {
     url: 'https://swttuujhcgpcsrxgupzv.supabase.co',
     publishableKey: 'sb_publishable_SnyCvdfwgHOQe-NB0D8Ipw_DUI9uWRe',
   );
+
+  // Load admin-editable business config (e.g. commission %). Non-fatal.
+  await AppConfig.load();
 
   runApp(const MyApp());
 }

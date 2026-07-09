@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/geo.dart';
+import '../../config/app_config.dart';
 import 'zone_editor_screen.dart';
 import 'admin_map_screen.dart';
 
@@ -123,6 +124,71 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       }
     } finally {
       if (mounted) setState(() => loading = false);
+    }
+  }
+
+  // Admin-editable platform commission. Persists to app_settings via AppConfig
+  // so the split updates everywhere (earnings, provider pay, payouts) with no
+  // code change.
+  Future<void> _editCommission() async {
+    final ctrl =
+        TextEditingController(text: AppConfig.commissionPct.round().toString());
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Platform commission'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                'The % SnowServ keeps from each job. Providers receive the rest. '
+                'Applies to new earnings, provider pay, and payouts.',
+                style: TextStyle(fontSize: 13, color: SnowServColors.inkSoft)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Commission',
+                suffixText: '%',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (saved != true) return;
+    final pct = double.tryParse(ctrl.text.trim());
+    if (pct == null || pct < 0 || pct > 100) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Enter a number between 0 and 100.')));
+      }
+      return;
+    }
+    try {
+      await AppConfig.setCommissionPct(pct);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Commission set to ${pct.round()}% — providers now keep ${(100 - pct).round()}%.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not save: $e')));
+      }
     }
   }
 
@@ -317,12 +383,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           j['status'] == 'completed')
       .toList();
 
-  // Platform-wide earnings from completed jobs. Provider take = 70%, platform 30%.
+  // Platform-wide earnings from completed jobs, split per the admin-configured
+  // commission (AppConfig.commissionPct).
   num get _completedRevenue => jobs
       .where((j) => j['status'] == 'completed')
       .fold<num>(0, (s, j) => s + _jobPrice(j));
-  num get _platformEarnings => _completedRevenue * 0.30;
-  num get _providerEarnings => _completedRevenue * 0.70;
+  num get _platformEarnings => _completedRevenue * AppConfig.platformFraction;
+  num get _providerEarnings => _completedRevenue * AppConfig.providerFraction;
 
   Future<void> _dial(String scheme, String phone) async {
     final uri = Uri(scheme: scheme, path: phone.replaceAll(RegExp(r'[^0-9+]'), ''));
@@ -1042,7 +1109,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                           // The split only means anything once money is captured.
                           if (!cancelled)
                             Text(
-                              'Provider pay: \$${(amt * 0.70).round()}  |  Commission: \$${(amt * 0.30).round()}',
+                              'Provider pay: \$${(amt * AppConfig.providerFraction).round()}  |  Commission: \$${(amt * AppConfig.platformFraction).round()}',
                               style: const TextStyle(color: Colors.grey, fontSize: 12),
                             ),
                         ],
@@ -1434,7 +1501,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
               final activeJobs = _activeJobsFor(p['id'].toString());
               final completed = _completedFor(p['id'].toString());
-              final earned = completed.fold<num>(0, (s, j) => s + _jobPrice(j)) * 0.70;
+              final earned = completed.fold<num>(0, (s, j) => s + _jobPrice(j)) * AppConfig.providerFraction;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -1871,7 +1938,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Widget _buildPayoutsTab() {
     final totalDue = pendingPayouts.fold<double>(
       0,
-      (sum, job) => sum + ((job['final_price'] ?? job['base_price'] ?? 0) as num) * 0.70,
+      (sum, job) => sum + ((job['final_price'] ?? job['base_price'] ?? 0) as num) * AppConfig.providerFraction,
     );
 
     return Column(
@@ -1888,12 +1955,35 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('YOUR EARNINGS · 30% commission',
-                  style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                        'YOUR EARNINGS · ${AppConfig.commissionPct.round()}% commission',
+                        style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5)),
+                  ),
+                  InkWell(
+                    onTap: _editCommission,
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.tune, size: 14, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text('Edit rate',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 4),
               Text('\$${_platformEarnings.round()}',
                   style: const TextStyle(
@@ -1924,7 +2014,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ),
               ...storms.map((s) {
                 final rev = s['revenue'] as num;
-                final cut = (rev * 0.30).round();
+                final cut = (rev * AppConfig.platformFraction).round();
                 final jobCount = s['jobs'] as int;
                 return Card(
                   margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -2018,7 +2108,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               itemBuilder: (context, i) {
                 final job = pendingPayouts[i];
                 final providerName = job['providers']?['users']?['name'] ?? 'Unknown';
-                final providerPay = ((job['final_price'] ?? job['base_price'] ?? 0) as num) * 0.70;
+                final providerPay = ((job['final_price'] ?? job['base_price'] ?? 0) as num) * AppConfig.providerFraction;
                 final date = DateTime.parse(job['created_at']).toLocal();
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
