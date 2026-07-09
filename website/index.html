@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SnowServ — On-demand snow removal</title>
+<meta name="description" content="SnowServ connects you with local snow-removal providers. Request driveway or sidewalk clearing in a tap, track it live, and only pay when a provider starts the job.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="#4A90D9"><path d="M22,11h-4.17l3.24,-3.24l-1.41,-1.42L15,11h-2V9l4.66,-4.66l-1.42,-1.41L13,6.17V2h-2v4.17L7.76,2.93L6.34,4.34L11,9v2H9L4.34,6.34L2.93,7.76L6.17,11H2v2h4.17l-3.24,3.24l1.41,1.42L9,13h2v2l-4.66,4.66l1.42,1.41L11,17.83V22h2v-4.17l3.24,3.24l1.42,-1.41L13,15v-2h2l4.66,4.66l1.41,-1.42L15.83,13H22z"/></svg>
+      SnowServ
+    </div>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#customers">For customers</a>
+      <a href="#providers">For providers</a>
+      <a href="mailto:support@snowserv.app">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>On-demand snow removal, one tap away.</h1>
+    <p class="sub">SnowServ connects you with local providers to clear your driveway and sidewalks — request in seconds, track it live, and only pay when a provider actually starts the job.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="mailto:support@snowserv.app">Get early access</a>
+      <a class="btn btn-ghost" href="#providers">Become a provider</a>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2 class="center">How it works</h2>
+    <p class="lead">No phone calls, no waiting on a callback. Order it like a ride.</p>
+    <div class="steps">
+      <div class="card">
+        <div class="num">1</div>
+        <h3>Request service</h3>
+        <p>Enter your address, choose driveway, sidewalk, or both, add deicer if you want it, and see the price up front.</p>
+      </div>
+      <div class="card">
+        <div class="num">2</div>
+        <h3>We dispatch a pro</h3>
+        <p>Your job goes to the nearest available provider. You’ll see your place in line and get notified as it moves.</p>
+      </div>
+      <div class="card">
+        <div class="num">3</div>
+        <h3>Pay only when it starts</h3>
+        <p>We place a hold at checkout — your card is charged only when a provider begins the work. Cancel before then and you’re never charged.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section-frost">
+  <div class="wrap">
+    <div class="two-col">
+      <div class="panel frost" id="customers">
+        <h3>For customers</h3>
+        <ul>
+          <li>Transparent pricing shown before you confirm</li>
+          <li>Live status: requested → assigned → in progress → done</li>
+          <li>Storm pricing that’s always displayed up front</li>
+          <li>Hold now, charged only when work begins</li>
+          <li>Rate your provider and keep receipts in the app</li>
+        </ul>
+      </div>
+      <div class="panel navy" id="providers">
+        <h3>For providers</h3>
+        <ul>
+          <li>Get matched to nearby jobs by location and workload</li>
+          <li>Accept manually or turn on auto-accept</li>
+          <li>Keep the majority of every job — commission shown up front</li>
+          <li>Fast rolling payouts to your bank</li>
+          <li>No sign-up fees, no monthly fees, no contract</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap" style="text-align:center;">
+    <h2 class="center">Launching in the Yonkers, NY area</h2>
+    <p class="lead">SnowServ is rolling out region by region. Want it in your neighborhood, or want to plow with us? Reach out.</p>
+    <div class="cta-row" style="justify-content:center;">
+      <a class="btn btn-primary" href="mailto:support@snowserv.app">support@snowserv.app</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="brand" style="font-size:18px;">
+      <svg viewBox="0 0 24 24" fill="#4A90D9" style="width:20px;height:20px;"><path d="M22,11h-4.17l3.24,-3.24l-1.41,-1.42L15,11h-2V9l4.66,-4.66l-1.42,-1.41L13,6.17V2h-2v4.17L7.76,2.93L6.34,4.34L11,9v2H9L4.34,6.34L2.93,7.76L6.17,11H2v2h4.17l-3.24,3.24l1.41,1.42L9,13h2v2l-4.66,4.66l1.42,1.41L11,17.83V22h2v-4.17l3.24,3.24l1.42,-1.41L13,15v-2h2l4.66,4.66l1.41,-1.42L15.83,13H22z"/></svg>
+      SnowServ
+    </div>
+    <div>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms of Service</a>
+      <a href="mailto:support@snowserv.app">Contact</a>
+    </div>
+    <div class="fine">© <span id="yr"></span> SnowServ. All rights reserved. &nbsp;·&nbsp; support@snowserv.app</div>
+  </div>
+</footer>
+<script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+</body>
+</html>
