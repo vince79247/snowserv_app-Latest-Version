@@ -238,16 +238,12 @@ class _ProviderTaxInfoScreenState extends State<ProviderTaxInfoScreen> {
                         const InputDecoration(labelText: 'Street address'),
                   ),
                   const SizedBox(height: 12),
+                  TextField(
+                    controller: _city,
+                    decoration: const InputDecoration(labelText: 'City'),
+                  ),
+                  const SizedBox(height: 12),
                   Row(children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: _city,
-                        decoration:
-                            const InputDecoration(labelText: 'City'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
                         controller: _state,
@@ -256,17 +252,16 @@ class _ProviderTaxInfoScreenState extends State<ProviderTaxInfoScreen> {
                           LengthLimitingTextInputFormatter(2)
                         ],
                         decoration:
-                            const InputDecoration(labelText: 'State'),
+                            const InputDecoration(labelText: 'State (e.g. NY)'),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
-                      flex: 2,
                       child: TextField(
                         controller: _zip,
                         keyboardType: TextInputType.number,
                         decoration:
-                            const InputDecoration(labelText: 'ZIP'),
+                            const InputDecoration(labelText: 'ZIP code'),
                       ),
                     ),
                   ]),
