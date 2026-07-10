@@ -28,8 +28,7 @@ const _classifications = <String, ({String label, bool usesSsn})>{
 class _ProviderTaxInfoScreenState extends State<ProviderTaxInfoScreen> {
   final _legalName = TextEditingController();
   final _businessName = TextEditingController();
-  final _ssn = TextEditingController();
-  final _ein = TextEditingController();
+  final _taxId = TextEditingController();
   final _addr = TextEditingController();
   final _city = TextEditingController();
   final _state = TextEditingController();
@@ -51,7 +50,7 @@ class _ProviderTaxInfoScreenState extends State<ProviderTaxInfoScreen> {
   @override
   void dispose() {
     for (final c in [
-      _legalName, _businessName, _ssn, _ein, _addr, _city, _state, _zip
+      _legalName, _businessName, _taxId, _addr, _city, _state, _zip
     ]) {
       c.dispose();
     }
@@ -75,8 +74,9 @@ class _ProviderTaxInfoScreenState extends State<ProviderTaxInfoScreen> {
         if (!_classifications.containsKey(_classification)) {
           _classification = 'individual';
         }
-        _ssn.text = (p['ssn'] as String?) ?? '';
-        _ein.text = (p['tax_ein'] as String?) ?? '';
+        _taxId.text = ((p['ssn'] as String?)?.isNotEmpty == true)
+            ? p['ssn'] as String
+            : ((p['tax_ein'] as String?) ?? '');
         _addr.text = (p['tax_address_line'] as String?) ?? '';
         _city.text = (p['tax_city'] as String?) ?? '';
         _state.text = (p['tax_state'] as String?) ?? '';
@@ -90,17 +90,13 @@ class _ProviderTaxInfoScreenState extends State<ProviderTaxInfoScreen> {
   }
 
   Future<void> _save() async {
-    // Light validation of the relevant tax ID.
-    final id9 = _usesSsn
-        ? _ssn.text.replaceAll(RegExp(r'[^0-9]'), '')
-        : _ein.text.replaceAll(RegExp(r'[^0-9]'), '');
+    // One tax-ID field for everyone (SSN / EIN / TIN) — 9 digits.
+    final id9 = _taxId.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (_legalName.text.trim().isEmpty) {
       return _snack('Enter your legal name.');
     }
     if (id9.length != 9) {
-      return _snack(_usesSsn
-          ? 'SSN must be 9 digits.'
-          : 'EIN must be 9 digits (e.g. 12-3456789).');
+      return _snack('Your tax ID (SSN, EIN, or TIN) must be 9 digits.');
     }
 
     setState(() => _saving = true);
@@ -118,9 +114,10 @@ class _ProviderTaxInfoScreenState extends State<ProviderTaxInfoScreen> {
         'tax_efile_consent_at':
             _consent ? DateTime.now().toIso8601String() : null,
       };
+      // Route the entered ID to the column that matches the classification
+      // (SSN for individuals / single-member LLC, EIN for a business entity).
       if (_usesSsn) {
         update['ssn'] = id9;
-        update['tax_ein'] = null;
       } else {
         update['tax_ein'] = id9;
       }
@@ -199,33 +196,29 @@ class _ProviderTaxInfoScreenState extends State<ProviderTaxInfoScreen> {
                         setState(() => _classification = v ?? 'individual'),
                   ),
                   const SizedBox(height: 12),
-                  // Tax ID: SSN for individuals / single-member LLC, else EIN.
-                  if (_usesSsn)
-                    TextField(
-                      controller: _ssn,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(9),
-                      ],
-                      decoration: const InputDecoration(
-                          labelText: 'Social Security Number (SSN)',
-                          hintText: '9 digits',
-                          prefixIcon: Icon(Icons.lock_outline)),
-                    )
-                  else
-                    TextField(
-                      controller: _ein,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(9),
-                      ],
-                      decoration: const InputDecoration(
-                          labelText: 'Employer ID Number (EIN)',
-                          hintText: '9 digits',
-                          prefixIcon: Icon(Icons.lock_outline)),
+                  // One tax-ID field for everyone so nobody has to guess which
+                  // number to enter. Stored to SSN or EIN per the classification.
+                  TextField(
+                    controller: _taxId,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(9),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'SSN, EIN, or TIN',
+                      hintText: '9-digit tax ID — SSN if an individual, EIN if a business',
+                      prefixIcon: Icon(Icons.lock_outline),
                     ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6, left: 4),
+                    child: Text(
+                      'Individuals: your Social Security Number. Businesses: your '
+                      'EIN. Both are 9-digit taxpayer IDs (TIN).',
+                      style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
+                    ),
+                  ),
                   const Divider(height: 32),
                   const Text('Mailing address',
                       style: TextStyle(
