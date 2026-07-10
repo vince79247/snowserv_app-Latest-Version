@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/job_helpers.dart';
+import '../../theme.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -97,11 +98,15 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text('Receipt',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: SnowServColors.navy),
                   textAlign: TextAlign.center),
               if (job['job_number'] != null)
                 Text('Job #${job['job_number']}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    style: const TextStyle(
+                        color: SnowServColors.inkSoft, fontSize: 13),
                     textAlign: TextAlign.center),
               const Divider(height: 24),
               _receiptRow('Service', describeJob(job)),
@@ -115,19 +120,23 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                 children: [
                   const Text('Total Paid',
                       style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: SnowServColors.navy)),
                   Text('\$${job['final_price'] ?? job['base_price']}',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700)),
+                          color: SnowServColors.success)),
                 ],
               ),
               if (photos.isNotEmpty) ...[
                 const Divider(height: 24),
                 const Text('Completion Photos',
                     style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: SnowServColors.navy)),
                 const SizedBox(height: 8),
                 GridView.builder(
                   shrinkWrap: true,
@@ -144,8 +153,9 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                     child: Image.network(
                       photos[i].toString(),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.broken_image),
+                      errorBuilder: (_, _, _) =>
+                          const Icon(Icons.broken_image,
+                              color: SnowServColors.glacier),
                     ),
                   ),
                 ),
@@ -171,7 +181,8 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
           SizedBox(
             width: 80,
             child: Text(label,
-                style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                style: const TextStyle(
+                    color: SnowServColors.inkSoft, fontSize: 14)),
           ),
           Expanded(
             child: Text(value,
@@ -206,9 +217,18 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
           ? const Center(child: CircularProgressIndicator())
           : completedJobs.isEmpty
               ? const Center(
-                  child: Text(
-                    'No completed jobs yet.',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.receipt_long_outlined,
+                          size: 56, color: SnowServColors.glacier),
+                      SizedBox(height: 12),
+                      Text(
+                        'No completed jobs yet.',
+                        style: TextStyle(
+                            fontSize: 16, color: SnowServColors.inkSoft),
+                      ),
+                    ],
                   ),
                 )
               : Column(
@@ -218,28 +238,37 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                       margin: const EdgeInsets.all(16),
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.shade200),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            SnowServColors.navy,
+                            SnowServColors.navyMid
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
                         children: [
-                          const Text('Total Spent',
+                          Text('Total Spent',
                               style: TextStyle(
-                                  color: Colors.grey, fontSize: 14)),
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500)),
                           const SizedBox(height: 4),
                           Text(
                             '\$$totalSpent',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade700,
+                              color: Colors.white,
                             ),
                           ),
                           Text(
                             '${completedJobs.length} service${completedJobs.length == 1 ? '' : 's'}',
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 13),
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 13),
                           ),
                         ],
                       ),
@@ -266,17 +295,17 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                                           children: [
                                             if (job['job_number'] != null)
                                               Text('Job #${job['job_number']}',
-                                                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                                  style: const TextStyle(fontSize: 11, color: SnowServColors.inkSoft)),
                                             Text(describeJob(job),
-                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: SnowServColors.navy)),
                                             const SizedBox(height: 2),
                                             if (job['addresses'] != null)
                                               Text(
                                                 '${job['addresses']['address_line']}, ${job['addresses']['city']}',
-                                                style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                                style: const TextStyle(color: SnowServColors.inkSoft, fontSize: 13),
                                               ),
                                             Text(formatDate(job['created_at']),
-                                                style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                                style: const TextStyle(color: SnowServColors.inkSoft, fontSize: 13)),
                                           ],
                                         ),
                                       ),
@@ -285,19 +314,26 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                                         child: Column(
                                           children: [
                                             Text('\$${job['final_price'] ?? job['base_price']}',
-                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green.shade700)),
-                                            const Text('Receipt', style: TextStyle(color: Colors.blue, fontSize: 12)),
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: SnowServColors.success)),
+                                            const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text('Receipt', style: TextStyle(color: SnowServColors.iceBlue, fontSize: 12, fontWeight: FontWeight.w600)),
+                                                Icon(Icons.chevron_right, color: SnowServColors.iceBlue, size: 16),
+                                              ],
+                                            ),
                                           ],
                                         ),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 10),
-                                  const Divider(height: 1),
+                                  const Divider(
+                                      height: 1, color: SnowServColors.hairline),
                                   const SizedBox(height: 10),
                                   if (rated == null) ...[
                                     const Text('How was your service?',
-                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: SnowServColors.navy)),
                                     const SizedBox(height: 6),
                                     Row(
                                       children: List.generate(5, (i) => GestureDetector(
@@ -317,8 +353,8 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                                           size: 22,
                                         )),
                                         const SizedBox(width: 6),
-                                        Text('You rated this service',
-                                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                        const Text('You rated this service',
+                                            style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft)),
                                       ],
                                     ),
                                 ],
