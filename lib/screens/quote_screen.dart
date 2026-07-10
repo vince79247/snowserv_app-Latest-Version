@@ -120,22 +120,24 @@ class _QuoteScreenState extends State<QuoteScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: SnowServColors.navy)),
           const SizedBox(height: 4),
           const Text("Enter your address and we'll show what SnowServ costs in your area.",
-              style: TextStyle(color: Colors.grey)),
+              style: TextStyle(color: SnowServColors.inkSoft)),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: SnowServColors.success.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(
+                  color: SnowServColors.success.withValues(alpha: 0.25)),
             ),
             child: Row(
               children: [
-                Icon(Icons.verified_outlined, color: Colors.green.shade700, size: 18),
+                const Icon(Icons.verified_outlined,
+                    color: SnowServColors.success, size: 18),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text('No contracts. No monthly fees. No hidden fees — just pay per job.',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: SnowServColors.ink)),
                 ),
               ],
             ),
@@ -198,7 +200,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label, style: const TextStyle(fontSize: 15)),
-              Text('\$$price', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green)),
+              Text('\$$price', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: SnowServColors.success)),
             ],
           ),
         );
@@ -214,7 +216,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.check_circle, color: Colors.green),
+              const Icon(Icons.check_circle, color: SnowServColors.success),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('We serve ${a['name']}!',
@@ -229,7 +231,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
           row('Deicer add-on', p('price_salting')),
           const SizedBox(height: 8),
           const Text('Prices may be higher during heavy snow (storm pricing).',
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
+              style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft)),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -248,16 +250,17 @@ class _QuoteScreenState extends State<QuoteScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: SnowServColors.warning.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade200),
+        border:
+            Border.all(color: SnowServColors.warning.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: const [
-              Icon(Icons.location_off, color: Colors.orange),
+              Icon(Icons.location_off, color: SnowServColors.warning),
               SizedBox(width: 8),
               Expanded(
                 child: Text('Not available in your area yet',
