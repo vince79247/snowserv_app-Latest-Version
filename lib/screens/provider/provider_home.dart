@@ -14,6 +14,7 @@ import '../../utils/legal.dart';
 import 'job_history_screen.dart';
 import 'provider_agreement_screen.dart';
 import 'provider_details_screen.dart';
+import 'provider_tax_info_screen.dart';
 import '../faq_screen.dart';
 import '../edit_profile_screen.dart';
 import '../admin/admin_screen.dart';
@@ -568,6 +569,17 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                 onTap: () {
                   Navigator.pop(context);
                   _editBankingDetails();
+                },
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.receipt_long_outlined, color: SnowServColors.navy),
+                title: const Text('Tax Info (for 1099)'),
+                subtitle: const Text('Name, tax ID & address for your 1099'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ProviderTaxInfoScreen()));
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
