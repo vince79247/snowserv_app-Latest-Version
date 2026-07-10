@@ -18,18 +18,21 @@ Legend: **[you]** = your action (bank/Stripe/IRS) · **[claude]** = I build it i
 - [ ] Customer support: personal number **on file but hidden** on receipts; **support@snowserv.app** as the public contact (decided).
 - [ ] Website field: **snowserv.app** (it's live).
 
-## 3. Provider 1099 tax collection — NEW build (claude)
-**Goal:** enable Stripe to issue **bulk year-end 1099-NEC forms** to providers. That requires collecting each provider's tax info and passing it to their Stripe Connect account.
+## 3. Provider 1099 tax collection — build (claude)
+**Goal:** enable Stripe to issue **bulk year-end 1099-NEC forms** to providers.
 
-- [ ] **Add these provider tax fields** (app + `providers` table):
-  - **Legal name** (and **business name** if they operate as a business/LLC)
-  - **Tax classification** — Individual / Sole proprietor / Single-member LLC / Partnership / C-corp / S-corp
-  - **Mailing address** — line, city, state, ZIP
-  - **Taxpayer ID** — **SSN** (individual) or **EIN** (business)
-  - **Electronic-delivery consent** checkbox (Stripe requires it to e-deliver 1099s)
-- [ ] Add these to the provider **onboarding + "Update Banking Details"** screen (secure fields; SSN/EIN handled like the existing SSN field).
-- [ ] **Pass the info to the provider's Stripe Connect account** (the fields Stripe needs on the connected account for tax reporting).
-- [ ] **Turn on Stripe 1099 tax reporting** for Connect (Stripe dashboard → Connect → Tax forms) so it generates + files + e-delivers them.
+**Phase 1 — capture the data (DONE, commit e9c9361):**
+- [x] Provider tax fields added (`providers` table): legal name, business name,
+      tax classification, EIN, mailing address, e-delivery consent. (SSN already existed.)
+- [x] New **"Tax Info (for 1099)"** screen in the provider account menu:
+      legal/business name, classification (Individual / Single-member LLC /
+      Partnership / S-corp / C-corp), SSN or EIN, address, e-delivery consent.
+- [ ] **Visual check:** screenshot the new screen once logged in as a provider.
+
+**Phase 2 — wire to Stripe (needs Connect enabled — see #4):**
+- [ ] Pass the tax info to each provider's **Stripe Connect** account.
+- [ ] Turn on **Stripe 1099 tax reporting** (Stripe → Connect → Tax forms) to
+      generate + file + e-deliver the forms.
 
 ## 4. Stripe Connect (claude + you)
 - [ ] **[you]** Enable **Connect** on the Stripe account (needed to pay providers *and* issue 1099s).
