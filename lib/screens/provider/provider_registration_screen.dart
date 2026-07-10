@@ -177,7 +177,8 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
+      SnackBar(
+          content: Text(message), backgroundColor: SnowServColors.danger),
     );
   }
 
@@ -407,7 +408,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             if (subtitle != null) ...[
               const SizedBox(height: 4),
               Text(subtitle,
-                  style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  style: const TextStyle(color: SnowServColors.inkSoft, fontSize: 13)),
             ],
             const SizedBox(height: 20),
             child,
@@ -428,17 +429,19 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: SnowServColors.success.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(
+                  color: SnowServColors.success.withValues(alpha: 0.25)),
             ),
             child: Row(
               children: [
-                Icon(Icons.verified_outlined, color: Colors.green.shade700, size: 18),
+                const Icon(Icons.verified_outlined,
+                    color: SnowServColors.success, size: 18),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text('No sign-up fees. No monthly fees. No contract — you keep 70% of every job.',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: SnowServColors.ink)),
                 ),
               ],
             ),
@@ -684,18 +687,19 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: SnowServColors.iceBlue.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
+              border: Border.all(
+                  color: SnowServColors.iceBlue.withValues(alpha: 0.25)),
             ),
             child: const Row(
               children: [
-                Icon(Icons.lock_outline, size: 16, color: Colors.blue),
+                Icon(Icons.lock_outline, size: 16, color: SnowServColors.iceBlue),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Your banking information is stored securely and used only for payouts.',
-                    style: TextStyle(fontSize: 12, color: Colors.blue),
+                    style: TextStyle(fontSize: 12, color: SnowServColors.iceBlue),
                   ),
                 ),
               ],
@@ -785,7 +789,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           const Text(
             'Covers non-circumvention (no taking SnowServ customers off-platform). '
             'You must read and sign it to accept jobs.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+            style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
           ),
           const SizedBox(height: 10),
           GestureDetector(
@@ -794,18 +798,19 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: SnowServColors.iceBlue.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.blue.shade200),
+                border: Border.all(
+                    color: SnowServColors.iceBlue.withValues(alpha: 0.25)),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.assignment_outlined, color: Colors.blue, size: 20),
+                  Icon(Icons.assignment_outlined, color: SnowServColors.iceBlue, size: 20),
                   SizedBox(width: 12),
                   Expanded(
                       child: Text('Read Provider Service Agreement',
-                          style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w600))),
-                  Icon(Icons.chevron_right, color: Colors.blue, size: 20),
+                          style: TextStyle(color: SnowServColors.iceBlue, fontWeight: FontWeight.w600))),
+                  Icon(Icons.chevron_right, color: SnowServColors.iceBlue, size: 20),
                 ],
               ),
             ),
@@ -844,16 +849,17 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.blue.shade50,
+          color: SnowServColors.iceBlue.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.blue.shade200),
+          border: Border.all(
+              color: SnowServColors.iceBlue.withValues(alpha: 0.25)),
         ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.blue, size: 20),
+            Icon(icon, color: SnowServColors.iceBlue, size: 20),
             const SizedBox(width: 12),
-            Expanded(child: Text(label, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w600))),
-            const Icon(Icons.open_in_new, color: Colors.blue, size: 16),
+            Expanded(child: Text(label, style: const TextStyle(color: SnowServColors.iceBlue, fontWeight: FontWeight.w600))),
+            const Icon(Icons.open_in_new, color: SnowServColors.iceBlue, size: 16),
           ],
         ),
       ),
@@ -866,10 +872,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       child: Container(
         height: 120,
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: SnowServColors.surfaceSoft,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: photo != null ? SnowServColors.iceBlue : Colors.grey.shade300,
+            color: photo != null ? SnowServColors.iceBlue : SnowServColors.hairline,
             width: photo != null ? 2 : 1,
           ),
         ),
@@ -895,11 +901,11 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.upload_file, size: 32, color: Colors.grey.shade400),
+                  const Icon(Icons.upload_file, size: 32, color: SnowServColors.glacier),
                   const SizedBox(height: 8),
-                  Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-                  Text('Tap to take photo or upload from gallery',
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+                  Text(label, style: const TextStyle(color: SnowServColors.ink, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const Text('Tap to take photo or upload from gallery',
+                      style: TextStyle(color: SnowServColors.inkSoft, fontSize: 11)),
                 ],
               ),
       ),
