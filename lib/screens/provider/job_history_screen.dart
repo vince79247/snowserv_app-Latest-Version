@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/job_helpers.dart';
+import '../../theme.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -74,9 +75,18 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
           ? const Center(child: CircularProgressIndicator())
           : completedJobs.isEmpty
               ? const Center(
-                  child: Text(
-                    'No completed jobs yet.',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.history,
+                          size: 56, color: SnowServColors.glacier),
+                      SizedBox(height: 12),
+                      Text(
+                        'No completed jobs yet.',
+                        style: TextStyle(
+                            fontSize: 16, color: SnowServColors.inkSoft),
+                      ),
+                    ],
                   ),
                 )
               : Column(
@@ -86,28 +96,37 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                       margin: const EdgeInsets.all(16),
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.green.shade200),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            SnowServColors.navy,
+                            SnowServColors.navyMid
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
                         children: [
-                          const Text('Total Earnings',
+                          Text('Total Earnings',
                               style: TextStyle(
-                                  color: Colors.grey, fontSize: 14)),
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500)),
                           const SizedBox(height: 4),
                           Text(
                             '\$$totalEarnings',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.bold,
-                              color: Colors.green.shade700,
+                              color: Colors.white,
                             ),
                           ),
                           Text(
                             '${completedJobs.length} job${completedJobs.length == 1 ? '' : 's'} completed',
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 13),
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 13),
                           ),
                         ],
                       ),
@@ -127,7 +146,7 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                                 children: [
                                   if (job['job_number'] != null)
                                     Text('Job #${job['job_number']}',
-                                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                        style: const TextStyle(fontSize: 11, color: SnowServColors.inkSoft)),
                                   Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -136,15 +155,16 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                                         child: Text(describeJob(job),
                                             style: const TextStyle(
                                                 fontWeight: FontWeight.bold,
-                                                fontSize: 16)),
+                                                fontSize: 16,
+                                                color: SnowServColors.navy)),
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
                                         '\$${providerPay(job)}',
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.green.shade700,
+                                          color: SnowServColors.success,
                                         ),
                                       ),
                                     ],
@@ -154,13 +174,14 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                                     Row(
                                       children: [
                                         const Icon(Icons.location_on,
-                                            size: 14, color: Colors.grey),
+                                            size: 14,
+                                            color: SnowServColors.inkSoft),
                                         const SizedBox(width: 4),
                                         Expanded(
                                           child: Text(
                                             '${job['addresses']['address_line']}, ${job['addresses']['city']}, ${job['addresses']['state']}',
                                             style: const TextStyle(
-                                                color: Colors.grey,
+                                                color: SnowServColors.inkSoft,
                                                 fontSize: 13),
                                           ),
                                         ),
@@ -171,7 +192,8 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                                   Text(
                                     formatDate(job['created_at']),
                                     style: const TextStyle(
-                                        color: Colors.grey, fontSize: 13),
+                                        color: SnowServColors.inkSoft,
+                                        fontSize: 13),
                                   ),
                                   if (job['provider_notes'] != null &&
                                       job['provider_notes'].toString().isNotEmpty) ...[
@@ -179,22 +201,25 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                                     Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
+                                        color: SnowServColors.surfaceSoft,
                                         borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: SnowServColors.hairline),
                                       ),
                                       child: Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
                                           const Icon(Icons.note,
-                                              size: 14, color: Colors.grey),
+                                              size: 14,
+                                              color: SnowServColors.inkSoft),
                                           const SizedBox(width: 6),
                                           Expanded(
                                             child: Text(
                                               job['provider_notes'],
                                               style: const TextStyle(
                                                   fontSize: 13,
-                                                  color: Colors.black87),
+                                                  color: SnowServColors.ink),
                                             ),
                                           ),
                                         ],
