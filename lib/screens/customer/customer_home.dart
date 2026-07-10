@@ -422,11 +422,26 @@ class _CustomerHomeState extends State<CustomerHome> {
     );
   }
 
+  // Per-address custom pricing (admin-set on the saved address; default 1.0).
+  // Baked into every service price below so what's shown on the buttons, the
+  // salting add-on, the total, and the stored base_price all agree for THIS
+  // property. Storm surge then stacks on top (final = base × surge). Only the
+  // customer's own saved address carries a multiplier — an "ordering for
+  // someone else" address is brand new, so it's always 1.0.
+  double get _addressMultiplier => orderingForSomeoneElse
+      ? 1.0
+      : ((savedAddress?['price_multiplier'] as num?)?.toDouble() ?? 1.0);
+
+  // Zone price for THIS property = zone base × the address multiplier, rounded
+  // (0 when no area / unserved ZIP).
+  int _perProperty(dynamic zonePrice) =>
+      (((zonePrice as num?)?.toDouble() ?? 0) * _addressMultiplier).round();
+
   // Prices come from the matched service area (0 when no area / unserved ZIP).
-  int get _priceSidewalk => (_serviceArea?['price_sidewalk'] as num?)?.round() ?? 0;
-  int get _priceDriveway => (_serviceArea?['price_driveway'] as num?)?.round() ?? 0;
-  int get _priceBoth => (_serviceArea?['price_both'] as num?)?.round() ?? 0;
-  int get _priceSalting => (_serviceArea?['price_salting'] as num?)?.round() ?? 0;
+  int get _priceSidewalk => _perProperty(_serviceArea?['price_sidewalk']);
+  int get _priceDriveway => _perProperty(_serviceArea?['price_driveway']);
+  int get _priceBoth => _perProperty(_serviceArea?['price_both']);
+  int get _priceSalting => _perProperty(_serviceArea?['price_salting']);
 
   // The ZIP for the current order — the "someone else" address when that toggle
   // is on, otherwise the customer's saved address. Used for waitlist capture and
@@ -536,6 +551,7 @@ class _CustomerHomeState extends State<CustomerHome> {
   }
 
   int getFinalPrice() {
+    // base already includes the per-address multiplier (see _perProperty).
     return (getTotalBase() * surgeMultiplier).round();
   }
 

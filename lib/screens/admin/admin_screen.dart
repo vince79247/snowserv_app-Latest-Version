@@ -262,6 +262,136 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
+  // 1.0 -> "1", 1.5 -> "1.5", 1.25 -> "1.25" (no trailing zeros).
+  String _fmtMult(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  // Per-address custom pricing. When a provider flags a property as underpriced
+  // (huge driveway, long walkway), set a multiplier here. It stacks on top of
+  // storm pricing and applies to FUTURE orders at this saved address.
+  Future<void> _setAddressMultiplier(Map<String, dynamic> address) async {
+    final id = address['id'];
+    if (id == null) return;
+    final current = (address['price_multiplier'] as num?)?.toDouble() ?? 1.0;
+    final c = TextEditingController(text: _fmtMult(current));
+    final result = await showDialog<double>(
+      context: context,
+      builder: (ctx) {
+        double sel = current;
+        return StatefulBuilder(builder: (ctx, setLocal) {
+          void pick(double v) => setLocal(() {
+                sel = v;
+                c.text = _fmtMult(v);
+              });
+          return AlertDialog(
+            title: const Text('Custom price for this address'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                    '${address['address_line'] ?? ''}, ${address['city'] ?? ''}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: SnowServColors.navy)),
+                const SizedBox(height: 12),
+                const Text(
+                    'Price multiplier — stacks on top of storm pricing and '
+                    'applies to future orders at this address. 1× = normal.',
+                    style: TextStyle(
+                        fontSize: 12, color: SnowServColors.inkSoft)),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final v in [1.0, 1.25, 1.5, 1.75, 2.0])
+                      ChoiceChip(
+                        label: Text('${_fmtMult(v)}×'),
+                        selected: sel == v,
+                        onSelected: (_) => pick(v),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: c,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                      labelText: 'Multiplier', prefixText: '× '),
+                  onChanged: (t) =>
+                      setLocal(() => sel = double.tryParse(t) ?? sel),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel')),
+              TextButton(
+                onPressed: () =>
+                    Navigator.pop(ctx, double.tryParse(c.text) ?? sel),
+                child: const Text('Save',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        });
+      },
+    );
+    if (result == null) return;
+    final m = result.clamp(0.5, 5.0);
+    try {
+      await supabase
+          .from('addresses')
+          .update({'price_multiplier': m}).eq('id', id);
+      loadAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(m == 1.0
+                ? 'Reset to normal pricing for this address'
+                : 'Custom pricing set to ${_fmtMult(m)}× for this address'),
+            backgroundColor: SnowServColors.success));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not update: $e')));
+      }
+    }
+  }
+
+  // Small tappable chip on a job card's address: shows the current custom
+  // multiplier (gold) or a "Set price" affordance (blue) → opens the dialog.
+  Widget _addrPriceControl(Map<String, dynamic> address) {
+    final m = (address['price_multiplier'] as num?)?.toDouble() ?? 1.0;
+    final custom = m != 1.0;
+    final color = custom ? SnowServColors.warning : SnowServColors.iceBlue;
+    return InkWell(
+      onTap: () => _setAddressMultiplier(address),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: custom ? 0.12 : 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(custom ? Icons.sell : Icons.sell_outlined,
+                size: 12, color: color),
+            const SizedBox(width: 3),
+            Text(custom ? '${_fmtMult(m)}× price' : 'Set price',
+                style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Asks how long to prefer the driver; returns null if cancelled.
   Future<Duration?> _promptPreferredDuration() {
     return showDialog<Duration>(
@@ -1148,9 +1278,22 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ),
                 _contactRow('Customer', _customerPhone(job['customer_id'])),
                 if (job['addresses'] != null)
-                  Text(
-                    '${job['addresses']['address_line']}, ${job['addresses']['city']}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${job['addresses']['address_line']}, ${job['addresses']['city']}',
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 13),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _addrPriceControl(
+                            Map<String, dynamic>.from(job['addresses'])),
+                      ],
+                    ),
                   ),
                 Text(formatDate(job['created_at']),
                     style: const TextStyle(color: Colors.grey, fontSize: 12)),
