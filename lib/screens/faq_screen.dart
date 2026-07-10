@@ -49,12 +49,12 @@ class _FaqTab extends StatelessWidget {
           children: [
             TextButton(
               onPressed: () => openLegalUrl(privacyPolicyUrl),
-              child: const Text('Privacy Policy', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              child: const Text('Privacy Policy', style: TextStyle(fontSize: 12, color: SnowServColors.iceBlue, fontWeight: FontWeight.w600)),
             ),
-            const Text('·', style: TextStyle(color: Colors.grey)),
+            const Text('·', style: TextStyle(color: SnowServColors.inkSoft)),
             TextButton(
               onPressed: () => openLegalUrl(termsOfServiceUrl),
-              child: const Text('Terms of Service', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              child: const Text('Terms of Service', style: TextStyle(fontSize: 12, color: SnowServColors.iceBlue, fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -110,7 +110,7 @@ class _FaqTile extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: const BorderSide(color: SnowServColors.hairline),
       ),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
@@ -123,7 +123,7 @@ class _FaqTile extends StatelessWidget {
         children: [
           Text(item.answer,
               style: const TextStyle(
-                  fontSize: 13, color: Colors.black87, height: 1.5)),
+                  fontSize: 13, color: SnowServColors.ink, height: 1.5)),
         ],
       ),
     );

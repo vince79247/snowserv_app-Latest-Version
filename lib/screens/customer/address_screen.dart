@@ -94,7 +94,7 @@ class _AddressScreenState extends State<AddressScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: SnowServColors.iceBlue.withOpacity(0.08),
+                color: SnowServColors.iceBlue.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: SnowServColors.glacier),
               ),
@@ -114,7 +114,7 @@ class _AddressScreenState extends State<AddressScreen> {
             const SizedBox(height: 8),
             const Text(
               '* All fields are required',
-              style: TextStyle(fontSize: 12, color: Colors.red),
+              style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
             ),
             const SizedBox(height: 20),
             TextField(

@@ -10,7 +10,7 @@ import file_selector_macos
 import firebase_core
 import firebase_messaging
 import geolocator_apple
-import shared_preferences_macos
+import shared_preferences_foundation
 import url_launcher_macos
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../theme.dart';
 
 final _supabase = Supabase.instance.client;
 
@@ -79,14 +80,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Profile updated'), backgroundColor: Colors.green),
+              content: Text('Profile updated'),
+              backgroundColor: SnowServColors.success),
         );
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Could not save: $e'),
+              backgroundColor: SnowServColors.danger),
         );
       }
     } finally {

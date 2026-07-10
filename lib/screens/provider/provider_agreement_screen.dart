@@ -129,7 +129,7 @@ class ProviderAgreementScreen extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: SnowServColors.navy)),
           const SizedBox(height: 4),
           Text('Version $kProviderAgreementVersion',
-              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              style: const TextStyle(color: SnowServColors.inkSoft, fontSize: 12)),
           const SizedBox(height: 14),
           const Text(_intro, style: TextStyle(fontSize: 14, height: 1.45)),
           const SizedBox(height: 8),

@@ -127,13 +127,15 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
       await _supabase.from('providers').update(update).eq('user_id', id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Details updated'), backgroundColor: Colors.green));
+            content: Text('Details updated'),
+            backgroundColor: SnowServColors.success));
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Could not save: $e'), backgroundColor: Colors.red));
+            content: Text('Could not save: $e'),
+            backgroundColor: SnowServColors.danger));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
