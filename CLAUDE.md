@@ -32,7 +32,8 @@ id (uuid, matches auth.users.id), role (customer/provider), full_name, phone, is
 Used for: role-based routing in Flutter (RoleRouter)
 
 ### addresses
-id, user_id, address_line, city, state, zip
+id, user_id, address_line, city, state, zip, price_multiplier (numeric default 1.0 —
+per-address custom pricing; see Pricing section)
 
 ### service_areas
 id, name, zips (text[], legacy), polygon (jsonb — ordered list of {lat,lng} vertices),
@@ -90,6 +91,16 @@ lib/
 - Storm pricing (labeled "Storm pricing" in customer UI; internal var still surge_multiplier):
   base_price × multiplier (live — driven by snow depth via Open-Meteo API)
   - 0–3": 1.0x, 3–6": 1.3x, 6–10": 1.7x, 10"+: 2.3x
+- PER-ADDRESS custom pricing (addresses.price_multiplier numeric, default 1.0): the
+  admin's "this property is underpriced" lever. Admin taps a job's address in the admin
+  panel (gold "Nx price" chip / blue "Set price") → dialog sets a multiplier (presets
+  1.25/1.5/1.75/2x or custom, clamped 0.5–5x). It's BAKED INTO the four zone-price
+  getters in customer_home (_perProperty) so the service buttons, deicer add-on, total,
+  and the stored base_price all agree for that property; storm surge then stacks on top
+  (final = base × surge). Applies to FUTURE orders at that SAVED address only — an
+  already-placed job's hold is locked, and "ordering for someone else" is a brand-new
+  address so it's always 1.0. Written by a direct admin client .update() (like the other
+  admin writes) — gets its admin RLS policy in the pre-launch RLS lockdown.
 - Platform commission: 30% (admin panel), provider payout: 70%
 - Payouts: 7-day rolling batch via admin panel
 
@@ -301,6 +312,8 @@ Cloudflare DNS. The app's "Contact Support" links point to support@snowserv.app.
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_intent_id text;
 -- Geofenced pricing zones (polygon boundary per service_areas row):
 ALTER TABLE service_areas ADD COLUMN IF NOT EXISTS polygon jsonb;
+-- Per-address custom pricing multiplier (applied + verified 2026-07-10):
+ALTER TABLE addresses ADD COLUMN IF NOT EXISTS price_multiplier numeric NOT NULL DEFAULT 1.0;
 ```
 After running the polygon migration, open each existing zone in the admin "Areas" tab
 and draw its boundary (tap the map) → Save. Until a zone has a polygon, ordering in it
