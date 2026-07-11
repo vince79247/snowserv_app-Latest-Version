@@ -60,7 +60,10 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
         // Time Sensitive Notifications capability in the iOS app entitlements.
         apns: {
           headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
-          payload: { aps: { sound: 'default', 'interruption-level': 'time-sensitive' } },
+          // alert is set EXPLICITLY here: supplying a partial aps payload can
+          // override FCM's auto-generated alert, which shipped banners with no
+          // text ("SnowServ • Notification").
+          payload: { aps: { alert: { title, body }, sound: 'default', 'interruption-level': 'time-sensitive' } },
         },
       },
     }),

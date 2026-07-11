@@ -39,7 +39,9 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
         // Time-Sensitive: auto-assigned jobs are urgent — ring through Focus/DND.
         apns: {
           headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
-          payload: { aps: { sound: 'default', 'interruption-level': 'time-sensitive' } },
+          // alert set explicitly — a partial aps payload can strip the
+          // auto-generated alert text (see notify-dispatch).
+          payload: { aps: { alert: { title, body }, sound: 'default', 'interruption-level': 'time-sensitive' } },
         },
       },
     }),

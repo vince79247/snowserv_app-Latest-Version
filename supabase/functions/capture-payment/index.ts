@@ -13,6 +13,32 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// Decode (NOT verify — the platform already verified via verify_jwt) the caller's
+// Supabase JWT to learn who is invoking us. Returns { sub, role } or {}.
+function decodeCaller(auth: string | null): { sub?: string; role?: string } {
+  try {
+    if (!auth) return {}
+    const payload = auth.replace(/^Bearer\s+/i, '').split('.')[1]
+    if (!payload) return {}
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+  } catch {
+    return {}
+  }
+}
+
+async function isAdmin(url: string, key: string, userId?: string): Promise<boolean> {
+  if (!userId) return false
+  try {
+    const r = await fetch(`${url}/rest/v1/profiles?id=eq.${userId}&select=is_admin`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    })
+    const rows = await r.json()
+    return rows?.[0]?.is_admin === true
+  } catch {
+    return false
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
@@ -25,9 +51,9 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-    // Look up the payment intent ID stored on the job
+    // Look up the payment intent + who the job belongs to.
     const jobRes = await fetch(
-      `${supabaseUrl}/rest/v1/jobs?id=eq.${job_id}&select=payment_intent_id`,
+      `${supabaseUrl}/rest/v1/jobs?id=eq.${job_id}&select=payment_intent_id,provider_id`,
       { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
     )
     const jobs = await jobRes.json()
@@ -37,6 +63,30 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: 'No payment intent on file for this job' }),
         { status: 400, headers: cors }
       )
+    }
+
+    // AUTHORIZATION: only the job's assigned provider (or an admin / internal
+    // service call) may capture — otherwise any logged-in user could charge a
+    // stranger's card by passing their job_id.
+    const caller = decodeCaller(req.headers.get('Authorization'))
+    if (caller.role !== 'service_role') {
+      let allowed = false
+      const providerId = jobs?.[0]?.provider_id
+      if (providerId && caller.sub) {
+        const pr = await fetch(
+          `${supabaseUrl}/rest/v1/providers?id=eq.${providerId}&select=user_id`,
+          { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+        )
+        const prov = await pr.json()
+        if (prov?.[0]?.user_id && prov[0].user_id === caller.sub) allowed = true
+      }
+      if (!allowed) allowed = await isAdmin(supabaseUrl, supabaseKey, caller.sub)
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({ error: 'Not authorized to capture this job' }),
+          { status: 403, headers: cors }
+        )
+      }
     }
 
     // Check current status first

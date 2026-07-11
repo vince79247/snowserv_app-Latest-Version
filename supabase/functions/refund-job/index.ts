@@ -7,6 +7,32 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// Decode (NOT verify — the platform already verified via verify_jwt) the caller's
+// Supabase JWT to learn who is invoking us. Returns { sub, role } or {}.
+function decodeCaller(auth: string | null): { sub?: string; role?: string } {
+  try {
+    if (!auth) return {}
+    const payload = auth.replace(/^Bearer\s+/i, '').split('.')[1]
+    if (!payload) return {}
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+  } catch {
+    return {}
+  }
+}
+
+async function isAdmin(url: string, key: string, userId?: string): Promise<boolean> {
+  if (!userId) return false
+  try {
+    const r = await fetch(`${url}/rest/v1/profiles?id=eq.${userId}&select=is_admin`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    })
+    const rows = await r.json()
+    return rows?.[0]?.is_admin === true
+  } catch {
+    return false
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
@@ -19,9 +45,9 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-    // Look up the payment intent ID on the job
+    // Look up the payment intent + who the job belongs to.
     const jobRes = await fetch(
-      `${supabaseUrl}/rest/v1/jobs?id=eq.${job_id}&select=payment_intent_id`,
+      `${supabaseUrl}/rest/v1/jobs?id=eq.${job_id}&select=payment_intent_id,customer_id`,
       {
         headers: {
           apikey: supabaseKey,
@@ -34,6 +60,22 @@ Deno.serve(async (req: Request) => {
 
     if (!paymentIntentId) {
       return new Response(JSON.stringify({ error: 'No payment intent on file for this job' }), { status: 400, headers: cors })
+    }
+
+    // AUTHORIZATION: only the job's own customer (or an admin / internal service
+    // call) may refund/release — otherwise any logged-in user could refund or
+    // cancel a stranger's job by passing their job_id.
+    const caller = decodeCaller(req.headers.get('Authorization'))
+    if (caller.role !== 'service_role') {
+      const customerId = jobs?.[0]?.customer_id
+      let allowed = !!(caller.sub && customerId && caller.sub === customerId)
+      if (!allowed) allowed = await isAdmin(supabaseUrl, supabaseKey, caller.sub)
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({ error: 'Not authorized to refund this job' }),
+          { status: 403, headers: cors }
+        )
+      }
     }
 
     // Issue full refund via Stripe

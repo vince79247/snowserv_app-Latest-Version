@@ -32,7 +32,9 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: { token: fcmToken, notification: { title, body }, apns: { payload: { aps: { sound: 'default' } } } } }),
+    // alert set explicitly in aps — a partial aps payload can strip the
+    // auto-generated alert text (see notify-dispatch).
+    body: JSON.stringify({ message: { token: fcmToken, notification: { title, body }, apns: { payload: { aps: { alert: { title, body }, sound: 'default' } } } } }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
