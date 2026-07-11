@@ -31,6 +31,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Cancelled jobs are kept (financial record) but hidden from the main list
   // by default so they don't bury live work; this toggle reveals them.
   bool _showCancelled = false;
+  // Admin search filters for the Users / Providers tabs (name, email, phone, #).
+  String _customerSearch = '';
+  String _providerSearch = '';
   // Silent 30s poll that keeps the live ticker / jobs / earnings fresh without
   // flashing the loading spinner.
   Timer? _ticker;
@@ -1613,11 +1616,53 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
+  // Case-insensitive match across name / email / phone (+ extra like "#7"). Also
+  // matches a phone by digits, so "9146730400" finds "914-673-0400".
+  bool _matchesSearch(String query, String? name, String? email, String? phone,
+      {String extra = ''}) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    final hay =
+        '${name ?? ''} ${email ?? ''} ${phone ?? ''} $extra'.toLowerCase();
+    if (hay.contains(q)) return true;
+    final qDigits = q.replaceAll(RegExp(r'\D'), '');
+    final phoneDigits = (phone ?? '').replaceAll(RegExp(r'\D'), '');
+    return qDigits.isNotEmpty && phoneDigits.contains(qDigits);
+  }
+
+  Widget _searchField(String hint, ValueChanged<String> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: TextField(
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: hint,
+          prefixIcon: const Icon(Icons.search, size: 20),
+          isDense: true,
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: SnowServColors.glacier)),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: SnowServColors.glacier)),
+        ),
+      ),
+    );
+  }
+
   Widget _buildUsersTab() {
     final providerUserIds = providers.map((p) => p['user_id']?.toString()).toSet();
     final customers = users.where((u) => !providerUserIds.contains(u['id']?.toString())).toList();
     final flaggedCount = customers.where((u) => u['is_flagged'] == true).length;
     final suspendedCount = customers.where((u) => u['is_suspended'] == true).length;
+    final shown = customers
+        .where((u) => _matchesSearch(_customerSearch, u['name']?.toString(),
+            u['email']?.toString(), u['phone']?.toString()))
+        .toList();
 
     return Column(
       children: [
@@ -1637,14 +1682,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             ],
           ),
         ),
+        _searchField('Search customers by name, email, or phone',
+            (v) => setState(() => _customerSearch = v)),
         if (customers.isEmpty)
           const Expanded(child: Center(child: Text('No customers yet.')))
+        else if (shown.isEmpty)
+          Expanded(
+            child: Center(
+              child: Text('No customers match “$_customerSearch”.',
+                  style: const TextStyle(color: Colors.grey)),
+            ),
+          )
         else
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(12),
-              itemCount: customers.length,
-              itemBuilder: (_, i) => _userCard(customers[i]),
+              itemCount: shown.length,
+              itemBuilder: (_, i) => _userCard(shown[i]),
             ),
           ),
       ],
@@ -1726,6 +1780,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     final pendingCount = providers.where((p) => p['registration_status'] == 'pending_review').length;
     final onDuty = providers.where((p) => p['is_online'] == true).toList();
     final offDuty = providers.where((p) => p['is_online'] != true).toList();
+    bool match(Map<String, dynamic> p) => _matchesSearch(
+          _providerSearch,
+          p['users']?['name']?.toString(),
+          p['users']?['email']?.toString(),
+          p['users']?['phone']?.toString(),
+          extra: '#${p['provider_number'] ?? ''}',
+        );
+    final onDutyShown = onDuty.where(match).toList();
+    final offDutyShown = offDuty.where(match).toList();
+    final noMatches = _providerSearch.trim().isNotEmpty &&
+        onDutyShown.isEmpty &&
+        offDutyShown.isEmpty;
 
     Widget buildProviderCard(Map<String, dynamic> p) {
               final isOnline = p['is_online'] == true;
@@ -2105,20 +2171,29 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             ],
           ),
         ),
+        _searchField('Search providers by name, email, phone, or #',
+            (v) => setState(() => _providerSearch = v)),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(12),
-            children: [
-              if (onDuty.isNotEmpty) ...[
-                _sectionHeader('On Duty (${onDuty.length})', Colors.green.shade700),
-                ...onDuty.map(buildProviderCard),
-              ],
-              if (offDuty.isNotEmpty) ...[
-                _sectionHeader('Off Duty (${offDuty.length})', Colors.grey.shade600),
-                ...offDuty.map(buildProviderCard),
-              ],
-            ],
-          ),
+          child: noMatches
+              ? Center(
+                  child: Text('No providers match “$_providerSearch”.',
+                      style: const TextStyle(color: Colors.grey)),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(12),
+                  children: [
+                    if (onDutyShown.isNotEmpty) ...[
+                      _sectionHeader('On Duty (${onDutyShown.length})',
+                          Colors.green.shade700),
+                      ...onDutyShown.map(buildProviderCard),
+                    ],
+                    if (offDutyShown.isNotEmpty) ...[
+                      _sectionHeader('Off Duty (${offDutyShown.length})',
+                          Colors.grey.shade600),
+                      ...offDutyShown.map(buildProviderCard),
+                    ],
+                  ],
+                ),
         ),
       ],
     );
