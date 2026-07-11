@@ -991,6 +991,152 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     return (ph == null || ph.toString().trim().isEmpty) ? null : ph.toString();
   }
 
+  // Manual dispatch override: an "Assign / Reassign driver" button on requested &
+  // assigned job cards. Auto-dispatch (dispatch.dart / dispatch_jobs) handles the
+  // normal case; this is the admin's on-demand control for edge cases — coverage
+  // gaps, a driver who won't take a far job, or hand-placing a specific driver.
+  // Only shown pre-start: payment is still a HOLD until the provider STARTS, so
+  // switching drivers here moves no money (capture keys off whoever starts).
+  Widget _assignControl(Map<String, dynamic> job) {
+    final assigned = job['provider_id'] != null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          onPressed: () => _showAssignDialog(job),
+          icon: Icon(assigned ? Icons.swap_horiz : Icons.person_add_alt_1,
+              size: 16),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: SnowServColors.navy,
+            side: BorderSide(color: SnowServColors.navy.withOpacity(0.4)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          label: Text(assigned ? 'Reassign driver' : 'Assign driver',
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAssignDialog(Map<String, dynamic> job) async {
+    // Eligible = approved drivers. A manual override can pick anyone approved,
+    // even offline (admin may be coordinating by phone) — online is shown first,
+    // then least-busy, with each driver's live active-job count for judgment.
+    final approved = providers
+        .where((p) => p['registration_status'] == 'approved')
+        .toList();
+
+    final Map<String, int> load = {};
+    for (final j in jobs) {
+      if (j['status'] == 'assigned' || j['status'] == 'in_progress') {
+        final pid = j['provider_id']?.toString();
+        if (pid != null) load[pid] = (load[pid] ?? 0) + 1;
+      }
+    }
+    approved.sort((a, b) {
+      final ao = a['is_online'] == true ? 0 : 1;
+      final bo = b['is_online'] == true ? 0 : 1;
+      if (ao != bo) return ao.compareTo(bo);
+      return (load[a['id']?.toString()] ?? 0)
+          .compareTo(load[b['id']?.toString()] ?? 0);
+    });
+
+    final currentId = job['provider_id']?.toString();
+
+    final chosen = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(currentId == null ? 'Assign driver' : 'Reassign driver',
+            style: const TextStyle(
+                color: SnowServColors.navy, fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: 380,
+          child: approved.isEmpty
+              ? const Text('No approved drivers yet.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: approved.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final p = approved[i];
+                    final id = p['id']?.toString();
+                    final online = p['is_online'] == true;
+                    final n = load[id] ?? 0;
+                    final isCurrent = id == currentId;
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.circle,
+                          size: 10,
+                          color: online ? Colors.green : Colors.grey),
+                      title: Text(_providerName(id),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 14)),
+                      subtitle: Text(
+                          '${online ? 'Online' : 'Offline'} · $n active${isCurrent ? ' · current' : ''}',
+                          style: const TextStyle(fontSize: 12)),
+                      trailing: isCurrent
+                          ? const Text('current',
+                              style:
+                                  TextStyle(fontSize: 11, color: Colors.grey))
+                          : const Icon(Icons.chevron_right, size: 18),
+                      enabled: !isCurrent,
+                      onTap: isCurrent ? null : () => Navigator.pop(ctx, p),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+        ],
+      ),
+    );
+    if (chosen != null) await _assignJobToProvider(job, chosen);
+  }
+
+  Future<void> _assignJobToProvider(
+      Map<String, dynamic> job, Map<String, dynamic> provider) async {
+    final providerId = provider['id'];
+    try {
+      // Place the job straight into 'assigned' under the chosen driver and clear
+      // any pending auto-dispatch offer. The BEFORE UPDATE trigger stamps
+      // accepted_at when status crosses into 'assigned' (server clock).
+      await supabase.from('jobs').update({
+        'provider_id': providerId,
+        'status': 'assigned',
+        'dispatched_to': null,
+        'dispatched_at': null,
+      }).eq('id', job['id']);
+
+      // Tell the driver a job landed on them (fire-and-forget — a failed push
+      // must not undo the assignment).
+      try {
+        await supabase.functions.invoke('notify-provider',
+            body: {'job_id': job['id'], 'status': 'admin_assigned'});
+      } catch (_) {}
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Assigned to ${_providerName(providerId)}'),
+          backgroundColor: SnowServColors.navy,
+        ));
+      }
+      await loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Assign failed: $e'),
+            backgroundColor: Colors.red));
+      }
+    }
+  }
+
   // Compact "N min ago" from an ISO timestamp.
   String _ago(dynamic ts) {
     final t = DateTime.tryParse(ts?.toString() ?? '')?.toLocal();
@@ -1394,6 +1540,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 Text(formatDate(job['created_at']),
                     style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 _jobTimeline(job),
+                if (job['status'] == 'requested' ||
+                    job['status'] == 'assigned')
+                  _assignControl(job),
                 if (hasNotes) ...[
                   const SizedBox(height: 8),
                   Container(
