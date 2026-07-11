@@ -376,9 +376,17 @@ class _CustomerHomeState extends State<CustomerHome> {
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
                 title: const Text('Log Out', style: TextStyle(color: Colors.red)),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  supabase.auth.signOut();
+                  final uid = supabase.auth.currentUser?.id;
+                  // Release this device's push token on logout (see provider
+                  // logout) so a later account here doesn't inherit our pushes.
+                  if (uid != null) {
+                    try {
+                      await supabase.from('profiles').update({'fcm_token': null}).eq('id', uid);
+                    } catch (_) {}
+                  }
+                  await supabase.auth.signOut();
                 },
               ),
             ],

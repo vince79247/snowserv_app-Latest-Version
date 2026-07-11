@@ -30,9 +30,18 @@ Future<void> dispatchToNearest(
   try {
     final providers = await supabase
         .from('providers')
-        .select('id, current_lat, current_lng, auto_accept, preferred_until')
+        .select('id, user_id, current_lat, current_lng, auto_accept, preferred_until')
         .eq('is_online', true)
         .eq('registration_status', 'approved');
+
+    // Who ordered this job — so we never dispatch it back to the same person if
+    // they also happen to be a provider (ordering service for themselves).
+    final jobRow = await supabase
+        .from('jobs')
+        .select('customer_id')
+        .eq('id', jobId)
+        .maybeSingle();
+    final customerId = jobRow?['customer_id']?.toString();
 
     // Count active jobs per provider and grab their current job's location.
     final activeJobs = await supabase
@@ -54,9 +63,12 @@ Future<void> dispatchToNearest(
       }
     }
 
-    // Exclude only rejected providers (load-aware ranking handles balancing).
+    // Exclude rejected providers (load-aware ranking handles balancing), and
+    // never offer a job to the person who ordered it.
     final available = (providers as List).where((p) {
-      return !rejected.contains(p['id'].toString());
+      if (rejected.contains(p['id'].toString())) return false;
+      if (customerId != null && p['user_id']?.toString() == customerId) return false;
+      return true;
     }).toList();
 
     if (available.isEmpty) return;

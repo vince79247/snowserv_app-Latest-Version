@@ -609,8 +609,16 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                 title: const Text('Log Out', style: TextStyle(color: Colors.red)),
                 onTap: () async {
                   Navigator.pop(context);
+                  final uid = supabase.auth.currentUser?.id;
                   if (providerId != null) {
                     await supabase.from('providers').update({'is_online': false}).eq('id', providerId!);
+                  }
+                  // Release this device's push token so pushes for this account
+                  // (or the next account that logs in here) don't cross wires.
+                  if (uid != null) {
+                    try {
+                      await supabase.from('profiles').update({'fcm_token': null}).eq('id', uid);
+                    } catch (_) {}
                   }
                   await supabase.auth.signOut();
                 },
@@ -671,12 +679,31 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           );
         }
       }
-      await supabase.from('jobs').update({
-        'status': 'assigned',
-        'provider_id': providerId,
-        'dispatched_to': null,
-        if (eta != null) 'eta_minutes': eta,
-      }).eq('id', jobId);
+      // Conditional accept: only claim the job if it's STILL an open offer to
+      // this provider. If the offer already expired and re-dispatched, or the
+      // customer cancelled in the gap, this updates 0 rows and we bail — so we
+      // never notify/capture on a job we didn't actually win.
+      final claimed = await supabase
+          .from('jobs')
+          .update({
+            'status': 'assigned',
+            'provider_id': providerId,
+            'dispatched_to': null,
+            if (eta != null) 'eta_minutes': eta,
+          })
+          .eq('id', jobId)
+          .eq('status', 'requested')
+          .eq('dispatched_to', providerId!)
+          .select('id');
+      if (claimed.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('That job is no longer available.')),
+          );
+        }
+        loadActiveJobs();
+        return;
+      }
       // Payment stays on HOLD at accept — it's captured when the provider
       // starts the job (see markInProgress). Cancelling before start releases
       // the hold, so the customer is never charged for a no-show.
@@ -687,26 +714,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           const SnackBar(content: Text('Job accepted!')),
         );
       }
-
-      // Open navigation to the accepted job — but only if the driver isn't
-      // already working another job. If they are mid-job, we don't yank them
-      // out to the map; it will open for this job when they complete the
-      // current one (see completeJob's next-job navigation).
-      if (job != null && mounted) {
-        try {
-          final inProgress = await supabase
-              .from('jobs')
-              .select('id')
-              .eq('provider_id', providerId!)
-              .eq('status', 'in_progress')
-              .limit(1);
-          if (inProgress.isEmpty && mounted) {
-            _launchNavigation(Map<String, dynamic>.from(job));
-          }
-        } catch (e) {
-          debugPrint('Accept-time navigation check failed: $e');
-        }
-      }
+      // NOTE: we intentionally do NOT auto-open maps on accept. The provider
+      // opens navigation on demand via the "Directions" button.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -785,21 +794,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           const SnackBar(content: Text('Job accepted!')),
         );
       }
-
-      // Open navigation unless already mid-another-job (same rule as Accept).
-      try {
-        final inProgress = await supabase
-            .from('jobs')
-            .select('id')
-            .eq('provider_id', providerId!)
-            .eq('status', 'in_progress')
-            .limit(1);
-        if (inProgress.isEmpty && mounted) {
-          _launchNavigation(Map<String, dynamic>.from(job));
-        }
-      } catch (e) {
-        debugPrint('Claim navigation check failed: $e');
-      }
+      // No auto-navigation on claim either — use the "Directions" button.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -1087,24 +1082,14 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         debugPrint('total_jobs increment error: $e');
       }
 
-      // Fetch next queued job before refreshing state
-      final remaining = await supabase
-          .from('jobs')
-          .select('*, addresses(*)')
-          .eq('provider_id', providerId!)
-          .inFilter('status', ['assigned', 'in_progress'])
-          .order('created_at')
-          .limit(1);
-
       loadActiveJobs();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Job marked as complete!')),
         );
-        if (remaining.isNotEmpty) {
-          _launchNavigation(Map<String, dynamic>.from(remaining.first));
-        }
+        // No auto-jump to the next job's map — the provider opens navigation
+        // when they choose to, via the "Directions" button on each job.
       }
     } catch (e) {
       if (mounted) {
