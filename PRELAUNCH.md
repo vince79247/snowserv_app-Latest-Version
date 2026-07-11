@@ -14,6 +14,13 @@ anytime. (Added 2026-07-07.)
    Stripe account. Test mode = no real charges.
 3. **RLS lockdown** — tighten row-level security so the DB enforces access before real
    users hit the API (see Security hardening below). The heavyweight.
+   TIMING (decided 2026-07-11): this is DECOUPLED from App Store / Play Store submission
+   — the stores review the app binary, not the database, so RLS state never gates or
+   delays a submission or an app update. It's gated to the moment REAL customers sign up
+   and enter real data (name/address/card-on-file), since the anon key is public. So:
+   keep modifying the app freely now; do the lockdown as the FINAL gate right before
+   flipping on real-customer signups. It's reversible SQL (loosen/tighten anytime), but
+   deliberately done once, thoroughly, with full flow re-testing — not rushed mid-build.
 4. **App Store essentials** (iOS only) — privacy-policy URL in App Store Connect,
    metadata + screenshots, and test on a REAL iPhone (not just simulators).
 
