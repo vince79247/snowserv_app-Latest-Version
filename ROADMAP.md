@@ -65,6 +65,22 @@ growth) · **PRO** (needs an attorney/CPA — don't guess).
     connected account). Register for a sales-tax permit per state BEFORE collecting.
   - Stripe does calc/collect/report; a tax advisor + registrations/filing are on you.
     Build this deliberately BEFORE going multi-state; retrofitting live is the nightmare.
+  - UPDATE 2026-07-11 (Vince confirmed NY snow removal IS taxable; we're on Checkout
+    now): the "custom PaymentIntent" note above is SUPERSEDED — Stripe Tax runs
+    automatically on Stripe Checkout (set automatic_tax + a snow-removal tax code on
+    the session; the tax line renders on the hosted page for free). Destination-based:
+    Yonkers has its OWN city rate above the rest of Westchester (~8.375%), so never
+    hardcode a rate — Stripe computes per customer address.
+  - DATA + ADMIN — build as ONE slice so every number reconciles: add a tax field to
+    jobs (amount + rate), populate it from Stripe Tax via the webhook, and show per-job
+    Subtotal/Tax/Total in admin + on receipts. ADMIN EARNINGS VIEW (Vince asked
+    2026-07-11): sales tax is a PASS-THROUGH LIABILITY, not revenue — show it as a
+    distinct "collected · owe to NY" figure kept OUT of the earnings total (earnings =
+    commission only), alongside a period remittance total. This is what stops the
+    classic "spent the state's money" mistake; do NOT fold tax into earnings.
+  - LONG POLE = registration (NY Certificate of Authority) BEFORE collecting real tax.
+    The whole slice can be PREVIEWED in Stripe test mode meanwhile (no registration
+    needed to see the tax line + admin breakdown); flip to real collection at go-live.
 - **Apple Pay / Google Pay** — MOSTLY FREE NOW. The 2026-07-07 Stripe Checkout
   migration surfaces the wallet buttons automatically on the hosted page where the
   device/browser supports them. Remaining: register the web domain in Stripe for
