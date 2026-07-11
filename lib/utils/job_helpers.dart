@@ -19,6 +19,29 @@ String formatDate(String dateStr) {
   return '${date.month}/${date.day}/${date.year}';
 }
 
+/// Date + 12-hour time in local time, e.g. "7/11 8:03 AM". Null-safe: returns
+/// "—" when the timestamp is missing (that lifecycle step hasn't happened yet).
+String formatDateTime(dynamic ts) {
+  if (ts == null) return '—';
+  final d = DateTime.tryParse(ts.toString())?.toLocal();
+  if (d == null) return '—';
+  final h12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  final ampm = d.hour < 12 ? 'AM' : 'PM';
+  return '${d.month}/${d.day} $h12:${d.minute.toString().padLeft(2, '0')} $ampm';
+}
+
+/// Human span between two ISO timestamps, e.g. "31 min" or "1h 12m". Returns ''
+/// if either is missing or the span is negative.
+String durationBetween(dynamic start, dynamic end) {
+  if (start == null || end == null) return '';
+  final s = DateTime.tryParse(start.toString());
+  final e = DateTime.tryParse(end.toString());
+  if (s == null || e == null) return '';
+  final mins = e.difference(s).inMinutes;
+  if (mins < 0) return '';
+  return mins < 60 ? '$mins min' : '${mins ~/ 60}h ${mins % 60}m';
+}
+
 /// Provider's take-home pay (the provider's share of the job total, per the
 /// admin-configured commission), rounded to whole dollars.
 int providerPay(Map<String, dynamic> job) {

@@ -976,6 +976,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     return (n == null || n.toString().trim().isEmpty) ? 'Driver' : n.toString();
   }
 
+  String? _providerPhone(dynamic providerId) {
+    if (providerId == null) return null;
+    final p = providers.firstWhere(
+        (p) => p['id']?.toString() == providerId.toString(),
+        orElse: () => <String, dynamic>{});
+    final ph = p['users']?['phone'];
+    return (ph == null || ph.toString().trim().isEmpty) ? null : ph.toString();
+  }
+
   // Compact "N min ago" from an ISO timestamp.
   String _ago(dynamic ts) {
     final t = DateTime.tryParse(ts?.toString() ?? '')?.toLocal();
@@ -1116,6 +1125,72 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             Text(_ago(job['created_at']),
                 style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ]),
+        ],
+      ),
+    );
+  }
+
+  // Provider lifecycle timeline (accepted / started / finished), recorded by the
+  // DB trigger on each status transition. Hidden until the job is accepted.
+  Widget _jobTimeline(Map<String, dynamic> job) {
+    final accepted = job['accepted_at'];
+    final started = job['started_at'];
+    final finished = job['completed_at'];
+    if (accepted == null && started == null && finished == null) {
+      return const SizedBox.shrink();
+    }
+    final onSite = durationBetween(started, finished);
+    Widget row(IconData icon, Color color, String label, dynamic ts,
+        {String? trailing}) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Row(
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 60,
+              child: Text(label,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            ),
+            Text(formatDateTime(ts),
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: SnowServColors.navy)),
+            if (trailing != null && trailing.isNotEmpty)
+              Text('   $trailing',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.green.shade700)),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: SnowServColors.frost,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: SnowServColors.glacier),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('JOB TIMELINE',
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  letterSpacing: 0.5)),
+          const SizedBox(height: 2),
+          row(Icons.check_circle_outline, Colors.blue, 'Accepted', accepted),
+          row(Icons.play_arrow_rounded, Colors.green, 'Started', started),
+          row(Icons.flag_rounded, Colors.grey, 'Finished', finished,
+              trailing: onSite.isEmpty ? null : '$onSite on site'),
         ],
       ),
     );
@@ -1277,6 +1352,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ],
                 ),
                 _contactRow('Customer', _customerPhone(job['customer_id'])),
+                Row(
+                  children: [
+                    const Icon(Icons.local_shipping,
+                        size: 13, color: Colors.blueGrey),
+                    const SizedBox(width: 4),
+                    Text('Provider: ${_providerName(job['provider_id'])}',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: job['provider_id'] == null
+                                ? Colors.grey
+                                : SnowServColors.navy)),
+                  ],
+                ),
+                _contactRow('Provider', _providerPhone(job['provider_id'])),
                 if (job['addresses'] != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -1297,6 +1387,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                 Text(formatDate(job['created_at']),
                     style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                _jobTimeline(job),
                 if (hasNotes) ...[
                   const SizedBox(height: 8),
                   Container(
