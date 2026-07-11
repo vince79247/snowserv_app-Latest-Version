@@ -87,7 +87,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           .order('created_at', ascending: false);
       final payoutsData = await supabase
           .from('jobs')
-          .select('*, providers!jobs_provider_id_fkey!inner(users!inner(name))')
+          .select('*, providers!jobs_provider_id_fkey!inner(provider_number, users!inner(name))')
           .eq('status', 'completed')
           .eq('payout_status', 'pending')
           .lt('created_at', cutoff)
@@ -973,7 +973,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         (p) => p['id']?.toString() == providerId.toString(),
         orElse: () => <String, dynamic>{});
     final n = p['users']?['name'];
-    return (n == null || n.toString().trim().isEmpty) ? 'Driver' : n.toString();
+    final base =
+        (n == null || n.toString().trim().isEmpty) ? 'Driver' : n.toString();
+    final num = p['provider_number'];
+    return num == null ? base : '$base #$num';
   }
 
   String? _providerPhone(dynamic providerId) {
@@ -1757,7 +1760,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         children: [
                           Expanded(
                             child: Text(
-                              p['users']?['name'] ?? 'Unknown',
+                              '${p['users']?['name'] ?? 'Unknown'}${p['provider_number'] != null ? '  #${p['provider_number']}' : ''}',
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 15,
@@ -2341,7 +2344,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               itemCount: pendingPayouts.length,
               itemBuilder: (context, i) {
                 final job = pendingPayouts[i];
-                final providerName = job['providers']?['users']?['name'] ?? 'Unknown';
+                final pNum = job['providers']?['provider_number'];
+                final providerName =
+                    '${job['providers']?['users']?['name'] ?? 'Unknown'}${pNum != null ? '  #$pNum' : ''}';
                 final providerPay = ((job['final_price'] ?? job['base_price'] ?? 0) as num) * AppConfig.providerFraction;
                 final date = DateTime.parse(job['created_at']).toLocal();
                 return Card(
