@@ -25,6 +25,26 @@ final supabase = Supabase.instance.client;
 // build returns to its own origin instead, so it never uses this.
 const _kFunctionsBase = 'https://swttuujhcgpcsrxgupzv.supabase.co/functions/v1';
 
+/// Storm-pricing bands — the SINGLE SOURCE OF TRUTH for both the surge
+/// multiplier (loadSurge) and the customer-facing snow-depth price scale, so the
+/// scale can never disagree with what's actually charged. Snow on the
+/// ground -> price multiplier.
+class StormBand {
+  final int minInches; // inclusive lower bound
+  final int? maxInches; // exclusive upper bound; null = open-ended top band
+  final double multiplier;
+  const StormBand(this.minInches, this.maxInches, this.multiplier);
+  String get label =>
+      maxInches == null ? '$minInches"+' : '$minInches–$maxInches"';
+}
+
+const List<StormBand> kStormBands = [
+  StormBand(0, 3, 1.0),
+  StormBand(3, 6, 1.3),
+  StormBand(6, 10, 1.7),
+  StormBand(10, null, 2.3),
+];
+
 class CustomerHome extends StatefulWidget {
   const CustomerHome({super.key});
 
@@ -178,15 +198,12 @@ class _CustomerHomeState extends State<CustomerHome> {
       // Storm pricing (formerly "surge") — reflects how much harder the job is
       // at depth, and helps get providers out in bad storms. Contiguous bands:
       // 0-3" 1.0x, 3-6" 1.3x, 6-10" 1.7x, 10"+ 2.3x.
-      double multiplier;
-      if (inches >= 10) {
-        multiplier = 2.3;
-      } else if (inches >= 6) {
-        multiplier = 1.7;
-      } else if (inches >= 3) {
-        multiplier = 1.3;
-      } else {
-        multiplier = 1.0;
+      // Highest band whose threshold the current depth meets (kStormBands is
+      // ordered ascending, so the last match wins). Same table drives the
+      // customer-facing price scale.
+      double multiplier = 1.0;
+      for (final b in kStormBands) {
+        if (inches >= b.minInches) multiplier = b.multiplier;
       }
 
       if (mounted) {
@@ -561,6 +578,131 @@ class _CustomerHomeState extends State<CustomerHome> {
   int getFinalPrice() {
     // base already includes the per-address multiplier (see _perProperty).
     return (getTotalBase() * surgeMultiplier).round();
+  }
+
+  // Customer-facing storm-pricing scale: shows the whole snow-depth -> price
+  // ladder with a "today" marker and the normal price anchored, so a first-time
+  // customer ordering in a blizzard sees that today is the top rung — not the
+  // baseline. Only shown while a storm surcharge is active.
+  Widget _stormPricingScale() {
+    final depth = snowDepthInches ?? 0;
+    final base = getTotalBase();
+    int active = 0;
+    for (int i = 0; i < kStormBands.length; i++) {
+      if (depth >= kStormBands[i].minInches) active = i;
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.ac_unit, color: Colors.orange, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Storm pricing is active',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                            fontSize: 14)),
+                    Text(
+                        '${depth.toStringAsFixed(0)}" of snow on the ground right now',
+                        style: TextStyle(
+                            color: Colors.orange.shade800, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: const [
+              Expanded(
+                  child: Text('SNOW DEPTH',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                          letterSpacing: 0.5))),
+              Text('YOUR PRICE',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                      letterSpacing: 0.5)),
+            ],
+          ),
+          for (int i = 0; i < kStormBands.length; i++)
+            _scaleRow(kStormBands[i], base, i == active),
+          const SizedBox(height: 10),
+          Text(
+            'Normally \$$base. Heavy snow means deeper digging and getting a '
+            'driver out mid-storm — the storm price eases back to normal as the '
+            'snow clears.',
+            style: TextStyle(
+                color: Colors.orange.shade900, fontSize: 12, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _scaleRow(StormBand b, int base, bool isActive) {
+    final price = (base * b.multiplier).round();
+    return Container(
+      margin: const EdgeInsets.only(top: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? Colors.orange : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Text(b.label,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight:
+                            isActive ? FontWeight.bold : FontWeight.w500,
+                        color: isActive ? Colors.white : SnowServColors.navy)),
+                if (b.multiplier == 1.0) ...[
+                  const SizedBox(width: 6),
+                  Text('normal',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: isActive ? Colors.white70 : Colors.grey)),
+                ],
+                if (isActive) ...[
+                  const SizedBox(width: 6),
+                  const Text('◀ today',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                ],
+              ],
+            ),
+          ),
+          Text('\$$price',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isActive ? Colors.white : SnowServColors.navy)),
+        ],
+      ),
+    );
   }
 
   Widget _buildNotAvailableBanner() {
@@ -1439,7 +1581,9 @@ class _CustomerHomeState extends State<CustomerHome> {
 
             const SizedBox(height: 24),
             if (snowDepthInches != null)
-              Container(
+              surgeMultiplier > 1.0
+                  ? _stormPricingScale()
+                  : Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
@@ -1497,18 +1641,8 @@ class _CustomerHomeState extends State<CustomerHome> {
               ),
               child: Column(
                 children: [
-                  if (surgeMultiplier > 1.0) ...[
-                    Text(
-                      '\$${getTotalBase()}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey,
-                        decoration: TextDecoration.lineThrough,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                  ],
-                  Text('Total', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text(surgeMultiplier > 1.0 ? 'Storm price today' : 'Total',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13)),
                   Text(
                     '\$${getFinalPrice()}',
                     style: TextStyle(
