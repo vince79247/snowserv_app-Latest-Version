@@ -65,6 +65,7 @@ class _CustomerHomeState extends State<CustomerHome> {
   double? snowDepthInches;
   String? _stripeCustomerId;
   Map<String, dynamic>? _savedCard;
+  bool _removingCard = false;
   // The active service area (pricing zone) matching the current order address
   // (null = the address isn't in a served zone, or we don't have one yet).
   // Prices come from here.
@@ -769,6 +770,55 @@ class _CustomerHomeState extends State<CustomerHome> {
       }
     } catch (e) {
       debugPrint('Load saved card error: $e');
+    }
+  }
+
+  // Remove the customer's saved card: detaches it from Stripe's vault AND clears
+  // the users.card_* mirror (server-side, keyed off the caller's own JWT). The
+  // real card only ever lived in Stripe — the app just showed the last-4 chip.
+  Future<void> _removeSavedCard() async {
+    final brand = (_savedCard?['brand'] ?? 'card').toString().toUpperCase();
+    final last4 = _savedCard?['last4'] ?? '';
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove saved card?'),
+        content: Text(
+          'Your $brand •••• $last4 will be removed from your account and deleted '
+          'from our payment processor. You can add a card again next time you order.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() => _removingCard = true);
+    try {
+      final res = await supabase.functions.invoke('remove-card');
+      final err = res.data is Map ? res.data['error'] : null;
+      if (err != null) throw err;
+      if (mounted) {
+        setState(() {
+          _savedCard = null;
+          _removingCard = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Card removed.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _removingCard = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove card: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -1698,10 +1748,30 @@ class _CustomerHomeState extends State<CustomerHome> {
                 children: [
                   const Icon(Icons.credit_card, size: 16, color: Colors.grey),
                   const SizedBox(width: 6),
-                  Text(
-                    'Card on file ${(_savedCard!['brand'] ?? '').toString().toUpperCase()} '
-                    '•••• ${_savedCard!['last4']} — change it at checkout',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  Expanded(
+                    child: Text(
+                      'Card on file ${(_savedCard!['brand'] ?? '').toString().toUpperCase()} '
+                      '•••• ${_savedCard!['last4']} — change it at checkout',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  TextButton(
+                    onPressed: _removingCard ? null : _removeSavedCard,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: _removingCard
+                        ? const SizedBox(
+                            width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Remove',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),

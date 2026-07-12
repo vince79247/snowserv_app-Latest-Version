@@ -81,8 +81,8 @@ checkout page:
 Booking places an AUTHORIZATION HOLD — the card is not actually charged during review.
 
 DEMO ACCOUNT (customer)
-  Email:    [YOU — create a review account, e.g. appreview@snowserv.app]
-  Password: [YOU]
+  Email:    support@snowserv.app
+  Password: SnowServReview1
 
 HOW TO TEST (customer flow)
 1. Log in with the demo customer account above (customer role selected).
@@ -141,7 +141,7 @@ DONE (in repo / already set up): app name, bundle id com.snowserv.app, icon+spla
 working iOS Stripe Checkout, **privacy policy + terms already published and linked in-app.**
 
 NEEDS YOU:
-- [ ] Create a dedicated **demo review account** (customer) → fill into §7.
+- [x] Demo review account (customer): support@snowserv.app / SnowServReview1 (done 2026-07-12).
 - [ ] Capture **screenshots** (§11).
 - [ ] Create the app record in **App Store Connect** and paste §1–§10.
 - [ ] Verify a clean **release build** on a real iPhone, then archive + upload (the
