@@ -10,17 +10,31 @@ class AppConfig {
   static double get platformFraction => commissionPct / 100.0;
   static double get providerFraction => (100.0 - commissionPct) / 100.0;
 
+  /// Dispatch-offer window in SECONDS — how long a provider has to accept an
+  /// offered job before it auto-declines and re-dispatches. SINGLE SOURCE OF
+  /// TRUTH for both the provider UI countdown AND the pg_cron dispatch_jobs()
+  /// expiry (they must agree or the countdown lies). Clamped 60–600s.
+  static const int dispatchTimeoutMin = 60;
+  static const int dispatchTimeoutMax = 600;
+  static int dispatchTimeoutSeconds = 240;
+
   static Future<void> load() async {
     try {
-      final row = await Supabase.instance.client
+      final rows = await Supabase.instance.client
           .from('app_settings')
-          .select('value')
-          .eq('key', 'commission_pct')
-          .maybeSingle();
-      final v = double.tryParse(row?['value']?.toString() ?? '');
-      if (v != null && v >= 0 && v <= 100) commissionPct = v;
+          .select('key, value');
+      final map = <String, String>{
+        for (final r in rows)
+          (r['key'] as String): (r['value']?.toString() ?? ''),
+      };
+      final c = double.tryParse(map['commission_pct'] ?? '');
+      if (c != null && c >= 0 && c <= 100) commissionPct = c;
+      final d = int.tryParse(map['dispatch_timeout_seconds'] ?? '');
+      if (d != null && d >= dispatchTimeoutMin && d <= dispatchTimeoutMax) {
+        dispatchTimeoutSeconds = d;
+      }
     } catch (_) {
-      // Keep the default on any failure — pricing must never break.
+      // Keep the defaults on any failure — pricing/dispatch must never break.
     }
   }
 
@@ -32,5 +46,17 @@ class AppConfig {
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('key', 'commission_pct');
     commissionPct = clamped;
+  }
+
+  /// Admin: persist a new dispatch-offer window (seconds) and update the
+  /// in-memory value. The pg_cron dispatch_jobs() reads the same setting, so the
+  /// server expiry and the provider countdown stay in lockstep.
+  static Future<void> setDispatchTimeoutSeconds(int seconds) async {
+    final clamped = seconds.clamp(dispatchTimeoutMin, dispatchTimeoutMax);
+    await Supabase.instance.client.from('app_settings').update({
+      'value': clamped.toString(),
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('key', 'dispatch_timeout_seconds');
+    dispatchTimeoutSeconds = clamped;
   }
 }

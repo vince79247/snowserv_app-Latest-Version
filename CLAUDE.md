@@ -229,8 +229,15 @@ error). Does NOT use live tracking — one-shot fix at each tap (see punchlist #
   'auto_assigned' from BOTH paths: the client calls it directly; the cron calls it
   via pg_net (net.http_post, same pattern as the payout cron) so a closed-app
   provider still gets the push.
-- NOTE: cron expires offers at 3 min but the provider UI countdown is 4 min
-  (_kDispatchSeconds=240) — a known minor mismatch, not yet reconciled.
+- DISPATCH-OFFER WINDOW (admin-editable, 2026-07-13): how long a provider has to
+  accept an offered job before it auto-declines + re-dispatches. SINGLE SOURCE OF
+  TRUTH = app_settings.dispatch_timeout_seconds (default 240s = 4:00, clamped
+  60–600). BOTH the pg_cron dispatch_jobs() expiry (reads the setting via
+  make_interval, regex-guarded so a bad value defaults to 240) AND the provider
+  UI countdown (AppConfig.dispatchTimeoutSeconds, refreshed on going online) read
+  it, so they can never drift. Edit from the admin Jobs tab ("Dispatch offer
+  window · Edit"). Supersedes the old hardcoded 3-vs-4-min mismatch (reconciled
+  to 4 min on 2026-07-11, now fully config-driven).
 
 ## Provider Service Agreement (anti-harvesting)
 - Provider-specific contract with a Non-Circumvention / Non-Solicitation clause

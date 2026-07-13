@@ -215,6 +215,81 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
   }
 
+  // mm:ss for the dispatch window (e.g. 240 -> "4:00").
+  String _fmtMMSS(int seconds) =>
+      '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+
+  // Admin-editable dispatch-offer window. Persists to app_settings via AppConfig;
+  // BOTH the provider UI countdown and the pg_cron dispatch_jobs() expiry read
+  // the same setting, so they stay in lockstep (no "job no longer available"
+  // surprises). Clamped to AppConfig.dispatchTimeout{Min,Max} (60–600s).
+  Future<void> _editDispatchTimeout() async {
+    final ctrl = TextEditingController(
+        text: AppConfig.dispatchTimeoutSeconds.toString());
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dispatch offer window'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                'How long a provider has to accept an offered job before it '
+                'auto-declines and re-offers to the next driver. Applies to the '
+                'provider countdown and the server expiry together.',
+                style: TextStyle(fontSize: 13, color: SnowServColors.inkSoft)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Seconds',
+                suffixText: 's',
+                helperText: 'Between 60 and 600 (e.g. 240 = 4:00).',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (saved != true) return;
+    final secs = int.tryParse(ctrl.text.trim());
+    if (secs == null ||
+        secs < AppConfig.dispatchTimeoutMin ||
+        secs > AppConfig.dispatchTimeoutMax) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Enter a number between ${AppConfig.dispatchTimeoutMin} and ${AppConfig.dispatchTimeoutMax} seconds.')));
+      }
+      return;
+    }
+    try {
+      await AppConfig.setDispatchTimeoutSeconds(secs);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Dispatch window set to ${secs}s (${_fmtMMSS(secs)}).')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not save: $e')));
+      }
+    }
+  }
+
   Future<void> toggleUserFlag(String userId, bool currentFlag) async {
     await supabase.from('users').update({'is_flagged': !currentFlag}).eq('id', userId);
     loadAll();
@@ -1543,6 +1618,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     return Column(
       children: [
         if (includeTicker) _buildLiveTicker(),
+        _dispatchTimerBar(),
         if (cancelledCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -1570,6 +1646,50 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               : _jobsListView(visible),
         ),
       ],
+    );
+  }
+
+  // Compact settings row at the top of the Jobs tab: shows the current dispatch
+  // offer window and lets the admin tune it (single source of truth via
+  // AppConfig — both the provider countdown and the cron expiry follow it).
+  Widget _dispatchTimerBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: InkWell(
+        onTap: _editDispatchTimeout,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: SnowServColors.iceBlue.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.timer_outlined, size: 16, color: SnowServColors.navy),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Dispatch offer window: ${_fmtMMSS(AppConfig.dispatchTimeoutSeconds)}',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: SnowServColors.navy),
+                ),
+              ),
+              const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.tune, size: 14, color: SnowServColors.iceBlue),
+                SizedBox(width: 4),
+                Text('Edit',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: SnowServColors.iceBlue)),
+              ]),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import '../../theme.dart';
+import '../../config/app_config.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/dispatch.dart';
 import '../../utils/legal.dart';
@@ -22,8 +23,6 @@ import '../admin/admin_screen.dart';
 import '../../utils/web_layout.dart';
 
 final supabase = Supabase.instance.client;
-
-const int _kDispatchSeconds = 240;
 
 // How close (meters) the provider's GPS must be to the job's geocoded address to
 // count as "on-site". Generous on purpose: geocoding a street address and a phone
@@ -53,7 +52,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   RealtimeChannel? _jobsChannel;
   StreamSubscription? _fcmSub;
   Timer? _countdownTimer;
-  int _secondsRemaining = _kDispatchSeconds;
+  int _secondsRemaining = AppConfig.dispatchTimeoutSeconds;
   bool _declining = false;
   bool _isAdmin = false;
   bool _autoAccept = false;
@@ -182,6 +181,10 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   Future<void> toggleOnline(bool value) async {
     if (providerId == null) return;
 
+    // Pick up any admin change to the dispatch-offer window at the start of each
+    // shift, so the provider's countdown length matches the server's expiry.
+    if (value) await AppConfig.load();
+
     final update = <String, dynamic>{'is_online': value};
 
     if (value) {
@@ -288,7 +291,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     _stopCountdown();
     final dispatchedAt = DateTime.parse(job['dispatched_at']).toLocal();
     final elapsed = DateTime.now().difference(dispatchedAt).inSeconds;
-    _secondsRemaining = (_kDispatchSeconds - elapsed).clamp(0, _kDispatchSeconds);
+    final window = AppConfig.dispatchTimeoutSeconds;
+    _secondsRemaining = (window - elapsed).clamp(0, window);
     if (_secondsRemaining == 0) {
       _declineJob();
       return;
@@ -1352,7 +1356,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     final minutes = _secondsRemaining ~/ 60;
     final seconds = _secondsRemaining % 60;
     final timerStr = '$minutes:${seconds.toString().padLeft(2, '0')}';
-    final fraction = (_secondsRemaining / _kDispatchSeconds).clamp(0.0, 1.0);
+    final fraction =
+        (_secondsRemaining / AppConfig.dispatchTimeoutSeconds).clamp(0.0, 1.0);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
