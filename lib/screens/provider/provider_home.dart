@@ -11,6 +11,7 @@ import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/dispatch.dart';
 import '../../utils/legal.dart';
+import '../../utils/account_deletion.dart';
 import 'job_history_screen.dart';
 import 'provider_agreement_screen.dart';
 import 'provider_details_screen.dart';
@@ -623,6 +624,10 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                   await supabase.auth.signOut();
                 },
               ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              // App Store Guideline 5.1.1(v): account deletion must be available
+              // in-app. Kept alongside Log Out so it's discoverable, not buried.
+              deleteAccountTile(context),
             ],
           ),
         ),

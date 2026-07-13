@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../../theme.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/legal.dart';
+import '../../utils/account_deletion.dart';
 import '../../utils/geo.dart';
 import '../../utils/geocode.dart';
 import 'address_screen.dart';
@@ -421,6 +422,10 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                   await supabase.auth.signOut();
                 },
               ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              // App Store Guideline 5.1.1(v): account deletion must be available
+              // in-app. Kept alongside Log Out so it's discoverable, not buried.
+              deleteAccountTile(context),
             ],
           ),
         ),
