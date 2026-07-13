@@ -111,8 +111,13 @@ lib/
   Apple Pay / Google Pay for free on its page. NO client-side Stripe SDK anymore.
 - iOS still uses Swift Package Manager only — CocoaPods fully deintegrated.
 - Flow (lib/screens/customer/customer_home.dart `createJob`):
-  1. Client calls `create-checkout-session` with amount + ALL job fields in `metadata`
-     + platform return URLs → gets a hosted Checkout `url`.
+  1. Client calls `create-checkout-session` with the order SELECTION (services +
+     address_mode/address_id or raw addr) + return URLs → gets a hosted Checkout `url`.
+     PRICE IS SERVER-AUTHORITATIVE (2026-07-13 security fix): the function requires a
+     login, recomputes base/surge/final from the matched zone + the saved address's
+     price_multiplier + live snow depth (ignoring any client-sent amount/price), and
+     forces metadata.customer_id to the caller. A client CANNOT pay $0.50 for a $165
+     job or bill it to another user. Any client `amount_cents` is ignored.
   2. Client opens it: web = same-tab redirect (`launchUrl(webOnlyWindowName:'_self')`);
      mobile = in-app browser (`LaunchMode.inAppBrowserView`). No job inserted here.
   3. Customer pays on Stripe's page → authorizes the HOLD (capture_method: manual).

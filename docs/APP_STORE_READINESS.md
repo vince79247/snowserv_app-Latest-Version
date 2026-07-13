@@ -109,3 +109,16 @@ Provider `amalficoastvacation@yahoo.com` is named **"John Doe"**; a customer has
 5. **H2 Location purpose strings** (do alongside the #19 geofence)
 6. **H4 Clean test data**
 7. **H3** — a **release-day checklist item**, not a code change
+
+---
+
+## Security review (2026-07-13) — findings + fixes
+- **Price manipulation (MEDIUM) — FIXED + VERIFIED.** `create-checkout-session` trusted the
+  client-supplied `amount_cents` + `metadata.final_price`; a logged-in customer could pay 50¢
+  for a $165 job. Fixed: the function now recomputes base/surge/final server-side from the
+  matched zone + saved-address multiplier + live snow depth, forces `customer_id` to the
+  authenticated caller, and verifies a saved `address_id` belongs to them. Verified end-to-end:
+  a tampered 50¢ request priced the real $165; foreign address_id / out-of-zone / no-service all
+  rejected. Client needs no change (edge fn already live).
+- Reviewed clean: `delete-account` (own-JWT keyed, no IDOR), `auth-confirmed` (no reflection),
+  dispute RLS (admin-only resolve), `stripe-webhook` (signature + replay protection).

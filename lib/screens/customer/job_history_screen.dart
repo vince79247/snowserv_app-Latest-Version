@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/job_helpers.dart';
+import '../../utils/dispute.dart';
 import '../../theme.dart';
 
 final supabase = Supabase.instance.client;
@@ -357,6 +358,10 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                                             style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft)),
                                       ],
                                     ),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: reportProblemButton(context, job, isProvider: false),
+                                  ),
                                 ],
                               ),
                             ),

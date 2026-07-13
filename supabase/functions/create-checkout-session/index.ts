@@ -1,20 +1,25 @@
 // Creates a Stripe Checkout Session for a snow-removal order and returns the
 // hosted payment-page URL. Replaces the old flutter_stripe custom PaymentIntent
-// flow so the SAME code path works on iOS, Android AND web (Mac/Windows are
-// served by the web app in a browser) — and it gets Apple Pay / Google Pay for
-// free on the hosted page.
+// flow so the SAME code path works on iOS, Android AND web — and it gets Apple
+// Pay / Google Pay for free on the hosted page.
 //
 // AUTHORIZE-AND-CAPTURE IS PRESERVED: the session is created with
 // payment_intent_data[capture_method]=manual, so completing the page places an
 // authorization HOLD (PaymentIntent in requires_capture), NOT a charge. The
-// underlying object is still a normal PaymentIntent, so capture-payment (on
-// provider START) and refund-job (release/refund on cancel) carry over unchanged
-// — the webhook grabs session.payment_intent and stores it on the job like before.
+// underlying object is still a normal PaymentIntent, so capture-payment (provider
+// START) and refund-job (release/refund on cancel) carry over unchanged.
 //
-// The job row is NOT created here. All the fields needed to create it ride in the
-// session metadata and the stripe-webhook function inserts the job (+ address for
-// "ordering for someone else") only after payment is confirmed — robust across the
-// web redirect / a closed tab.
+// The job row is NOT created here. The fields the webhook needs to insert it ride
+// in the session metadata, and stripe-webhook creates the job only after payment
+// is confirmed — robust across the web redirect / a closed tab.
+//
+// SECURITY — the SERVER is authoritative on price and identity. verify_jwt stays
+// TRUE (default; not in config.toml). We NEVER trust a client-supplied amount or
+// price: we recompute base_price / surge / final_price from the matched pricing
+// zone, the saved address's price_multiplier, and live snow depth — the same logic
+// the app shows the customer. We also force customer_id to the authenticated
+// caller (and verify a saved address_id belongs to them), so an order can't be
+// priced at $0.50 or billed to another user by tampering with the request.
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -22,124 +27,259 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: cors })
-  }
+// ---- auth: read the caller from the platform-verified JWT ------------------
+function decodeCaller(auth: string | null): { sub?: string } {
   try {
+    if (!auth) return {}
+    const payload = auth.replace(/^Bearer\s+/i, '').split('.')[1]
+    if (!payload) return {}
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+  } catch {
+    return {}
+  }
+}
+
+// ---- geofence matching (ported from lib/utils/geo.dart) --------------------
+type Pt = { lat: number; lng: number }
+function parsePolygon(raw: unknown): Pt[] {
+  if (!Array.isArray(raw)) return []
+  const out: Pt[] = []
+  for (const v of raw) {
+    const lat = Number((v as Record<string, unknown>)?.lat)
+    const lng = Number((v as Record<string, unknown>)?.lng)
+    if (Number.isFinite(lat) && Number.isFinite(lng)) out.push({ lat, lng })
+  }
+  return out
+}
+function pointInPolygon(lat: number, lng: number, poly: Pt[]): boolean {
+  if (poly.length < 3) return false
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const yi = poly[i].lat, xi = poly[i].lng
+    const yj = poly[j].lat, xj = poly[j].lng
+    const intersects = ((yi > lat) !== (yj > lat)) &&
+      (lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)
+    if (intersects) inside = !inside
+  }
+  return inside
+}
+function matchZone(
+  lat: number | null,
+  lng: number | null,
+  zip: string | null,
+  zones: Record<string, any>[],
+): Record<string, any> | null {
+  for (const zone of zones) {
+    const poly = parsePolygon(zone.polygon)
+    if (poly.length > 0 && lat != null && lng != null) {
+      if (pointInPolygon(lat, lng, poly)) return zone
+      continue
+    }
+    if (zip) {
+      const zips = (zone.zips as unknown[] | null)?.map((z) => String(z)) ?? []
+      if (zips.includes(zip)) return zone
+    }
+  }
+  return null
+}
+
+// ---- storm pricing (ported from kStormBands) -------------------------------
+const STORM_BANDS = [
+  { min: 0, mult: 1.0 },
+  { min: 3, mult: 1.3 },
+  { min: 6, mult: 1.7 },
+  { min: 10, mult: 2.3 },
+]
+async function surgeForPoint(lat: number | null, lng: number | null): Promise<number> {
+  if (lat == null || lng == null) return 1.0
+  try {
+    const url =
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=snow_depth&timezone=auto`
+    const r = await fetch(url).then((r) => r.json())
+    const meters = Number(r?.current?.snow_depth ?? 0)
+    const inches = (Number.isFinite(meters) ? meters : 0) * 39.3701
+    let mult = 1.0
+    for (const b of STORM_BANDS) if (inches >= b.min) mult = b.mult
+    return mult
+  } catch {
+    return 1.0 // no storm data → base price (never over/undercharge on a fetch error)
+  }
+}
+
+// ---- geocoding (ported from lib/utils/geocode.dart) ------------------------
+async function geocode(a: {
+  address_line?: string; city?: string; state?: string; zip?: string
+}): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const q = encodeURIComponent(
+      `${a.address_line ?? ''}, ${a.city ?? ''}, ${a.state ?? ''} ${a.zip ?? ''}`)
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'SnowServApp/1.0' } },
+    )
+    if (!res.ok) return null
+    const j = await res.json()
+    if (Array.isArray(j) && j.length > 0) {
+      return { lat: Number(j[0].lat), lng: Number(j[0].lon) }
+    }
+  } catch { /* fall through */ }
+  return null
+}
+
+const perProperty = (zonePrice: unknown, mult: number) =>
+  Math.round((Number(zonePrice) || 0) * mult)
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+  const json = (b: unknown, status = 200) =>
+    new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
+
+  try {
+    const caller = decodeCaller(req.headers.get('Authorization'))
+    if (!caller.sub) return json({ error: 'Not authenticated' }, 401)
+    const uid = caller.sub
+
     const {
-      amount_cents,
       job_description,
       stripe_customer_id,
       user_email,
       success_url,
       cancel_url,
-      metadata,
+      metadata: rawMeta,
     } = await req.json()
+    if (!success_url || !cancel_url) return json({ error: 'Missing return URLs' }, 400)
 
-    if (!amount_cents || amount_cents < 50) {
-      return new Response(JSON.stringify({ error: 'Invalid amount' }), {
-        status: 400,
-        headers: { ...cors, 'Content-Type': 'application/json' },
-      })
-    }
-    if (!success_url || !cancel_url) {
-      return new Response(JSON.stringify({ error: 'Missing return URLs' }), {
-        status: 400,
-        headers: { ...cors, 'Content-Type': 'application/json' },
-      })
-    }
+    const md: Record<string, any> = (rawMeta && typeof rawMeta === 'object') ? rawMeta : {}
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')!
+    const dbHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }
 
-    // Create a Stripe Customer on first order so Checkout can save the card and
-    // show it back to returning customers (and so wallets remember them).
+    // ---- Resolve the requested services -----------------------------------
+    const wantsWalkway = String(md.walkway) === 'true'
+    const wantsDriveway = String(md.driveway) === 'true'
+    const wantsSalting = String(md.salting) === 'true'
+    if (!wantsWalkway && !wantsDriveway) return json({ error: 'No service selected' }, 400)
+
+    // ---- Resolve the service address (authoritatively) --------------------
+    let addr: { address_line?: string; city?: string; state?: string; zip?: string }
+    let multiplier = 1.0
+    if (String(md.address_mode) === 'saved') {
+      // Must be the CALLER'S OWN saved address — prevents pricing off someone
+      // else's multiplier or attaching a foreign address_id.
+      const r = await fetch(
+        `${supabaseUrl}/rest/v1/addresses?id=eq.${md.address_id}&user_id=eq.${uid}` +
+          `&select=address_line,city,state,zip,price_multiplier`,
+        { headers: dbHeaders })
+      const rows = await r.json()
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return json({ error: 'Address not found' }, 400)
+      }
+      addr = rows[0]
+      multiplier = Number(rows[0].price_multiplier) || 1.0
+    } else {
+      // "Ordering for someone else" — a brand-new address, always multiplier 1.0.
+      addr = {
+        address_line: md.addr_line, city: md.addr_city,
+        state: md.addr_state, zip: md.addr_zip,
+      }
+      if (!addr.address_line || !addr.zip) return json({ error: 'Incomplete address' }, 400)
+    }
+
+    // ---- Match the pricing zone (server geocodes; never trusts client lat/lng)
+    const geo = await geocode(addr)
+    const zonesRes = await fetch(
+      `${supabaseUrl}/rest/v1/service_areas?is_active=eq.true&select=*`, { headers: dbHeaders })
+    const zones = await zonesRes.json()
+    const zone = matchZone(geo?.lat ?? null, geo?.lng ?? null, addr.zip ?? null,
+      Array.isArray(zones) ? zones : [])
+    if (!zone) return json({ error: 'Not available in your area yet' }, 400)
+
+    // ---- Compute the price (same math the app shows) ----------------------
+    const servicePrice = wantsWalkway && wantsDriveway
+      ? perProperty(zone.price_both, multiplier)
+      : wantsDriveway
+        ? perProperty(zone.price_driveway, multiplier)
+        : perProperty(zone.price_sidewalk, multiplier)
+    const baseTotal = servicePrice + (wantsSalting ? perProperty(zone.price_salting, multiplier) : 0)
+    const surge = await surgeForPoint(geo?.lat ?? null, geo?.lng ?? null)
+    const finalPrice = Math.round(baseTotal * surge)
+    const amountCents = finalPrice * 100
+    if (!Number.isFinite(amountCents) || amountCents < 50) {
+      return json({ error: 'Could not price this order' }, 400)
+    }
+
+    // ---- Server-authoritative metadata for the webhook --------------------
+    // Start from what the client sent (service flags, notes, address), then
+    // OVERRIDE every price/identity field with the values we just computed.
+    const meta: Record<string, string> = {}
+    for (const [k, v] of Object.entries(md)) {
+      if (v === null || v === undefined) continue
+      meta[k] = String(v).slice(0, 500)
+    }
+    meta.customer_id = uid                       // force caller identity
+    meta.base_price = String(baseTotal)
+    meta.surge_multiplier = String(surge)
+    meta.final_price = String(finalPrice)
+    if (geo) { meta.job_lat = String(geo.lat); meta.job_lng = String(geo.lng) }
+    else { delete meta.job_lat; delete meta.job_lng }
+
+    // ---- Stripe customer (so the card can be saved + offered next time) ----
     let customerId = stripe_customer_id
     if (!customerId && user_email) {
-      const customerBody = new URLSearchParams()
-      customerBody.append('email', user_email)
-      customerBody.append('metadata[source]', 'snowserv')
-      const customerRes = await fetch('https://api.stripe.com/v1/customers', {
+      const cb = new URLSearchParams()
+      cb.append('email', user_email)
+      cb.append('metadata[source]', 'snowserv')
+      const cr = await fetch('https://api.stripe.com/v1/customers', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${stripeKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: customerBody.toString(),
+        headers: { Authorization: `Bearer ${stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: cb.toString(),
       })
-      const customer = await customerRes.json()
+      const customer = await cr.json()
       if (customer.error) throw new Error(customer.error.message)
       customerId = customer.id
     }
 
+    // ---- Build the Checkout Session ---------------------------------------
     const body = new URLSearchParams()
     body.append('mode', 'payment')
     body.append('success_url', success_url)
     body.append('cancel_url', cancel_url)
-
-    // Single line item priced at the exact order total (server trusts the amount
-    // the app computed from the matched zone, same as the old flow).
     body.append('line_items[0][quantity]', '1')
     body.append('line_items[0][price_data][currency]', 'usd')
-    body.append('line_items[0][price_data][unit_amount]', String(amount_cents))
+    body.append('line_items[0][price_data][unit_amount]', String(amountCents))
     body.append('line_items[0][price_data][product_data][name]', job_description ?? 'SnowServ snow removal')
-
-    // THE HOLD: manual capture → authorization only, captured later on provider START.
-    body.append('payment_intent_data[capture_method]', 'manual')
+    body.append('payment_intent_data[capture_method]', 'manual') // the HOLD
     body.append('payment_intent_data[description]', job_description ?? 'SnowServ snow removal')
-
-    // Reinforce the hold promise ON Stripe's hosted page (a line near the Pay
-    // button), so it matches the app's order-screen note. Must stay consistent
-    // with the authorize-and-capture model — charged only on provider START.
     body.append(
       'custom_text[submit][message]',
       'This places a hold — your card is only charged when a provider starts your job.',
     )
-
     if (customerId) {
       body.append('customer', customerId)
-      // Save the card to the customer so it's offered on the next order.
       body.append('payment_intent_data[setup_future_usage]', 'off_session')
     }
-
-    // Everything the webhook needs to create the job after payment confirms.
-    // Stripe metadata values are strings (max 500 chars each).
-    if (metadata && typeof metadata === 'object') {
-      for (const [k, v] of Object.entries(metadata)) {
-        if (v === null || v === undefined) continue
-        body.append(`metadata[${k}]`, String(v).slice(0, 500))
-      }
-    }
+    for (const [k, v] of Object.entries(meta)) body.append(`metadata[${k}]`, v)
 
     const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${stripeKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { Authorization: `Bearer ${stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     })
     const session = await response.json()
-    if (session.error) {
-      return new Response(JSON.stringify({ error: session.error.message }), {
-        status: 400,
-        headers: { ...cors, 'Content-Type': 'application/json' },
-      })
-    }
+    if (session.error) return json({ error: session.error.message }, 400)
 
-    return new Response(
-      JSON.stringify({
-        url: session.url,
-        session_id: session.id,
-        stripe_customer_id: customerId,
-      }),
-      { headers: { ...cors, 'Content-Type': 'application/json' } }
-    )
+    // amount_total is the server-computed charge (authoritative) — returned so the
+    // app can confirm what will be held, and never a client-supplied figure.
+    return json({
+      url: session.url,
+      session_id: session.id,
+      stripe_customer_id: customerId,
+      amount_total: session.amount_total,
+    })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { ...cors, 'Content-Type': 'application/json' },
-    })
+    return json({ error: msg }, 500)
   }
 })

@@ -26,6 +26,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   List<Map<String, dynamic>> providers = [];
   List<Map<String, dynamic>> pendingPayouts = [];
   List<Map<String, dynamic>> serviceAreas = [];
+  List<Map<String, dynamic>> disputes = [];
+
+  int get _pendingDisputes =>
+      disputes.where((d) => d['status'] == 'pending').length;
   bool loading = true;
   bool _payoutRunning = false;
   // Cancelled jobs are kept (financial record) but hidden from the main list
@@ -41,7 +45,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     loadAll();
     // Keep the live ticker moving: re-pull jobs quietly every 30s.
     _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -102,6 +106,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         final areasData = await supabase.from('service_areas').select().order('name');
         areasList = List<Map<String, dynamic>>.from(areasData);
       } catch (_) {}
+      // Loaded separately (like service_areas) so it's resilient. Customer /
+      // provider names are resolved from the already-loaded users/providers lists.
+      List<Map<String, dynamic>> disputesList = [];
+      try {
+        final disputesData = await supabase
+            .from('disputes')
+            .select('*, jobs(job_number, final_price, base_price, service_type)')
+            .order('created_at', ascending: false);
+        disputesList = List<Map<String, dynamic>>.from(disputesData);
+      } catch (_) {}
 
       if (mounted) {
         final providerList = List<Map<String, dynamic>>.from(providersData);
@@ -117,6 +131,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           providers = providerList;
           pendingPayouts = List<Map<String, dynamic>>.from(payoutsData);
           serviceAreas = areasList;
+          disputes = disputesList;
         });
       }
     } catch (e) {
@@ -198,6 +213,150 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Future<void> toggleUserFlag(String userId, bool currentFlag) async {
     await supabase.from('users').update({'is_flagged': !currentFlag}).eq('id', userId);
     loadAll();
+  }
+
+  // Resolve a dispute: 'resolved' (handled) or 'rejected' (no action). Prompts
+  // for an optional note that's stored on the dispute for the record.
+  Future<void> _resolveDispute(Map<String, dynamic> dispute, String newStatus) async {
+    final noteController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(newStatus == 'resolved' ? 'Mark resolved' : 'Reject dispute'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: noteController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Resolution note (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(newStatus == 'resolved' ? 'Resolve' : 'Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await supabase.from('disputes').update({
+        'status': newStatus,
+        'resolution': noteController.text.trim().isEmpty ? null : noteController.text.trim(),
+        'resolved_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', dispute['id']);
+      loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not update: $e')));
+      }
+    }
+  }
+
+  Widget _buildDisputesTab() {
+    if (disputes.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('No disputes reported — all quiet. 👍',
+              style: TextStyle(color: SnowServColors.inkSoft)),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: disputes.length,
+      itemBuilder: (context, i) {
+        final d = disputes[i];
+        final status = (d['status'] ?? 'pending').toString();
+        final isPending = status == 'pending';
+        final job = d['jobs'] as Map<String, dynamic>?;
+        // Resolve names from the already-loaded lists.
+        final customer = users.firstWhere(
+            (u) => u['id'] == d['customer_id'], orElse: () => const {});
+        final provider = providers.firstWhere(
+            (p) => p['id'] == d['provider_id'], orElse: () => const {});
+        final custName = customer['name'] ?? 'Customer';
+        final provName = (provider['users']?['name']) ?? 'Provider';
+        final statusColor = isPending
+            ? Colors.orange
+            : (status == 'resolved' ? SnowServColors.success : SnowServColors.inkSoft);
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(d['reason']?.toString() ?? 'Problem reported',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15, color: SnowServColors.navy)),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.12),
+                        border: Border.all(color: statusColor),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(status.toUpperCase(),
+                          style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${job?['job_number'] != null ? 'Job #${job!['job_number']} · ' : ''}'
+                  '\$${job?['final_price'] ?? job?['base_price'] ?? '—'}',
+                  style: const TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
+                ),
+                Text('$custName (customer)  ·  $provName (provider)',
+                    style: const TextStyle(fontSize: 12, color: SnowServColors.inkSoft)),
+                if ((d['description'] ?? '').toString().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(d['description'].toString(), style: const TextStyle(fontSize: 13)),
+                ],
+                if (!isPending && (d['resolution'] ?? '').toString().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('Resolution: ${d['resolution']}',
+                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: SnowServColors.inkSoft)),
+                ],
+                if (isPending) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _resolveDispute(d, 'rejected'),
+                          child: const Text('Reject'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _resolveDispute(d, 'resolved'),
+                          child: const Text('Mark resolved'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> toggleUserSuspend(String userId, bool currentSuspend) async {
@@ -474,6 +633,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     _buildProvidersTab(),
                     _buildPayoutsTab(),
                     _buildServiceAreasTab(),
+                    _buildDisputesTab(),
                   ],
                 )),
     );
@@ -670,6 +830,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ),
         ),
         Tab(text: 'Zones (${serviceAreas.length})'),
+        Tab(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Disputes'),
+              if (_pendingDisputes > 0) ...[
+                const SizedBox(width: 6),
+                CircleAvatar(
+                  radius: 8,
+                  backgroundColor: Colors.red,
+                  child: Text('$_pendingDisputes',
+                      style: const TextStyle(fontSize: 10, color: Colors.white)),
+                ),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -697,6 +874,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         Icons.local_shipping_outlined, _buildProvidersTab(), 640);
     final customersPanel = _dashPanel('Customers ($_customerCount)',
         Icons.people_outline, _buildUsersTab(), 560);
+    final disputesPanel = _dashPanel(
+        _pendingDisputes > 0 ? 'Disputes ($_pendingDisputes)' : 'Disputes',
+        Icons.flag_outlined, _buildDisputesTab(), 460);
 
     Widget col(List<Widget> panels) =>
         Expanded(child: Column(children: panels));
@@ -716,13 +896,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     // Left: operations.
                     col([jobsPanel, zonesPanel]),
                     // Middle: the money view, front and centre.
-                    col([earningsPanel]),
+                    col([earningsPanel, disputesPanel]),
                     // Right: people.
                     col([providersPanel, customersPanel]),
                   ]
                 : [
                     col([jobsPanel, earningsPanel, zonesPanel]),
-                    col([providersPanel, customersPanel]),
+                    col([providersPanel, customersPanel, disputesPanel]),
                   ],
           ),
         ],
