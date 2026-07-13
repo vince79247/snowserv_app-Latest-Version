@@ -52,7 +52,7 @@ class CustomerHome extends StatefulWidget {
   State<CustomerHome> createState() => _CustomerHomeState();
 }
 
-class _CustomerHomeState extends State<CustomerHome> {
+class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver {
   String selectedService = 'sidewalk';
   bool salting = false;
   bool loading = false;
@@ -91,6 +91,7 @@ class _CustomerHomeState extends State<CustomerHome> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     loadMyJobs();
     loadAddress();
     loadSurge();
@@ -136,8 +137,21 @@ class _CustomerHomeState extends State<CustomerHome> {
     _areaDebounce = Timer(const Duration(milliseconds: 700), _refreshServiceArea);
   }
 
+  // When the app returns to the foreground — notably back from the Stripe
+  // Checkout in-app browser after paying — reload jobs. The realtime socket can
+  // drop while we're backgrounded, so without this a just-placed order (and its
+  // Cancel button) wouldn't appear until a manual refresh.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      loadMyJobs();
+      loadSurge();
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _jobsChannel?.unsubscribe();
     _areaDebounce?.cancel();
     _otherAddressController.dispose();
@@ -1033,7 +1047,7 @@ class _CustomerHomeState extends State<CustomerHome> {
           'cancel_url': cancelUrl,
           'metadata': metadata,
         },
-      );
+      ).timeout(const Duration(seconds: 20)); // never hang the Pay button forever
       final checkoutUrl = sessionResponse.data?['url'] as String?;
       if (checkoutUrl == null) throw Exception('Payment setup failed: ${sessionResponse.data}');
       final returnedCustomerId = sessionResponse.data?['stripe_customer_id'] as String?;
@@ -1072,8 +1086,11 @@ class _CustomerHomeState extends State<CustomerHome> {
       await loadMyJobs();
     } catch (e) {
       if (mounted) {
+        final msg = e is TimeoutException
+            ? 'The connection timed out — check your internet and tap Pay again.'
+            : 'Error: $e';
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e'), duration: const Duration(seconds: 8)));
+            .showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 8)));
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -1370,6 +1387,41 @@ class _CustomerHomeState extends State<CustomerHome> {
                         // unclaimed and has already been offered around (no
                         // driver currently holds it, but some have passed). Keeps
                         // the customer informed instead of an endless silent wait.
+                        // Loud, reassuring "we're on it" state the moment the
+                        // order lands and before it's been passed around — so the
+                        // customer clearly sees we're actively finding a provider.
+                        if (job['status'] == 'requested' &&
+                            ((job['rejected_providers'] as List?)?.isEmpty ?? true)) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: const [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.orange),
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    "Searching for a provider near you — we'll notify you the "
+                                    "moment someone accepts your job.",
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         if (job['status'] == 'requested' &&
                             job['dispatched_to'] == null &&
                             ((job['rejected_providers'] as List?)?.isNotEmpty ?? false)) ...[

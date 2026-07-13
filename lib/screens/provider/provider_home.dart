@@ -917,13 +917,24 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     final notesController = TextEditingController();
     final List<File> selectedPhotos = [];
     final picker = ImagePicker();
+    // Guard against re-entrancy: invoking the picker while one is already open
+    // throws PlatformException(already_active) which, left unhandled, corrupts
+    // the dialog into a blank box. Track in-flight state to disable both buttons.
+    bool picking = false;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Complete Job'),
-          content: SingleChildScrollView(
+          // Bound the width: AlertDialog measures its content's intrinsic width,
+          // but a SingleChildScrollView (viewport) can't provide one — that threw
+          // "RenderViewport does not support returning intrinsic dimensions" and
+          // rendered the whole dialog as a blank white box. maxFinite = use the
+          // max available width instead of asking for an intrinsic width.
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -940,20 +951,25 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                       child: OutlinedButton.icon(
                         icon: const Icon(Icons.camera_alt),
                         label: const Text('Camera'),
-                        onPressed: () async {
+                        onPressed: picking ? null : () async {
                           // maxWidth/maxHeight downsize the image at the native
                           // layer, drastically cutting the memory a full-res
                           // camera capture uses. Without this, iOS may kill the
                           // app while the camera is open (blank white screen on
                           // return, lost photo).
-                          final photo = await picker.pickImage(
-                            source: ImageSource.camera,
-                            maxWidth: 1600,
-                            maxHeight: 1600,
-                            imageQuality: 70,
-                          );
-                          if (photo != null) {
-                            setDialogState(() => selectedPhotos.add(File(photo.path)));
+                          setDialogState(() => picking = true);
+                          try {
+                            final photo = await picker.pickImage(
+                              source: ImageSource.camera,
+                              maxWidth: 1600,
+                              maxHeight: 1600,
+                              imageQuality: 70,
+                            );
+                            if (photo != null) selectedPhotos.add(File(photo.path));
+                          } catch (_) {
+                            // e.g. already_active from a double-tap — ignore.
+                          } finally {
+                            setDialogState(() => picking = false);
                           }
                         },
                       ),
@@ -963,14 +979,21 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                       child: OutlinedButton.icon(
                         icon: const Icon(Icons.photo_library),
                         label: const Text('Gallery'),
-                        onPressed: () async {
-                          final photos = await picker.pickMultiImage(
-                            maxWidth: 1600,
-                            maxHeight: 1600,
-                            imageQuality: 70,
-                          );
-                          if (photos.isNotEmpty) {
-                            setDialogState(() => selectedPhotos.addAll(photos.map((p) => File(p.path))));
+                        onPressed: picking ? null : () async {
+                          setDialogState(() => picking = true);
+                          try {
+                            final photos = await picker.pickMultiImage(
+                              maxWidth: 1600,
+                              maxHeight: 1600,
+                              imageQuality: 70,
+                            );
+                            if (photos.isNotEmpty) {
+                              selectedPhotos.addAll(photos.map((p) => File(p.path)));
+                            }
+                          } catch (_) {
+                            // e.g. already_active from a double-tap — ignore.
+                          } finally {
+                            setDialogState(() => picking = false);
                           }
                         },
                       ),
@@ -1024,6 +1047,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                   ),
                 ),
               ],
+            ),
             ),
           ),
           actions: [
