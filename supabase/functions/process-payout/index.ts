@@ -13,7 +13,7 @@ Deno.serve(async (req: Request) => {
     // Load job + provider info
     const { data: job, error: jobErr } = await supabase
       .from('jobs')
-      .select('*, providers!inner(id, bank_routing, bank_account, ssn, stripe_connect_id, users!inner(name, email))')
+      .select('*, providers!inner(id, stripe_connect_id, payouts_enabled, users!inner(name, email))')
       .eq('id', job_id)
       .single()
 
@@ -22,7 +22,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const provider = job.providers
-    const providerUser = provider.users
     // Commission is admin-configurable (app_settings.commission_pct).
     const { data: setting } = await supabase
       .from('app_settings').select('value').eq('key', 'commission_pct').maybeSingle()
@@ -30,79 +29,15 @@ Deno.serve(async (req: Request) => {
     const providerFraction = (100 - (isNaN(pct) ? 30 : pct)) / 100
     const payoutCents = Math.round((job.final_price ?? job.base_price) * providerFraction * 100)
 
-    // If provider already has a Stripe Connect account, use it
-    let connectId: string = provider.stripe_connect_id
-
-    if (!connectId) {
-      // Create a Stripe Custom Connected Account for the provider
-      if (!provider.bank_routing || !provider.bank_account || !provider.ssn) {
-        return new Response(
-          JSON.stringify({ error: 'Provider missing banking info or SSN' }),
-          { status: 400 }
-        )
-      }
-
-      // Parse DOB from providers table
-      const { data: providerRecord } = await supabase
-        .from('providers')
-        .select('dob')
-        .eq('id', provider.id)
-        .single()
-
-      const [year, month, day] = (providerRecord?.dob ?? '').split('-').map(Number)
-
-      // Create Connected Account
-      const acctBody = new URLSearchParams()
-      acctBody.append('type', 'custom')
-      acctBody.append('country', 'US')
-      acctBody.append('email', providerUser.email)
-      acctBody.append('capabilities[transfers][requested]', 'true')
-      acctBody.append('business_type', 'individual')
-      acctBody.append('individual[first_name]', (providerUser.name ?? '').split(' ')[0] ?? '')
-      acctBody.append('individual[last_name]', (providerUser.name ?? '').split(' ').slice(1).join(' ') || 'Unknown')
-      acctBody.append('individual[email]', providerUser.email)
-      acctBody.append('individual[ssn_last_4]', provider.ssn.slice(-4))
-      if (!isNaN(year)) {
-        acctBody.append('individual[dob][day]', String(day))
-        acctBody.append('individual[dob][month]', String(month))
-        acctBody.append('individual[dob][year]', String(year))
-      }
-      acctBody.append('tos_acceptance[date]', String(Math.floor(Date.now() / 1000)))
-      acctBody.append('tos_acceptance[ip]', '127.0.0.1')
-
-      const acctRes = await fetch('https://api.stripe.com/v1/accounts', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${stripeKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: acctBody.toString(),
-      })
-      const acct = await acctRes.json()
-      if (acct.error) throw new Error(`Connect account error: ${acct.error.message}`)
-      connectId = acct.id
-
-      // Attach bank account
-      const bankBody = new URLSearchParams()
-      bankBody.append('external_account[object]', 'bank_account')
-      bankBody.append('external_account[country]', 'US')
-      bankBody.append('external_account[currency]', 'usd')
-      bankBody.append('external_account[routing_number]', provider.bank_routing)
-      bankBody.append('external_account[account_number]', provider.bank_account)
-
-      const bankRes = await fetch(`https://api.stripe.com/v1/accounts/${connectId}/external_accounts`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${stripeKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: bankBody.toString(),
-      })
-      const bankResult = await bankRes.json()
-      if (bankResult.error) throw new Error(`Bank attach error: ${bankResult.error.message}`)
-
-      // Save connect ID so we don't recreate next time
-      await supabase.from('providers').update({ stripe_connect_id: connectId }).eq('id', provider.id)
+    // Express model (#21): the provider onboards bank + identity with Stripe
+    // themselves (connect-onboard) — we never store those details. We only need
+    // a connected account cleared for payouts.
+    const connectId: string | null = provider.stripe_connect_id
+    if (!connectId || provider.payouts_enabled !== true) {
+      return new Response(
+        JSON.stringify({ error: 'Provider has not finished payout setup' }),
+        { status: 400 }
+      )
     }
 
     // Transfer funds to provider's connected account

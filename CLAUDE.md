@@ -109,6 +109,14 @@ lib/
   admin writes) — gets its admin RLS policy in the pre-launch RLS lockdown.
 - Platform commission: 30% (admin panel), provider payout: 70%
 - Payouts: 7-day rolling batch via admin panel
+- PAYOUT RAILS = Stripe Connect EXPRESS (#21, 2026-07-13). Providers onboard their
+  own bank + identity on Stripe's hosted page (connect-onboard) — we NEVER collect or
+  store SSN/bank/DOB/W-9 anymore (those columns were DROPPED from providers). Stripe
+  does KYC and files the 1099. We keep only providers.stripe_connect_id + a cached
+  providers.payouts_enabled. batch-payouts/process-payout just `transfer` to the
+  connected account and SKIP any provider whose payouts_enabled isn't true.
+  ⚠️ REQUIRES Stripe Connect + Express enabled in the Stripe dashboard (platform
+  profile completed) + 1099-NEC filing turned on — account-level config, not code.
 
 ## Payment flow (Stripe Checkout)
 - Migrated OFF flutter_stripe → **Stripe Checkout** (hosted page) 2026-07-07 so ONE
@@ -164,6 +172,16 @@ lib/
 - capture-payment: captures the held PaymentIntent when a provider STARTS the job
   (markInProgress → status in_progress); idempotent. NOT on accept.
 - notify-dispatch: notifies only the single provider a job was dispatched to
+- batch-payouts / process-payout: Express-only (#21). Transfer the provider's cut to
+  their stripe_connect_id; skip anyone whose cached payouts_enabled isn't true. No
+  raw bank/SSN — they never touch our DB now.
+- connect-onboard: verify_jwt on; creates (once) the provider's Stripe Connect Express
+  account + a hosted onboarding Account Link, returns the URL. Keyed to the caller's JWT.
+- connect-status: verify_jwt on; GETs the Connect account → {onboarded, payouts_enabled},
+  caches payouts_enabled on the provider row; ?dashboard=1 also mints an Express dashboard
+  login link. Drives the provider "Set up / manage payouts" tile + admin status chip.
+- connect-return: verify_jwt=false; plain-text landing page Stripe returns to after
+  onboarding (return/refresh states). Same sandbox constraint as checkout-return.
 - admin-doc-url: verifies admin password (ADMIN_PASSWORD secret) → returns a 1h
   signed URL for a provider-documents file (service role). Only way to read that
   private bucket.

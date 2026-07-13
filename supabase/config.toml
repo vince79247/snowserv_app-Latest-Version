@@ -37,3 +37,9 @@ entrypoint = "./functions/notify-providers/index.ts"
 
 [functions.auth-confirmed]
 verify_jwt = false
+
+# Stripe sends the provider's browser here after Express payout onboarding — a
+# top-level navigation with no Supabase JWT, so verification must be off.
+[functions.connect-return]
+enabled = true
+verify_jwt = false

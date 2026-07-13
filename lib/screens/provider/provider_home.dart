@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -16,7 +17,6 @@ import '../../utils/account_deletion.dart';
 import 'job_history_screen.dart';
 import 'provider_agreement_screen.dart';
 import 'provider_details_screen.dart';
-import 'provider_tax_info_screen.dart';
 import '../faq_screen.dart';
 import '../edit_profile_screen.dart';
 import '../admin/admin_screen.dart';
@@ -378,115 +378,51 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     }
   }
 
-  Future<void> _editBankingDetails() async {
+  // Payouts via Stripe Connect Express (#21). We no longer collect or store any
+  // bank/SSN details — Stripe does. This checks the provider's Connect status
+  // and either opens hosted onboarding (not set up / needs more info) or their
+  // Stripe payouts dashboard (already active).
+  Future<void> _managePayouts() async {
     if (providerId == null) return;
-    final routingController = TextEditingController();
-    final accountController = TextEditingController();
-
-    // Pre-fill existing values
-    try {
-      final data = await supabase
-          .from('providers')
-          .select('bank_routing, bank_account')
-          .eq('id', providerId!)
-          .single();
-      routingController.text = data['bank_routing'] ?? '';
-      accountController.text = data['bank_account'] ?? '';
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.account_balance_outlined, color: SnowServColors.navy),
-            SizedBox(width: 8),
-            Text('Banking Details'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Your banking information is used for payouts only and stored securely.',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: routingController,
-              keyboardType: TextInputType.number,
-              maxLength: 9,
-              decoration: const InputDecoration(
-                labelText: 'Routing Number',
-                hintText: '9-digit routing number',
-                prefixIcon: Icon(Icons.numbers),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: accountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Account Number',
-                prefixIcon: Icon(Icons.credit_card),
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final routing = routingController.text.trim();
-              final account = accountController.text.trim();
-              if (routing.length != 9) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Routing number must be 9 digits.')),
-                );
-                return;
-              }
-              if (account.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please enter your account number.')),
-                );
-                return;
-              }
-              try {
-                await supabase.from('providers').update({
-                  'bank_routing': routing,
-                  'bank_account': account,
-                }).eq('id', providerId!);
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Banking details updated successfully.'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error saving: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Loading payout setup…')),
     );
-    routingController.dispose();
-    accountController.dispose();
+    try {
+      final res = await supabase.functions.invoke('connect-status');
+      final data = (res.data as Map?) ?? const {};
+      final onboarded = data['onboarded'] == true;
+      final payoutsEnabled = data['payouts_enabled'] == true;
+
+      String? url;
+      String note;
+      if (onboarded && payoutsEnabled) {
+        // Fully set up — open their Stripe Express dashboard to manage it.
+        final dash = await supabase.functions
+            .invoke('connect-status', body: {'dashboard': true});
+        url = ((dash.data as Map?) ?? const {})['dashboard_url'] as String?;
+        note = 'Opening your Stripe payouts dashboard…';
+      } else {
+        // New account, or onboarding not finished — (re)open hosted onboarding.
+        final onboard = await supabase.functions.invoke('connect-onboard');
+        url = ((onboard.data as Map?) ?? const {})['url'] as String?;
+        note = 'Finish payout setup in the browser, then return to SnowServ.';
+      }
+      if (url == null) throw 'No link returned';
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(note)));
+      final uri = Uri.parse(url);
+      if (kIsWeb) {
+        await launchUrl(uri, webOnlyWindowName: '_self');
+      } else {
+        await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open payouts: $e')),
+        );
+      }
+    }
   }
 
   void _showAccountSheet() {
@@ -575,22 +511,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
                 leading: const Icon(Icons.account_balance_outlined, color: SnowServColors.navy),
-                title: const Text('Update Banking Details'),
-                subtitle: const Text('Routing & account number for payouts'),
+                title: const Text('Set up / manage payouts'),
+                subtitle: const Text('Bank, ID & 1099 — handled securely by Stripe'),
                 onTap: () {
                   Navigator.pop(context);
-                  _editBankingDetails();
-                },
-              ),
-              const Divider(height: 1, indent: 16, endIndent: 16),
-              ListTile(
-                leading: const Icon(Icons.receipt_long_outlined, color: SnowServColors.navy),
-                title: const Text('Tax Info (for 1099)'),
-                subtitle: const Text('Name, tax ID & address for your 1099'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const ProviderTaxInfoScreen()));
+                  _managePayouts();
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),

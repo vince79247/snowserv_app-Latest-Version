@@ -2530,7 +2530,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                               color: SnowServColors.navy)),
                     ),
                     const SizedBox(height: 6),
-                    _infoRow('Date of birth', p['dob']),
                     _infoRow("Driver's license", '${p['dl_number'] ?? ''}  ${p['dl_state'] ?? ''}'.trim()),
                     _docViewButton('DL photo', p['dl_photo_url']),
                     const SizedBox(height: 10),
@@ -2549,20 +2548,24 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     _infoRow('Expiry', p['insurance_expiry']),
                     _docViewButton('Insurance card', p['insurance_photo_url']),
                     const SizedBox(height: 10),
-                    // Banking section
+                    // Payouts section — bank/ID/1099 live at Stripe now (#21), so
+                    // we only surface the Connect Express onboarding status here.
                     const Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('Banking',
+                      child: Text('Payouts (Stripe)',
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                               color: SnowServColors.navy)),
                     ),
                     const SizedBox(height: 6),
-                    _infoRow('Routing', p['bank_routing'] != null
-                        ? '••••${(p['bank_routing'] as String).substring((p['bank_routing'] as String).length - 4)}'
-                        : null),
-                    _infoRow('Account', p['bank_account'] != null ? '••••••••' : null),
+                    _infoRow(
+                        'Status',
+                        p['payouts_enabled'] == true
+                            ? 'Active ✓'
+                            : (p['stripe_connect_id'] != null
+                                ? 'Setup incomplete'
+                                : 'Not started')),
                     const SizedBox(height: 14),
                     // Action buttons
                     if (isPending) ...[

@@ -8,9 +8,9 @@ final _supabase = Supabase.instance.client;
 
 /// Lets an approved provider update the vehicle, equipment and insurance details
 /// on file (e.g. a new truck, a new insurance carrier). Contact info (name/phone)
-/// lives in EditProfileScreen; banking has its own editor on the account menu.
-/// Identity docs (DL / DOB / SSN) are intentionally NOT editable here — changing
-/// those should go through support / re-verification.
+/// lives in EditProfileScreen; payouts (bank/ID) are handled by Stripe Connect
+/// Express via the account menu. The driver's-license record is intentionally
+/// NOT editable here — changing it should go through support / re-verification.
 class ProviderDetailsScreen extends StatefulWidget {
   const ProviderDetailsScreen({super.key});
 

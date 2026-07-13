@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
     const userRow = (await userRes.json())?.[0] ?? {}
 
     const provRes = await rest(
-      `providers?user_id=eq.${uid}&select=id,dl_photo_url,insurance_photo_url`)
+      `providers?user_id=eq.${uid}&select=id,dl_photo_url,insurance_photo_url,stripe_connect_id`)
     const provider = (await provRes.json())?.[0]
 
     // A provider deleting themselves may still be owed money. We do NOT block the
@@ -79,22 +79,21 @@ Deno.serve(async (req: Request) => {
 
     // ---- 2. Scrub the provider row (this is where the sensitive PII lives) --
     if (provider?.id) {
+      // NOTE: SSN/DOB/bank + the W-9 tax_* columns no longer exist — since the
+      // Connect Express migration (#21) that sensitive data lives at Stripe, not
+      // here, so there is nothing of that kind left in our DB to scrub.
       await rest(`providers?user_id=eq.${uid}`, {
         method: 'PATCH',
         headers: { Prefer: 'return=minimal' },
         body: JSON.stringify({
-          ssn: null, dob: null,
-          bank_routing: null, bank_account: null,
           dl_number: null, dl_state: null, dl_photo_url: null,
           insurance_carrier: null, insurance_policy: null,
           insurance_expiry: null, insurance_photo_url: null,
-          tax_legal_name: null, tax_business_name: null, tax_classification: null,
-          tax_ein: null, tax_address_line: null, tax_city: null,
-          tax_state: null, tax_zip: null,
           vehicle_vin: null, vehicle_plate: null,
           service_agreement_name: null,
           current_lat: null, current_lng: null,
           is_online: false,
+          stripe_connect_id: null, payouts_enabled: false,
           registration_status: 'deleted',
         }),
       })
@@ -107,6 +106,17 @@ Deno.serve(async (req: Request) => {
           method: 'DELETE',
           headers: h,
           body: JSON.stringify({ prefixes: docs }),
+        }).catch(() => {})
+      }
+
+      // Delete their Stripe Connect Express account so no connected account is
+      // orphaned. Best-effort: if Stripe refuses (e.g. a residual balance), we
+      // still complete the local deletion — the operator settles any balance out
+      // of band. (Pending SnowServ earnings sit in OUR balance, not theirs.)
+      if (stripeKey && provider.stripe_connect_id) {
+        await fetch(`https://api.stripe.com/v1/accounts/${provider.stripe_connect_id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${stripeKey}` },
         }).catch(() => {})
       }
     }

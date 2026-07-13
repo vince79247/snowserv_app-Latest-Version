@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: jobs, error } = await supabase
       .from('jobs')
-      .select('*, providers!inner(id, bank_routing, bank_account, ssn, stripe_connect_id, users!inner(name, email, id))')
+      .select('*, providers!inner(id, stripe_connect_id, payouts_enabled, users!inner(name, email, id))')
       .eq('status', 'completed')
       .eq('payout_status', 'pending')
       .lt('created_at', cutoff)
@@ -46,69 +46,16 @@ Deno.serve(async (req: Request) => {
     for (const job of jobs) {
       try {
         const provider = job.providers
-        const providerUser = provider.users
         const payoutCents = Math.round((job.final_price ?? job.base_price) * providerFraction * 100)
 
-        let connectId: string = provider.stripe_connect_id
-
-        if (!connectId) {
-          if (!provider.bank_routing || !provider.bank_account || !provider.ssn) {
-            results.push({ job_id: job.id, status: 'skipped', reason: 'missing bank info or SSN' })
-            continue
-          }
-
-          const { data: providerRecord } = await supabase
-            .from('providers')
-            .select('dob')
-            .eq('id', provider.id)
-            .single()
-
-          const dobParts = (providerRecord?.dob ?? '').split('-').map(Number)
-          const [year, month, day] = dobParts
-
-          const acctBody = new URLSearchParams()
-          acctBody.append('type', 'custom')
-          acctBody.append('country', 'US')
-          acctBody.append('email', providerUser.email)
-          acctBody.append('capabilities[transfers][requested]', 'true')
-          acctBody.append('business_type', 'individual')
-          acctBody.append('individual[first_name]', (providerUser.name ?? '').split(' ')[0] ?? '')
-          acctBody.append('individual[last_name]', (providerUser.name ?? '').split(' ').slice(1).join(' ') || 'Unknown')
-          acctBody.append('individual[email]', providerUser.email)
-          acctBody.append('individual[ssn_last_4]', provider.ssn.slice(-4))
-          if (!isNaN(year)) {
-            acctBody.append('individual[dob][day]', String(day))
-            acctBody.append('individual[dob][month]', String(month))
-            acctBody.append('individual[dob][year]', String(year))
-          }
-          acctBody.append('tos_acceptance[date]', String(Math.floor(Date.now() / 1000)))
-          acctBody.append('tos_acceptance[ip]', '127.0.0.1')
-
-          const acctRes = await fetch('https://api.stripe.com/v1/accounts', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: acctBody.toString(),
-          })
-          const acct = await acctRes.json()
-          if (acct.error) throw new Error(`Connect account: ${acct.error.message}`)
-          connectId = acct.id
-
-          const bankBody = new URLSearchParams()
-          bankBody.append('external_account[object]', 'bank_account')
-          bankBody.append('external_account[country]', 'US')
-          bankBody.append('external_account[currency]', 'usd')
-          bankBody.append('external_account[routing_number]', provider.bank_routing)
-          bankBody.append('external_account[account_number]', provider.bank_account)
-
-          const bankRes = await fetch(`https://api.stripe.com/v1/accounts/${connectId}/external_accounts`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: bankBody.toString(),
-          })
-          const bankResult = await bankRes.json()
-          if (bankResult.error) throw new Error(`Bank attach: ${bankResult.error.message}`)
-
-          await supabase.from('providers').update({ stripe_connect_id: connectId }).eq('id', provider.id)
+        // Express model (#21): the provider onboards their own bank + identity
+        // with Stripe (connect-onboard). We never see or store those details —
+        // we just need a connected account that's cleared for payouts. If they
+        // haven't finished onboarding, skip (they stay 'pending' for next run).
+        const connectId: string | null = provider.stripe_connect_id
+        if (!connectId || provider.payouts_enabled !== true) {
+          results.push({ job_id: job.id, status: 'skipped', reason: 'provider payouts not set up' })
+          continue
         }
 
         const transferBody = new URLSearchParams()

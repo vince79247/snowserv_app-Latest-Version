@@ -106,7 +106,9 @@ Provider `amalficoastvacation@yahoo.com` is named **"John Doe"**; a customer has
 ## Not App Store blockers, but launch-critical (see QA_PUNCHLIST)
 - ~~**#19** Provider can get paid without doing the work (no geofence)~~ — ✅ FIXED 2026-07-13
   (on-site distance recorded + flagged on Start/Complete; camera-only live photo; admin review chips)
-- **#21** Raw SSNs + bank numbers stored in our DB — breach/compliance liability
+- ~~**#21** Raw SSNs + bank numbers stored in our DB~~ — ✅ FIXED 2026-07-13 (migrated to
+  Stripe Connect Express hosted onboarding; ssn/bank/dob/tax_* columns dropped; Stripe does
+  KYC + files 1099s). Needs Connect/Express enabled in the Stripe dashboard + an on-device test.
 - **#23** Providers can't see paid vs. owed — trust/retention
 
 ---

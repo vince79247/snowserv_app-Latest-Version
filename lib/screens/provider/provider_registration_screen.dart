@@ -35,7 +35,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   bool _hasSalt = false;
 
   // Step 2 - Identity
-  final _dobController = TextEditingController();
   final _dlNumberController = TextEditingController();
   final _dlStateController = TextEditingController();
   File? _dlPhoto;
@@ -47,10 +46,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   File? _insurancePhoto;
   bool _insuranceConfirmed = false;
 
-  // Step 4 - Banking
-  final _routingController = TextEditingController();
-  final _accountController = TextEditingController();
-  final _ssnController = TextEditingController();
+  // Step 4 - Payouts: no bank/SSN/DOB collected here anymore. Stripe Connect
+  // Express collects and verifies all of that (and files 1099s) via its own
+  // hosted onboarding, launched from provider home AFTER approval. This step is
+  // now just an explainer so nothing sensitive ever touches our database.
 
   // Step 5 - Agreement
   bool _termsAgreed = false;
@@ -58,7 +57,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   final _signatureController = TextEditingController();
 
   final _picker = ImagePicker();
-  final _steps = ['Equipment', 'Identity', 'Insurance', 'Banking', 'Agreement'];
+  final _steps = ['Equipment', 'Identity', 'Insurance', 'Payouts', 'Agreement'];
 
   @override
   void dispose() {
@@ -68,15 +67,11 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     _vehicleYearController.dispose();
     _vehicleVinController.dispose();
     _vehiclePlateController.dispose();
-    _dobController.dispose();
     _dlNumberController.dispose();
     _dlStateController.dispose();
     _insuranceCarrierController.dispose();
     _insurancePolicyController.dispose();
     _insuranceExpiryController.dispose();
-    _routingController.dispose();
-    _accountController.dispose();
-    _ssnController.dispose();
     _signatureController.dispose();
     super.dispose();
   }
@@ -114,8 +109,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         }
         return true;
       case 1:
-        if (_dobController.text.trim().isEmpty ||
-            _dlNumberController.text.trim().isEmpty ||
+        if (_dlNumberController.text.trim().isEmpty ||
             _dlStateController.text.trim().isEmpty) {
           _showError('Please fill in all identity fields.');
           return false;
@@ -142,19 +136,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         }
         return true;
       case 3:
-        if (_routingController.text.trim().length != 9) {
-          _showError('Please enter a valid 9-digit routing number.');
-          return false;
-        }
-        if (_accountController.text.trim().isEmpty) {
-          _showError('Please enter your bank account number.');
-          return false;
-        }
-        final ssn = _ssnController.text.replaceAll(RegExp(r'[^0-9]'), '');
-        if (ssn.length != 9) {
-          _showError('Please enter a valid 9-digit SSN.');
-          return false;
-        }
+        // Payouts step is now an explainer — Stripe collects bank/SSN later.
         return true;
       case 4:
         if (!_termsAgreed) {
@@ -252,7 +234,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           'vehicle_vin': _vehicleVinController.text.trim().toUpperCase(),
           'vehicle_plate': _vehiclePlateController.text.trim().toUpperCase(),
         },
-        'dob': _dobController.text.trim(),
         'dl_number': _dlNumberController.text.trim().toUpperCase(),
         'dl_state': _dlStateController.text.trim().toUpperCase(),
         if (dlUrl != null) 'dl_photo_url': dlUrl,
@@ -260,9 +241,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         'insurance_policy': _insurancePolicyController.text.trim().toUpperCase(),
         'insurance_expiry': _insuranceExpiryController.text.trim(),
         if (insuranceUrl != null) 'insurance_photo_url': insuranceUrl,
-        'bank_routing': _routingController.text.trim(),
-        'bank_account': _accountController.text.trim(),
-        'ssn': _ssnController.text.replaceAll(RegExp(r'[^0-9]'), ''),
         'terms_agreed': true,
         'service_agreement_signed_at': DateTime.now().toUtc().toIso8601String(),
         'service_agreement_name': _signatureController.text.trim(),
@@ -564,16 +542,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _dobController,
-            decoration: const InputDecoration(
-              labelText: 'Date of Birth (MM/DD/YYYY)',
-              prefixIcon: Icon(Icons.cake_outlined),
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.datetime,
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -679,8 +647,8 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
 
   Widget _buildBankingPage() {
     return _card(
-      title: 'Banking Details',
-      subtitle: 'Used to pay you after each completed job.',
+      title: 'Getting Paid',
+      subtitle: 'How payouts work — nothing to enter here.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -698,7 +666,9 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Your banking information is stored securely and used only for payouts.',
+                    'SnowServ never collects or stores your bank details or Social '
+                    'Security number. Our payments partner, Stripe, handles that '
+                    'directly and securely.',
                     style: TextStyle(fontSize: 12, color: SnowServColors.iceBlue),
                   ),
                 ),
@@ -706,43 +676,18 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             ),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _routingController,
-            decoration: const InputDecoration(
-              labelText: 'Routing Number',
-              prefixIcon: Icon(Icons.account_balance_outlined),
-              border: OutlineInputBorder(),
-              helperText: '9-digit number — bottom left of your check',
-              counterText: '',
-            ),
-            keyboardType: TextInputType.number,
-            maxLength: 9,
+          const Text(
+            "After your application is approved, you'll see a “Set up payouts” "
+            'button on your home screen. It opens Stripe’s secure page, where you '
+            'add your bank account and verify your identity. Stripe also issues '
+            'your year-end 1099 tax form.',
+            style: TextStyle(fontSize: 14, height: 1.45),
           ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _accountController,
-            decoration: const InputDecoration(
-              labelText: 'Account Number',
-              prefixIcon: Icon(Icons.credit_card_outlined),
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.number,
-            obscureText: true,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _ssnController,
-            decoration: const InputDecoration(
-              labelText: 'Social Security Number',
-              prefixIcon: Icon(Icons.security_outlined),
-              border: OutlineInputBorder(),
-              helperText: 'Required for identity verification and payouts',
-              hintText: 'XXX-XX-XXXX',
-              counterText: '',
-            ),
-            keyboardType: TextInputType.number,
-            obscureText: true,
-            maxLength: 11,
+          const SizedBox(height: 12),
+          const Text(
+            'You can finish your application now and set up payouts once approved '
+            '— you just need it done before your first payout.',
+            style: TextStyle(fontSize: 13, color: Colors.grey, height: 1.4),
           ),
         ],
       ),
