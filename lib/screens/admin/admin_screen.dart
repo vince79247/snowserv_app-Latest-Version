@@ -11,6 +11,11 @@ import 'admin_map_screen.dart';
 
 final supabase = Supabase.instance.client;
 
+// Same on-site threshold the provider app uses (#19): within this many meters of
+// the job's geocoded address counts as "on-site". Beyond it, the admin card
+// flags the job "off-site" so a human can eyeball it before the weekly payout.
+const double _kAdminOnSiteMeters = 300;
+
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
 
@@ -1720,6 +1725,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 Text(formatDate(job['created_at']),
                     style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 _jobTimeline(job),
+                _locationVerification(job),
                 if (job['status'] == 'requested' ||
                     job['status'] == 'assigned')
                   _assignControl(job),
@@ -1788,6 +1794,67 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ),
         );
       },
+    );
+  }
+
+  // On-site verification for the provider's Start/Complete taps (#19). One chip
+  // per phase: green on-site, amber off-site (with the distance), grey when the
+  // location couldn't be measured (denied / no fix / never geocoded). Only shown
+  // once work has begun — meaningless for a requested/assigned job.
+  Widget _locationVerification(Map<String, dynamic> job) {
+    final status = job['status'];
+    final started = status == 'in_progress' || status == 'completed';
+    if (!started) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          _locChip('Start', job['start_distance_m']),
+          if (status == 'completed') _locChip('Complete', job['complete_distance_m']),
+        ],
+      ),
+    );
+  }
+
+  Widget _locChip(String label, dynamic distRaw) {
+    final double? d = (distRaw as num?)?.toDouble();
+    final Color color;
+    final IconData icon;
+    final String text;
+    if (d == null) {
+      color = Colors.grey;
+      icon = Icons.location_off;
+      text = '$label · location unverified';
+    } else if (d <= _kAdminOnSiteMeters) {
+      color = Colors.green.shade700;
+      icon = Icons.check_circle;
+      text = '$label · on-site';
+    } else {
+      color = Colors.orange.shade800;
+      icon = Icons.wrong_location;
+      final dist =
+          d >= 1000 ? '${(d / 1000).toStringAsFixed(1)} km' : '${d.round()} m';
+      text = '$label · off-site ($dist away)';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(text,
+              style: TextStyle(
+                  color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 

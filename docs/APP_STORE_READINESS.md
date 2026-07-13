@@ -57,15 +57,16 @@ flag it — **and it's the same feature as the dispute mechanism you want**. Bui
 an in-app **"Report a problem with this job"** flow (customer *and* provider) that files a dispute
 the admin can see and resolve. Schema already anticipates it (`users.dispute_count`, `is_flagged`).
 
-### H2. Location purpose string is inaccurate (and will get more so)
-`NSLocationWhenInUseUsageDescription` currently says *"to check current snow conditions and
-calculate accurate pricing."* But location is **also** used for provider dispatch/proximity — and
-if we add the **geofence (#19)**, it'll verify the provider is at the job site. Apple rejects
+### H2. Location purpose string is inaccurate (and will get more so) — ✅ FIXED 2026-07-13
+`NSLocationWhenInUseUsageDescription` previously said only *"to check current snow conditions and
+calculate accurate pricing"* — but location is also used for provider dispatch/proximity and now,
+with the geofence (#19), to verify the provider is at the job site on Start/Complete. Apple rejects
 purpose strings that don't match actual use.
 
-**Fix:** rewrite to cover all real uses before submitting. Also consider dropping
-`NSLocationAlwaysAndWhenInUseUsageDescription` — the app only uses when-in-use, and declaring
-"Always" invites scrutiny.
+**DONE:** rewrote the when-in-use string to cover all three real uses (pricing, nearby-job matching,
+on-site confirmation) and note it's used only while the app is in use. Also **dropped
+`NSLocationAlwaysAndWhenInUseUsageDescription`** — the app only ever uses when-in-use (one-shot
+`getCurrentPosition`, no background/`getPositionStream`), so declaring "Always" only invited scrutiny.
 
 ### H3. Stripe TEST → LIVE sequencing trap
 The Stripe keys are **not in the app binary** (the Checkout migration removed the client SDK) —
@@ -103,7 +104,8 @@ Provider `amalficoastvacation@yahoo.com` is named **"John Doe"**; a customer has
 ---
 
 ## Not App Store blockers, but launch-critical (see QA_PUNCHLIST)
-- **#19** Provider can get paid without doing the work (no geofence) — fraud/money risk
+- ~~**#19** Provider can get paid without doing the work (no geofence)~~ — ✅ FIXED 2026-07-13
+  (on-site distance recorded + flagged on Start/Complete; camera-only live photo; admin review chips)
 - **#21** Raw SSNs + bank numbers stored in our DB — breach/compliance liability
 - **#23** Providers can't see paid vs. owed — trust/retention
 

@@ -180,7 +180,19 @@ lib/
 1. Toggle online → loads available jobs (status=requested, dispatched_to=this provider)
 2. Accept job → status becomes assigned, job moves to Active Jobs section
 3. Start Job → status becomes in_progress
-4. Complete job → status becomes completed (photos + notes optional)
+4. Complete job → status becomes completed. A live completion photo is REQUIRED
+   (camera-only — Gallery removed 2026-07-13; the photo is proof-of-work); notes optional.
+
+## On-site location verification (#19, 2026-07-13)
+On Start and Complete the provider app takes a fresh Geolocator.getCurrentPosition()
+and records the meters to job_lat/lng in jobs.start_distance_m / complete_distance_m.
+VERIFY, NOT GATE (decided w/ Vince): a big distance or a null (location denied / no
+fix / job never geocoded) NEVER blocks the provider — the required live camera photo
+is the fallback proof. Start beyond ~300m shows a soft, overridable "you seem far from
+the job" nudge (Start captures the card). Admin job cards show a per-phase chip: 🟢
+on-site / 🟠 off-site (distance) / ⚪ unverified, so a human eyeballs off-site/unverified
+jobs before the weekly payout. Threshold _kOnSiteMeters=300 (generous for geocode + GPS
+error). Does NOT use live tracking — one-shot fix at each tap (see punchlist #25).
 5. Reject job → provider added to rejected_providers, job re-dispatched to next nearest
 6. Cancel accepted job → confirmation dialog, job reset to requested, re-dispatched, customer notified
 7. Cancel AFTER start (post-capture — decided 2026-07-07): the charge STAYS and the job
@@ -319,6 +331,9 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_intent_id text;
 ALTER TABLE service_areas ADD COLUMN IF NOT EXISTS polygon jsonb;
 -- Per-address custom pricing multiplier (applied + verified 2026-07-10):
 ALTER TABLE addresses ADD COLUMN IF NOT EXISTS price_multiplier numeric NOT NULL DEFAULT 1.0;
+-- On-site verification distances, meters (applied 2026-07-13, migration 20260713150000):
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS start_distance_m numeric;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS complete_distance_m numeric;
 ```
 After running the polygon migration, open each existing zone in the admin "Areas" tab
 and draw its boundary (tap the map) → Save. Until a zone has a polygon, ordering in it

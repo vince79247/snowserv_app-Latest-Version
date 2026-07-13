@@ -33,10 +33,8 @@
 		<true/>
 		<key>NSCameraUsageDescription</key>
 		<string>SnowServ needs camera access to take job completion photos.</string>
-		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-		<string>SnowServ uses your location to check current snow conditions and calculate accurate pricing.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>SnowServ uses your location to check current snow conditions and calculate accurate pricing.</string>
+		<string>SnowServ uses your location to check current snow conditions for pricing, to match you with nearby jobs, and to confirm a provider is at the job site when they start and complete work. Location is only used while the app is in use.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>SnowServ needs photo library access to upload job completion photos.</string>
 		<key>UIApplicationSceneManifest</key>

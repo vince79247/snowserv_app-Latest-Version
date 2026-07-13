@@ -25,6 +25,12 @@ final supabase = Supabase.instance.client;
 
 const int _kDispatchSeconds = 240;
 
+// How close (meters) the provider's GPS must be to the job's geocoded address to
+// count as "on-site". Generous on purpose: geocoding a street address and a phone
+// GPS fix each carry ~tens-of-meters error, and a big property/parking spot adds
+// more. Past this, the job is flagged "off-site" for the admin — never blocked.
+const double _kOnSiteMeters = 300;
+
 class ProviderHome extends StatefulWidget {
   const ProviderHome({super.key});
 
@@ -877,7 +883,41 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     }
   }
 
-  Future<void> markInProgress(String jobId) async {
+  // Measures how far the provider's phone currently is from the job's geocoded
+  // address, in meters — the raw signal behind on-site verification (#19).
+  // Returns null when we simply can't tell: the job was never geocoded, location
+  // is denied, or no GPS fix arrives in time. A null NEVER blocks the provider
+  // (the required live completion photo is the fallback proof) — it just shows
+  // as "location unverified" to the admin.
+  Future<double?> _siteDistanceMeters(Map<String, dynamic> job) async {
+    final jLat = (job['job_lat'] as num?)?.toDouble();
+    final jLng = (job['job_lng'] as num?)?.toDouble();
+    if (jLat == null || jLng == null) return null;
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      ).timeout(const Duration(seconds: 8));
+      return Geolocator.distanceBetween(pos.latitude, pos.longitude, jLat, jLng);
+    } catch (e) {
+      debugPrint('Site distance error: $e');
+      return null;
+    }
+  }
+
+  // Human-readable distance for the off-site nudge ("about 1.2 km" / "450 m").
+  String _formatMeters(double m) =>
+      m >= 1000 ? '${(m / 1000).toStringAsFixed(1)} km' : '${m.round()} m';
+
+  Future<void> markInProgress(Map<String, dynamic> job) async {
+    final jobId = job['id'].toString();
     try {
       // Guard against a stale card: if the customer cancelled (or the job
       // otherwise moved on) but the dashboard hadn't refreshed, don't start it
@@ -899,7 +939,36 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         loadWaitingJobs();
         return;
       }
-      await supabase.from('jobs').update({'status': 'in_progress'}).eq('id', jobId);
+      // Verify the provider is actually at the job (#19). Measured, not enforced:
+      // a big distance only prompts a soft "are you sure?" they can override, and
+      // the distance is recorded either way for the admin to review.
+      final startDist = await _siteDistanceMeters(job);
+      if (startDist != null && startDist > _kOnSiteMeters && mounted) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('You seem far from the job'),
+            content: Text(
+                "Your location is about ${_formatMeters(startDist)} from the service address. "
+                "Starting the job captures the customer's payment. Start anyway?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Not yet'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Start anyway'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true) return;
+      }
+      await supabase
+          .from('jobs')
+          .update({'status': 'in_progress', 'start_distance_m': startDist})
+          .eq('id', jobId);
       // The provider has started work — NOW capture the customer's held payment.
       // (Idempotent; a no-op if it was somehow already captured.)
       try {
@@ -918,7 +987,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     }
   }
 
-  Future<void> completeJob(String jobId) async {
+  Future<void> completeJob(Map<String, dynamic> job) async {
+    final jobId = job['id'].toString();
     final notesController = TextEditingController();
     final List<File> selectedPhotos = [];
     final picker = ImagePicker();
@@ -944,66 +1014,43 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Photos of completed work are required:',
+                const Text('A live photo of the completed work is required:',
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
-                const Text('You must upload at least one photo to mark this job complete.',
+                const Text('Take at least one photo at the job site to mark this job complete.',
                     style: TextStyle(fontSize: 12, color: Colors.red)),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.camera_alt),
-                        label: const Text('Camera'),
-                        onPressed: picking ? null : () async {
-                          // maxWidth/maxHeight downsize the image at the native
-                          // layer, drastically cutting the memory a full-res
-                          // camera capture uses. Without this, iOS may kill the
-                          // app while the camera is open (blank white screen on
-                          // return, lost photo).
-                          setDialogState(() => picking = true);
-                          try {
-                            final photo = await picker.pickImage(
-                              source: ImageSource.camera,
-                              maxWidth: 1600,
-                              maxHeight: 1600,
-                              imageQuality: 70,
-                            );
-                            if (photo != null) selectedPhotos.add(File(photo.path));
-                          } catch (_) {
-                            // e.g. already_active from a double-tap — ignore.
-                          } finally {
-                            setDialogState(() => picking = false);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.photo_library),
-                        label: const Text('Gallery'),
-                        onPressed: picking ? null : () async {
-                          setDialogState(() => picking = true);
-                          try {
-                            final photos = await picker.pickMultiImage(
-                              maxWidth: 1600,
-                              maxHeight: 1600,
-                              imageQuality: 70,
-                            );
-                            if (photos.isNotEmpty) {
-                              selectedPhotos.addAll(photos.map((p) => File(p.path)));
-                            }
-                          } catch (_) {
-                            // e.g. already_active from a double-tap — ignore.
-                          } finally {
-                            setDialogState(() => picking = false);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
+                // Camera only — no gallery. The completion photo has to be taken
+                // at the job, on the spot: it's the proof of work (and the
+                // fallback when GPS can't verify the provider is on-site, #19).
+                // A gallery picker would let any old saved image be uploaded.
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Take Photo'),
+                    onPressed: picking ? null : () async {
+                      // maxWidth/maxHeight downsize the image at the native
+                      // layer, drastically cutting the memory a full-res
+                      // camera capture uses. Without this, iOS may kill the
+                      // app while the camera is open (blank white screen on
+                      // return, lost photo).
+                      setDialogState(() => picking = true);
+                      try {
+                        final photo = await picker.pickImage(
+                          source: ImageSource.camera,
+                          maxWidth: 1600,
+                          maxHeight: 1600,
+                          imageQuality: 70,
+                        );
+                        if (photo != null) selectedPhotos.add(File(photo.path));
+                      } catch (_) {
+                        // e.g. already_active from a double-tap — ignore.
+                      } finally {
+                        setDialogState(() => picking = false);
+                      }
+                    },
+                  ),
                 ),
                 if (selectedPhotos.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -1071,6 +1118,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
 
     if (confirmed != true) return;
 
+    // Record where the provider was when they marked it done (#19). Verify, not
+    // gate: null / far never blocks completion — it just flags the job for the
+    // admin. Measured before the upload so a slow upload doesn't skew the fix.
+    final completeDist = await _siteDistanceMeters(job);
+
     try {
       List<String> photoUrls = [];
       if (selectedPhotos.isNotEmpty) {
@@ -1092,6 +1144,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         'provider_notes': notesController.text.trim().isEmpty
             ? null
             : notesController.text.trim(),
+        'complete_distance_m': completeDist,
         if (photoUrls.isNotEmpty) 'completion_photos': photoUrls,
       }).eq('id', jobId);
 
@@ -1662,13 +1715,13 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                     Expanded(
                                       child: inProgress
                                           ? ElevatedButton.icon(
-                                              onPressed: () => completeJob(job['id'].toString()),
+                                              onPressed: () => completeJob(Map<String, dynamic>.from(job)),
                                               icon: const Icon(Icons.check_circle_outline),
                                               label: const Text('Complete Job'),
                                               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                                             )
                                           : ElevatedButton.icon(
-                                              onPressed: () => markInProgress(job['id'].toString()),
+                                              onPressed: () => markInProgress(Map<String, dynamic>.from(job)),
                                               icon: const Icon(Icons.play_arrow),
                                               label: const Text('Start Job'),
                                             ),
