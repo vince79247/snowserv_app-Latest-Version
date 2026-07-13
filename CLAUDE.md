@@ -11,7 +11,7 @@ Uber-style snow removal marketplace. Customers request snow removal services, pr
 ## Database tables
 
 ### jobs
-id, customer_id (fkey → users), provider_id (fkey → providers), address_id (fkey → addresses), job_type, provider_type_required, driveway (bool), walkway (bool), salting (bool), base_price, surge_multiplier, final_price, status, payment_intent_id (text), created_at, completion_photos (text[]), provider_notes (text), service_type, snow_level, customer_rating (int), dispatched_to (fkey → providers), dispatched_at, rejected_providers (text[]), job_lat, job_lng
+id, customer_id (fkey → users), provider_id (fkey → providers), address_id (fkey → addresses), job_type, provider_type_required, driveway (bool), walkway (bool), salting (bool), base_price, surge_multiplier, final_price, status, payment_intent_id (text), created_at, completion_photos (text[]), provider_notes (text), service_type, snow_level, customer_rating (int), dispatched_to (fkey → providers), dispatched_at, rejected_providers (text[]), job_lat, job_lng, start_distance_m, complete_distance_m (on-site verification, meters), before_photos (text[] — optional "before" shots from Start)
 
 Valid status values: requested, assigned, in_progress, completed, cancelled
 NOT valid: pending, accepted (violate jobs_status_check constraint)
@@ -179,7 +179,9 @@ lib/
 ## Provider flow
 1. Toggle online → loads available jobs (status=requested, dispatched_to=this provider)
 2. Accept job → status becomes assigned, job moves to Active Jobs section
-3. Start Job → status becomes in_progress
+3. Start Job → status becomes in_progress. Offers an OPTIONAL "before" photo
+   (camera-only, Skip-able, stored in jobs.before_photos[]) — a dispute shield;
+   its upload is non-fatal so it never blocks the card-capturing Start.
 4. Complete job → status becomes completed. A live completion photo is REQUIRED
    (camera-only — Gallery removed 2026-07-13; the photo is proof-of-work); notes optional.
 
@@ -334,6 +336,8 @@ ALTER TABLE addresses ADD COLUMN IF NOT EXISTS price_multiplier numeric NOT NULL
 -- On-site verification distances, meters (applied 2026-07-13, migration 20260713150000):
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS start_distance_m numeric;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS complete_distance_m numeric;
+-- Optional provider "before" photos at Start (applied 2026-07-13, migration 20260713160000):
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS before_photos text[];
 ```
 After running the polygon migration, open each existing zone in the admin "Areas" tab
 and draw its boundary (tap the map) → Save. Until a zone has a polygon, ordering in it

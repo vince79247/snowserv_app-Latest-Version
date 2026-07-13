@@ -916,6 +916,114 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   String _formatMeters(double m) =>
       m >= 1000 ? '${(m / 1000).toStringAsFixed(1)} km' : '${m.round()} m';
 
+  // Optional "before" photo(s) at Start — a proof-of-work / dispute shield (a
+  // snowed-in driveway before the provider clears it). Camera-only (a live shot,
+  // like the completion photo) and NOT required: the provider can Skip. Returns
+  // the captured files, or null if they backed out of starting the job entirely.
+  Future<List<File>?> _captureBeforePhotos() async {
+    final List<File> photos = [];
+    final picker = ImagePicker();
+    bool picking = false; // re-entrancy guard (see completeJob)
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Start Job'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Optional: take a “before” photo',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  const Text(
+                      'A quick shot of the snow before you start protects you if the '
+                      'customer later disputes the work. You can skip this.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('Take Photo'),
+                      onPressed: picking ? null : () async {
+                        setDialogState(() => picking = true);
+                        try {
+                          final photo = await picker.pickImage(
+                            source: ImageSource.camera,
+                            maxWidth: 1600,
+                            maxHeight: 1600,
+                            imageQuality: 70,
+                          );
+                          if (photo != null) photos.add(File(photo.path));
+                        } catch (_) {
+                          // e.g. already_active from a double-tap — ignore.
+                        } finally {
+                          setDialogState(() => picking = false);
+                        }
+                      },
+                    ),
+                  ),
+                  if (photos.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 80,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: photos.length,
+                        itemBuilder: (context, i) => Stack(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(photos[i],
+                                    width: 80, height: 80, fit: BoxFit.cover),
+                              ),
+                            ),
+                            Positioned(
+                              top: 0,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () => setDialogState(() => photos.removeAt(i)),
+                                child: const CircleAvatar(
+                                  radius: 10,
+                                  backgroundColor: Colors.red,
+                                  child: Icon(Icons.close, size: 12, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(photos.isEmpty ? 'Skip & Start' : 'Start Job'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return null;
+    return photos;
+  }
+
   Future<void> markInProgress(Map<String, dynamic> job) async {
     final jobId = job['id'].toString();
     try {
@@ -939,6 +1047,10 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         loadWaitingJobs();
         return;
       }
+      // Offer an optional "before" photo (proof-of-work / dispute shield). The
+      // provider can Skip; only Cancel aborts the start. Returns null on Cancel.
+      final beforePhotos = await _captureBeforePhotos();
+      if (beforePhotos == null) return;
       // Verify the provider is actually at the job (#19). Measured, not enforced:
       // a big distance only prompts a soft "are you sure?" they can override, and
       // the distance is recorded either way for the admin to review.
@@ -965,10 +1077,32 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         );
         if (proceed != true) return;
       }
-      await supabase
-          .from('jobs')
-          .update({'status': 'in_progress', 'start_distance_m': startDist})
-          .eq('id', jobId);
+      // Upload any before photos. Non-fatal on purpose: the before photo is
+      // OPTIONAL, so a failed upload must never block Start (which captures the
+      // customer's card). On failure we just start without it.
+      List<String> beforeUrls = [];
+      if (beforePhotos.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Uploading before photo...')),
+          );
+        }
+        try {
+          for (final photo in beforePhotos) {
+            final fileName =
+                'before_${jobId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            await supabase.storage.from('job-photos').upload(fileName, photo);
+            beforeUrls.add(supabase.storage.from('job-photos').getPublicUrl(fileName));
+          }
+        } catch (e) {
+          debugPrint('Before-photo upload failed (non-fatal): $e');
+        }
+      }
+      await supabase.from('jobs').update({
+        'status': 'in_progress',
+        'start_distance_m': startDist,
+        if (beforeUrls.isNotEmpty) 'before_photos': beforeUrls,
+      }).eq('id', jobId);
       // The provider has started work — NOW capture the customer's held payment.
       // (Idempotent; a no-op if it was somehow already captured.)
       try {

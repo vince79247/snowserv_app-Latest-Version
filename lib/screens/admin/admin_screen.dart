@@ -1582,6 +1582,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         final hasNotes = job['provider_notes'] != null &&
             job['provider_notes'].toString().isNotEmpty;
         final photos = (job['completion_photos'] as List<dynamic>? ?? []);
+        final beforePhotos = (job['before_photos'] as List<dynamic>? ?? []);
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
           child: Padding(
@@ -1761,34 +1762,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     ),
                   ),
                 ],
-                if (photos.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  const Text('Completion Photos',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey)),
-                  const SizedBox(height: 6),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 6,
-                      mainAxisSpacing: 6,
-                    ),
-                    itemCount: photos.length,
-                    itemBuilder: (_, i) => ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Image.network(
-                        photos[i].toString(),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.broken_image, color: Colors.grey),
-                      ),
-                    ),
-                  ),
-                ],
+                if (beforePhotos.isNotEmpty)
+                  _labeledPhotoGrid('Before (at start)', beforePhotos),
+                if (photos.isNotEmpty)
+                  _labeledPhotoGrid('After (completion)', photos),
               ],
             ),
           ),
@@ -1853,6 +1830,41 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           Text(text,
               style: TextStyle(
                   color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  // A labeled 3-across photo grid — used for the before/after pair on a job card.
+  Widget _labeledPhotoGrid(String label, List<dynamic> urls) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 6),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+            ),
+            itemCount: urls.length,
+            itemBuilder: (_, i) => ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.network(
+                urls[i].toString(),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    const Icon(Icons.broken_image, color: Colors.grey),
+              ),
+            ),
+          ),
         ],
       ),
     );
