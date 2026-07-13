@@ -14,23 +14,21 @@
 // verify_jwt MUST stay false: this is a top-level browser navigation from an email
 // link, with no Authorization header.
 
-Deno.serve((req: Request) => {
-  const url = new URL(req.url)
-  // Supabase appends ?error=... / ?error_description=... when a link is expired or
-  // already used — don't tell someone "you're all set" when it actually failed.
-  const error = url.searchParams.get('error') ?? url.searchParams.get('error_description')
-
-  const body = error
-    ? 'That confirmation link didn’t work\n\n' +
-      'It may have expired or already been used.\n\n' +
-      'Open the SnowServ app and try signing up or logging in again — ' +
-      'we can send you a fresh confirmation email.\n\n' +
-      'Need help? support@snowserv.app\n\n' +
-      'You can close this window now.'
-    : 'Email confirmed ✓\n\n' +
-      'Your SnowServ account is all set.\n\n' +
-      'Head back to the SnowServ app and log in with your email and password.\n\n' +
-      'You can close this window now.'
+Deno.serve((_req: Request) => {
+  // NOTE: Supabase reports a verify error (expired / already-used link) in the URL
+  // FRAGMENT (#error=...), which is never sent to the server — and JS can't read it
+  // here either, because Supabase sandboxes edge-function HTML. So this page cannot
+  // tell success from failure, and must not falsely claim "confirmed". The copy
+  // below is true in BOTH cases: on success you log in; on a dead link the app tells
+  // you it's unconfirmed and you sign up again for a fresh one. A branded page that
+  // reads the fragment needs a non-sandboxed host (Cloudflare) — tracked separately.
+  const body =
+    'You’re all set 👍\n\n' +
+    'Head back to the SnowServ app and log in with your email and password.\n\n' +
+    'If the app says your email still needs confirming, the link may have expired — ' +
+    'just sign up again in the app to get a fresh one.\n\n' +
+    'Need help? support@snowserv.app\n\n' +
+    'You can close this window now.'
 
   return new Response(body, {
     headers: { 'Content-Type': 'text/plain; charset=utf-8' },

@@ -27,13 +27,21 @@ there.
 homeowners and drivers has no iPad use case, and this removes an entire rejection surface for
 free. (Alternative: actually design + test iPad layouts — far more work, no benefit.)
 
-### B3. Email-confirmation link is broken — Guideline 2.1 (App Completeness)
+### B3. Email-confirmation link is broken — Guideline 2.1 (App Completeness) — ✅ FIXED 2026-07-13
 Email confirmation is ON (users must confirm before login), but the link in the email lands on
 **"Safari can't find the server"** — the Supabase **Site URL / redirect** is misconfigured.
 **A reviewer creating an account hits a broken page.** That reads as a broken app.
 
 **Fix:** set the correct Site URL + redirect allow-list in Supabase Auth settings, and verify the
 full signup → email → confirm → login flow end to end.
+
+**DONE 2026-07-13:** root cause was `site_url = http://localhost:3000` (Supabase default). PATCHed
+`site_url` + `uri_allow_list` (via Management API, targeted — email-confirmation left ON) to the new
+`auth-confirmed` edge function, which shows an honest "you're all set / log in" page. Verified the
+verify endpoint now redirects there (was dead). NOTE: Supabase reports verify errors in the URL
+**fragment**, unreadable by a sandboxed edge-fn page — so the copy is worded to be true whether the
+link worked or expired. A branded page that reads the fragment needs a non-sandboxed host (tracked).
+Password-reset redirect is a SEPARATE flow (still uses site_url; handle in the auth-edges leg).
 
 ---
 
