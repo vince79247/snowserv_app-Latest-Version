@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import '../../theme.dart';
+import '../../config/app_config.dart';
 import 'provider_agreement_screen.dart';
 
 const _kPrivacyUrl = 'https://docs.google.com/document/d/e/2PACX-1vTs3QKh1Sh_d9RfCX4w1lgWhugWIld3VGiLSJnFHE5-Yd-qIj9v5rrrI8FMYTtYa85aY2aP2-aKFHRi/pub';
@@ -417,9 +418,13 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
                 const Icon(Icons.verified_outlined,
                     color: SnowServColors.success, size: 18),
                 const SizedBox(width: 8),
-                const Expanded(
-                  child: Text('No sign-up fees. No monthly fees. No contract — you keep 70% of every job.',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: SnowServColors.ink)),
+                Expanded(
+                  // Provider's share tracks the live commission (admin-editable),
+                  // so this pitch never drifts from what they actually earn.
+                  child: Text(
+                      'No sign-up fees. No monthly fees. No contract — you keep '
+                      '${(100 - AppConfig.commissionPct).round()}% of every job.',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: SnowServColors.ink)),
                 ),
               ],
             ),

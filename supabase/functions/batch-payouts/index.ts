@@ -19,11 +19,11 @@ Deno.serve(async (req: Request) => {
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')!
 
     // Commission is admin-configurable (app_settings.commission_pct). Provider
-    // keeps the rest. Falls back to 30% if unset.
+    // keeps the rest. Falls back to 25% if unset.
     const { data: setting } = await supabase
       .from('app_settings').select('value').eq('key', 'commission_pct').maybeSingle()
-    const pct = parseFloat(setting?.value ?? '30')
-    const providerFraction = (100 - (isNaN(pct) ? 30 : pct)) / 100
+    const pct = parseFloat(setting?.value ?? '25')
+    const providerFraction = (100 - (isNaN(pct) ? 25 : pct)) / 100
 
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 

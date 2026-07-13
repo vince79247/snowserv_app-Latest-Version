@@ -25,8 +25,8 @@ Deno.serve(async (req: Request) => {
     // Commission is admin-configurable (app_settings.commission_pct).
     const { data: setting } = await supabase
       .from('app_settings').select('value').eq('key', 'commission_pct').maybeSingle()
-    const pct = parseFloat(setting?.value ?? '30')
-    const providerFraction = (100 - (isNaN(pct) ? 30 : pct)) / 100
+    const pct = parseFloat(setting?.value ?? '25')
+    const providerFraction = (100 - (isNaN(pct) ? 25 : pct)) / 100
     const payoutCents = Math.round((job.final_price ?? job.base_price) * providerFraction * 100)
 
     // Express model (#21): the provider onboards bank + identity with Stripe

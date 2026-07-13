@@ -4,8 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// the platform commission can be tuned from the admin panel — no code change.
 /// Loaded once at startup (main) and after an admin edit.
 class AppConfig {
-  /// Platform commission as a percentage (e.g. 30 = 30%). Provider keeps the rest.
-  static double commissionPct = 30;
+  /// Platform commission as a percentage (e.g. 25 = 25%). Provider keeps the rest.
+  /// This is only a fallback default — the live value is app_settings.commission_pct
+  /// (currently 25), admin-editable from the panel; load() overwrites this at startup.
+  static double commissionPct = 25;
 
   static double get platformFraction => commissionPct / 100.0;
   static double get providerFraction => (100.0 - commissionPct) / 100.0;

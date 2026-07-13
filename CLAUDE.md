@@ -107,7 +107,8 @@ lib/
   already-placed job's hold is locked, and "ordering for someone else" is a brand-new
   address so it's always 1.0. Written by a direct admin client .update() (like the other
   admin writes) — gets its admin RLS policy in the pre-launch RLS lockdown.
-- Platform commission: 30% (admin panel), provider payout: 70%
+- Platform commission: 25% (admin panel, app_settings.commission_pct — admin-editable),
+  provider payout: 75%
 - Payouts: 7-day rolling batch via admin panel
 - PAYOUT RAILS = Stripe Connect EXPRESS (#21, 2026-07-13). Providers onboard their
   own bank + identity on Stripe's hosted page (connect-onboard) — we NEVER collect or

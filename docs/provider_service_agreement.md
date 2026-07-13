@@ -74,8 +74,8 @@ marketing or building your own client list. Your confidentiality obligations sur
 termination.
 
 ## 7. Fees, Commission & Payouts
-SnowServ retains a Platform commission (currently **30%**) and pays you the remainder
-(currently **70%**) of the job price. Payouts are made on a rolling batch (currently
+SnowServ retains a Platform commission (currently **25%**) and pays you the remainder
+(currently **75%**) of the job price. Payouts are made on a rolling batch (currently
 every 7 days) to the bank account on file. Commission and payout terms may change with
 notice through the app. You are responsible for all taxes on your earnings.
 

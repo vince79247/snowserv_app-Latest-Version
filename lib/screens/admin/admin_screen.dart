@@ -2440,7 +2440,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     // Contact the driver (call/text) — storm coordination.
                     _contactRow('Driver', p['users']?['phone'] as String?),
                     const SizedBox(height: 8),
-                    // Earnings (this driver's 70% take of their completed jobs).
+                    // Earnings (this driver's 75% take of their completed jobs).
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
