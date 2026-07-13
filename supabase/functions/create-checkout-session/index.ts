@@ -63,19 +63,44 @@ function pointInPolygon(lat: number, lng: number, poly: Pt[]): boolean {
   }
   return inside
 }
+// Unsigned shoelace area, squared-degree units — only used to compare
+// overlapping zones (smaller = more specific). Must match geo.dart::polygonArea.
+function polygonArea(poly: Pt[]): number {
+  if (poly.length < 3) return 0
+  let sum = 0
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    sum += poly[j].lng * poly[i].lat - poly[i].lng * poly[j].lat
+  }
+  return Math.abs(sum) / 2
+}
+// Keep IN LOCKSTEP with geo.dart::matchZone: among every zone whose polygon
+// contains the point, the SMALLEST-area one wins (a premium pocket drawn on top
+// of a larger zone takes precedence), order-independent. ZIP is a fallback only
+// for polygon-less zones or a failed geocode.
 function matchZone(
   lat: number | null,
   lng: number | null,
   zip: string | null,
   zones: Record<string, any>[],
 ): Record<string, any> | null {
-  for (const zone of zones) {
-    const poly = parsePolygon(zone.polygon)
-    if (poly.length > 0 && lat != null && lng != null) {
-      if (pointInPolygon(lat, lng, poly)) return zone
-      continue
+  if (lat != null && lng != null) {
+    let best: Record<string, any> | null = null
+    let bestArea = Infinity
+    for (const zone of zones) {
+      const poly = parsePolygon(zone.polygon)
+      if (poly.length === 0 || !pointInPolygon(lat, lng, poly)) continue
+      const area = polygonArea(poly)
+      if (area < bestArea) {
+        bestArea = area
+        best = zone
+      }
     }
-    if (zip) {
+    if (best) return best
+  }
+  if (zip) {
+    for (const zone of zones) {
+      const hasPolygon = parsePolygon(zone.polygon).length > 0
+      if (lat != null && lng != null && hasPolygon) continue
       const zips = (zone.zips as unknown[] | null)?.map((z) => String(z)) ?? []
       if (zips.includes(zip)) return zone
     }

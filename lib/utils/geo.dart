@@ -44,11 +44,31 @@ bool pointInPolygon(double lat, double lng, List<LatLngPoint> polygon) {
   return inside;
 }
 
+/// Unsigned area of a polygon ring via the shoelace formula, in squared-degree
+/// units. Only used to COMPARE overlapping zones (smaller = more specific), so
+/// the unit is irrelevant as long as it's consistent — overlapping zones sit in
+/// the same area, so any longitude distortion cancels out of the comparison.
+/// Returns 0 for a degenerate ring (< 3 vertices).
+double polygonArea(List<LatLngPoint> polygon) {
+  if (polygon.length < 3) return 0;
+  var sum = 0.0;
+  for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    final xi = polygon[i]['lng']!, yi = polygon[i]['lat']!;
+    final xj = polygon[j]['lng']!, yj = polygon[j]['lat']!;
+    sum += (xj * yi) - (xi * yj);
+  }
+  return sum.abs() / 2.0;
+}
+
 /// Pick the pricing zone for a geocoded point among the given active zones.
 ///
-/// Preference order per zone:
-///   1. `polygon` contains the point (the geofence), else
-///   2. legacy fallback: `zip` is listed in the zone's `zips` array.
+/// Preference order:
+///   1. Geofence — among every zone whose `polygon` contains the point, the
+///      SMALLEST-area one wins. This lets a premium "pocket" drawn on top of a
+///      larger zone take precedence (most-specific match), and makes the result
+///      independent of the order the zones happen to be fetched in.
+///   2. Legacy fallback: `zip` is listed in the zone's `zips` array — used only
+///      for zones with no polygon drawn yet, or when geocoding failed (no point).
 ///
 /// Returns the matched zone map (with its `price_*` fields) or null if none
 /// match. `lat`/`lng` may be null (geocode failed) — then only the ZIP
@@ -59,17 +79,28 @@ Map<String, dynamic>? matchZone(
   String? zip,
   required List<Map<String, dynamic>> zones,
 }) {
-  for (final zone in zones) {
-    final poly = parsePolygon(zone['polygon']);
-    // When the zone has a real geofence AND we have a geocoded point, the
-    // boundary is authoritative — inside matches, outside is skipped (don't let
-    // stale ZIPs override the drawn boundary).
-    if (poly.isNotEmpty && lat != null && lng != null) {
-      if (pointInPolygon(lat, lng, poly)) return zone;
-      continue;
+  // 1. Geofence: smallest containing polygon wins (most specific).
+  if (lat != null && lng != null) {
+    Map<String, dynamic>? best;
+    var bestArea = double.infinity;
+    for (final zone in zones) {
+      final poly = parsePolygon(zone['polygon']);
+      if (poly.isEmpty || !pointInPolygon(lat, lng, poly)) continue;
+      final area = polygonArea(poly);
+      if (area < bestArea) {
+        bestArea = area;
+        best = zone;
+      }
     }
-    // No polygon drawn yet, or geocoding failed (no point) → legacy ZIP match.
-    if (zip != null && zip.isNotEmpty) {
+    if (best != null) return best;
+  }
+  // 2. Legacy ZIP fallback. A drawn boundary is authoritative, so when we have a
+  // point, a zone WITH a polygon that didn't contain it is a real "no" — only
+  // polygon-less zones (or a failed geocode) fall back to ZIP.
+  if (zip != null && zip.isNotEmpty) {
+    for (final zone in zones) {
+      final hasPolygon = parsePolygon(zone['polygon']).isNotEmpty;
+      if (lat != null && lng != null && hasPolygon) continue;
       final zips = (zone['zips'] as List?)?.map((z) => z.toString()).toList() ?? const [];
       if (zips.contains(zip)) return zone;
     }

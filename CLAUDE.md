@@ -41,7 +41,13 @@ price_sidewalk, price_driveway, price_both, price_salting, is_active (bool), cre
 Drives REGIONAL pricing + who can order via GEOFENCED ZONES: the customer's address is
 geocoded to a lat/lng point, then tested (point-in-polygon, client-side in Dart —
 lib/utils/geo.dart matchZone) against each active zone's `polygon`; the matching zone's
-prices apply. No matching zone → can't order ("Not available in your area yet"). Managed
+prices apply. NESTED ZONES (2026-07-13): when a point falls inside multiple overlapping
+polygons, the SMALLEST-area zone wins (order-independent), so you can drop a premium
+"pocket" on top of a bigger zone and it takes precedence — matchZone in BOTH geo.dart AND
+the create-checkout-session TS port must stay in lockstep (they each fetch zones with no
+ORDER BY, so smallest-wins is what keeps the shown price == the charged price). For just a
+few premium homes, prefer the per-address multiplier instead of a nested zone.
+No matching zone → can't order ("Not available in your area yet"). Managed
 in the admin panel's "Areas" tab via a map-based polygon drawer (lib/screens/admin/
 zone_editor_screen.dart). `zips` is a LEGACY fallback: matchZone falls back to zips @> [zip]
 only for zones that have no polygon yet (migration safety) or when geocoding failed.
