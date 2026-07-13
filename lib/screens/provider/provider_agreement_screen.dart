@@ -3,7 +3,8 @@ import '../../theme.dart';
 
 /// Bump this when the agreement text materially changes. Stored alongside a
 /// provider's signature so we know which version they accepted.
-const String kProviderAgreementVersion = '1.0';
+/// 1.1 (2026-07-13): added §16 Communications & Notifications.
+const String kProviderAgreementVersion = '1.1';
 
 class _Clause {
   final String heading;
@@ -112,6 +113,15 @@ const List<_Clause> _clauses = [
         'through the app; continued use after an update means you accept the new version. If any '
         'part is unenforceable, the rest remains in effect. You may not assign this Agreement; '
         'SnowServ may.',
+  ]),
+  _Clause('16. Communications & Notifications', [
+    'You agree that SnowServ may send you operational communications needed to run the Service '
+        '— job offers and dispatch alerts, assignment and cancellation notices, and payout and '
+        'account messages — by push notification, email, and in-app message. These are part of '
+        'the Service, not marketing, and are often time-sensitive: if you turn off push '
+        'notifications in your device settings, you may miss job offers. SnowServ will send '
+        'promotional or marketing messages only if you separately opt in, and you can opt out of '
+        'those at any time.',
   ]),
 ];
 

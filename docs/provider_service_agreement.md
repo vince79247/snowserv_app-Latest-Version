@@ -1,6 +1,6 @@
 # SnowServ Provider Service Agreement
 
-**Version 1.0**
+**Version 1.1**
 
 > ⚠️ **DRAFT — not yet legal advice.** This is a founder-drafted starting point.
 > Before you rely on it (especially the Non-Circumvention and Independent-Contractor
@@ -127,6 +127,15 @@ update this Agreement with notice through the app; continued use after an update
 you accept the new version. If any part is held unenforceable, the rest remains in
 effect. You may not assign this Agreement; SnowServ may.
 
+## 16. Communications & Notifications
+You agree that SnowServ may send you operational communications necessary to provide the
+Service — including job offers and dispatch alerts, assignment and cancellation notices,
+and payout and account messages — by push notification, email, and in-app message. These
+communications are part of the Service and are not marketing. They are often
+time-sensitive: if you disable push notifications in your device settings, you may miss
+job offers. SnowServ will send promotional or marketing messages only if you separately
+opt in, and you may opt out of those at any time.
+
 ---
 
 ## Acknowledgment & Signature
@@ -135,4 +144,4 @@ have read, understood, and agree to be bound by this Provider Service Agreement,
 that your typed name is your electronic signature with the same effect as a handwritten
 one.
 
-Signed: ______________________  Date: ____________  Version: 1.0
+Signed: ______________________  Date: ____________  Version: 1.1
