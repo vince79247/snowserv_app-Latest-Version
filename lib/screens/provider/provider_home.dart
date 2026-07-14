@@ -582,18 +582,23 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     final destination = Uri.encodeComponent(
       '${addr['address_line']}, ${addr['city']}, ${addr['state']} ${addr['zip']}',
     );
-    // Universal https link opens the Apple Maps app directly on iOS without
-    // needing the maps:// scheme whitelisted in Info.plist. Fall back to
-    // Google Maps if that fails for any reason.
     final appleMaps = Uri.parse('https://maps.apple.com/?daddr=$destination');
     final googleMaps = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$destination');
+    // Pick the RIGHT app per platform (#8). Apple Maps only makes sense on iOS;
+    // on Android an Apple Maps https link opens a blank web page AND launchUrl
+    // returns true, so the old "try Apple first, fall back to Google" never fell
+    // back. So: Apple on iOS, Google everywhere else, each falling back to the
+    // other. kIsWeb guard because Platform isn't available on web.
+    final useApple = !kIsWeb && Platform.isIOS;
+    final primary = useApple ? appleMaps : googleMaps;
+    final fallback = useApple ? googleMaps : appleMaps;
     try {
-      final ok = await launchUrl(appleMaps, mode: LaunchMode.externalApplication);
+      final ok = await launchUrl(primary, mode: LaunchMode.externalApplication);
       if (!ok) {
-        await launchUrl(googleMaps, mode: LaunchMode.externalApplication);
+        await launchUrl(fallback, mode: LaunchMode.externalApplication);
       }
     } catch (_) {
-      await launchUrl(googleMaps, mode: LaunchMode.externalApplication);
+      await launchUrl(fallback, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -1033,11 +1038,45 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         if (beforeUrls.isNotEmpty) 'before_photos': beforeUrls,
       }).eq('id', jobId);
       // The provider has started work — NOW capture the customer's held payment.
-      // (Idempotent; a no-op if it was somehow already captured.)
+      // (Idempotent; a no-op if it was somehow already captured.) This must NOT
+      // fail silently (#9): a swallowed failure means the provider works, the
+      // job completes, and the customer is never charged with nobody the wiser.
+      // We keep it NON-blocking (the provider is on-site and should keep going),
+      // but flag the job so the admin panel surfaces it with a retry, and tell
+      // the provider it's being handled.
+      bool captureOk = false;
+      String? captureErr;
       try {
-        await supabase.functions.invoke('capture-payment', body: {'job_id': jobId});
+        final res = await supabase.functions.invoke('capture-payment', body: {'job_id': jobId});
+        final data = res.data;
+        if (data is Map && data['error'] != null) {
+          captureErr = data['error'].toString();
+        } else {
+          captureOk = true;
+        }
       } catch (e) {
-        debugPrint('Capture failed for $jobId: $e');
+        captureErr = e.toString();
+      }
+      if (captureOk) {
+        // Clear any stale flag from a prior failed attempt.
+        supabase.from('jobs').update({'capture_failed': false, 'capture_error': null}).eq('id', jobId);
+      } else {
+        debugPrint('Capture failed for $jobId: $captureErr');
+        try {
+          await supabase.from('jobs').update({
+            'capture_failed': true,
+            'capture_error': captureErr,
+          }).eq('id', jobId);
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                "Heads up: we couldn't confirm the customer's payment. Keep working — "
+                'our team has been alerted and will sort it out.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 5),
+          ));
+        }
       }
       _notifyCustomer(jobId, 'in_progress');
       loadActiveJobs();

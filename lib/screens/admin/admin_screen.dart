@@ -1847,6 +1847,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 _jobTimeline(job),
                 _locationVerification(job),
+                _captureFailedBanner(job),
                 if (job['status'] == 'requested' ||
                     job['status'] == 'assigned')
                   _assignControl(job),
@@ -1985,6 +1986,75 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // Retry a payment capture that failed when the provider started the job (#9).
+  Future<void> _retryCapture(Map<String, dynamic> job) async {
+    try {
+      final res = await supabase.functions
+          .invoke('capture-payment', body: {'job_id': job['id']});
+      final data = res.data;
+      if (data is Map && data['error'] != null) throw data['error'].toString();
+      await supabase
+          .from('jobs')
+          .update({'capture_failed': false, 'capture_error': null}).eq('id', job['id']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Payment captured.')));
+      }
+      loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Retry failed: $e')));
+      }
+    }
+  }
+
+  // Loud banner on a job whose payment capture failed at Start (#9) — the
+  // customer may be uncharged, so it needs a human to retry or investigate.
+  Widget _captureFailedBanner(Map<String, dynamic> job) {
+    if (job['capture_failed'] != true) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        border: Border.all(color: Colors.red),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.error_outline, size: 16, color: Colors.red),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Text('Payment not captured',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _retryCapture(job),
+              icon: const Icon(Icons.refresh, size: 14),
+              label: const Text('Retry'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 32),
+              ),
+            ),
+          ]),
+          if (job['capture_error'] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(job['capture_error'].toString(),
+                  style: const TextStyle(fontSize: 11, color: Colors.red)),
+            ),
         ],
       ),
     );
