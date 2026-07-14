@@ -60,6 +60,57 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
   int get totalEarnings =>
       completedJobs.fold(0, (sum, job) => sum + providerPay(job));
 
+  // batch-payouts stamps payout_status = 'paid' once a job's cut has been
+  // transferred to the provider's bank; everything else is still owed.
+  bool _isPaid(Map<String, dynamic> job) => job['payout_status'] == 'paid';
+
+  int get paidEarnings => completedJobs
+      .where(_isPaid)
+      .fold(0, (sum, job) => sum + providerPay(job));
+
+  int get pendingEarnings => totalEarnings - paidEarnings;
+
+  Widget _earningsPill(String label, int amount, Color accent) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+            const SizedBox(height: 2),
+            Text('\$$amount',
+                style: TextStyle(
+                    color: accent, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _payoutChip(Map<String, dynamic> job) {
+    final paid = _isPaid(job);
+    final color = paid ? SnowServColors.success : Colors.orange.shade800;
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color),
+      ),
+      child: Text(paid ? 'Paid out' : 'Pending payout',
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -129,6 +180,16 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                                 color: Colors.white.withValues(alpha: 0.7),
                                 fontSize: 13),
                           ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              _earningsPill('Paid out', paidEarnings,
+                                  SnowServColors.success),
+                              const SizedBox(width: 10),
+                              _earningsPill('Pending', pendingEarnings,
+                                  SnowServColors.iceBlue),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -160,13 +221,20 @@ class _JobHistoryScreenState extends State<JobHistoryScreen> {
                                                 color: SnowServColors.navy)),
                                       ),
                                       const SizedBox(width: 8),
-                                      Text(
-                                        '\$${providerPay(job)}',
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: SnowServColors.success,
-                                        ),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            '\$${providerPay(job)}',
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: SnowServColors.success,
+                                            ),
+                                          ),
+                                          _payoutChip(job),
+                                        ],
                                       ),
                                     ],
                                   ),
