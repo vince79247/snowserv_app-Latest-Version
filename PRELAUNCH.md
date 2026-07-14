@@ -23,6 +23,19 @@ anytime. (Added 2026-07-07.)
    deliberately done once, thoroughly, with full flow re-testing — not rushed mid-build.
 4. **App Store essentials** (iOS only) — privacy-policy URL in App Store Connect,
    metadata + screenshots, and test on a REAL iPhone (not just simulators).
+5. **Custom SMTP for auth emails** (you create the account → Claude wires the config).
+   Supabase's built-in email is NOT for production — shared reputation, tiny limits,
+   hyper-sensitive to bounces. On 2026-07-13 Supabase already WARNED us about a high
+   bounce rate (from dev test-signups to made-up @snowserv.app addresses with no real
+   mailbox → Zoho rejected them). At real volume the built-in sender will throttle,
+   and if it throttles during App Store review the reviewer's confirmation email fails
+   → the "broken app" rejection B3 was about. FIX: set up a transactional provider
+   (recommend **Resend** — free tier ~3k/mo, easy domain verify; snowserv.app already
+   has Cloudflare SPF/DKIM from Zoho) and point Supabase Auth SMTP at it. Vince creates
+   the Resend account + API key; Claude PATCHes the Auth SMTP config via the Management
+   API. INTERIM until then: don't sign up test accounts with fake addresses — use Gmail
+   "+aliases" (all deliver to one real inbox) or create pre-confirmed test users (no
+   email sent).
 
 NOT launch blockers — do before you SCALE, not before the first pilot:
 - Stripe Connect + Sales Tax epic (design now; a small controlled pilot can run on the
