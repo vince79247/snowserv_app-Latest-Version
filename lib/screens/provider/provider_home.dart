@@ -1041,9 +1041,10 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
       // (Idempotent; a no-op if it was somehow already captured.) This must NOT
       // fail silently (#9): a swallowed failure means the provider works, the
       // job completes, and the customer is never charged with nobody the wiser.
-      // We keep it NON-blocking (the provider is on-site and should keep going),
-      // but flag the job so the admin panel surfaces it with a retry, and tell
-      // the provider it's being handled.
+      // It's ADMIN-ONLY, though: the provider isn't shown anything — they can't
+      // fix a payment problem and are paid for completed work regardless of
+      // whether WE collected from the customer. So on failure we just flag the
+      // job; the admin panel surfaces it (red banner + Retry). Non-blocking.
       bool captureOk = false;
       String? captureErr;
       try {
@@ -1068,15 +1069,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
             'capture_error': captureErr,
           }).eq('id', jobId);
         } catch (_) {}
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                "Heads up: we couldn't confirm the customer's payment. Keep working — "
-                'our team has been alerted and will sort it out.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 5),
-          ));
-        }
+        // Intentionally NO provider-facing message — admin-only.
       }
       _notifyCustomer(jobId, 'in_progress');
       loadActiveJobs();
