@@ -3,8 +3,24 @@ import '../theme.dart';
 import '../utils/legal.dart';
 import '../config/app_config.dart';
 
-class FaqScreen extends StatelessWidget {
+class FaqScreen extends StatefulWidget {
   const FaqScreen({super.key});
+
+  @override
+  State<FaqScreen> createState() => _FaqScreenState();
+}
+
+class _FaqScreenState extends State<FaqScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Pull the latest admin-set commission the moment the FAQ opens, so the
+    // earnings answers always show the current split — not a value cached at
+    // app start. Re-renders when it returns.
+    AppConfig.load().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +255,7 @@ List<_FaqSection> get _providerSections {
   _FaqSection('Getting Started', [
     _FaqItem(
       'How do I sign up as a provider?',
-      'Download SnowServ, select "I\'m a Provider" on the signup screen, and complete the registration form. You\'ll need to provide your personal information, driver\'s license, vehicle details, insurance information, and banking details for payouts.',
+      'Download SnowServ, select "I\'m a Provider" on the signup screen, and complete the registration form. You\'ll provide your driver\'s license, your equipment (a vehicle/plow is optional — snowblower and shovel providers are welcome), and insurance details. After you\'re approved, you set up payouts securely through Stripe — SnowServ never sees or stores your bank or Social Security number.',
     ),
     _FaqItem(
       'How long does approval take?',
@@ -247,7 +263,7 @@ List<_FaqSection> get _providerSections {
     ),
     _FaqItem(
       'What do I need to qualify?',
-      'You need a valid driver\'s license, a vehicle capable of snow removal, active liability insurance, and a bank account for payouts. Crew size and deicer availability are helpful but not required.',
+      'A valid driver\'s license (for identity) and a bank account for payouts, set up through Stripe. A vehicle is optional — you can work with just a snowblower or shovel. Liability insurance is required if you plow with a vehicle, and optional (but recommended) if you use hand tools. Crew size and deicer availability are helpful but not required.',
     ),
     _FaqItem(
       'How do I go online to receive jobs?',
@@ -298,8 +314,8 @@ List<_FaqSection> get _providerSections {
       'Payouts are processed on a 7-day rolling basis. Once a completed job is 7 or more days old, it becomes eligible for the next payout batch. Our admin team processes payouts regularly to your bank account on file.',
     ),
     _FaqItem(
-      'How do I update my banking information?',
-      'Tap the person icon in the top right corner of your home screen, then tap "Update Banking Details." You can update your routing and account number at any time. Keep your information current to avoid payout delays.',
+      'How do I set up or update my payout information?',
+      'Tap the person icon in the top right corner of your home screen, then tap "Set up / manage payouts." This opens Stripe\'s secure page, where you add or update your bank account and verify your identity. SnowServ never stores your bank details — Stripe handles it directly, and also issues your year-end 1099.',
     ),
   ]),
   _FaqSection('Using the App', [
@@ -309,15 +325,15 @@ List<_FaqSection> get _providerSections {
     ),
     _FaqItem(
       'How do I start and complete a job?',
-      '1. Accept the dispatched job from the notification or dispatch card\n2. Drive to the address (maps open automatically after your previous job completes)\n3. Tap Start Job when you arrive and begin work\n4. Tap Complete Job when finished — you can add photos and notes\n5. Your earnings are recorded and queued for payout',
+      '1. Accept the dispatched job from the notification or dispatch card\n2. Tap Directions on the job card to navigate to the address\n3. Tap Start Job when you arrive and begin work\n4. Tap Complete Job when finished — a live completion photo is required\n5. Your earnings are recorded and queued for payout',
     ),
     _FaqItem(
-      'Do I need to upload completion photos?',
-      'Yes — photos are required. You cannot mark a job complete without uploading at least one photo of the finished work. This protects you in the event of a dispute and gives customers confidence in the service.',
+      'Do I need to take completion photos?',
+      'Yes — a live completion photo is required. You take it with your camera at the job (there\'s no gallery upload), so it\'s genuine proof the work was done. You can also snap an optional "before" photo when you tap Start Job — a snowed-in driveway before you clear it is your best protection in a dispute.',
     ),
     _FaqItem(
       'Will the app navigate me to the job?',
-      'Yes. After you complete a job, if you have another job already queued, Apple Maps (or Google Maps) will open automatically with the next job\'s address as the destination.',
+      'Yes. Tap the Directions button on the job card and your maps app (Apple Maps or Google Maps) opens with the job\'s address as the destination. You choose when to head out — nothing opens automatically.',
     ),
     _FaqItem(
       'What happens to my status if I close the app?',
