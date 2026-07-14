@@ -46,6 +46,11 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   final _insuranceExpiryController = TextEditingController();
   File? _insurancePhoto;
   bool _insuranceConfirmed = false;
+  // Hand-tool (no-vehicle) providers: insurance is optional. They either say
+  // they carry it (then we collect proof) or acknowledge they don't and are
+  // personally responsible. Vehicle/plow providers always require insurance.
+  bool _carriesInsurance = false;
+  bool _noInsuranceAck = false;
 
   // Step 4 - Payouts: no bank/SSN/DOB collected here anymore. Stripe Connect
   // Express collects and verifies all of that (and files 1099s) via its own
@@ -121,18 +126,29 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         }
         return true;
       case 2:
-        if (_insuranceCarrierController.text.trim().isEmpty ||
-            _insurancePolicyController.text.trim().isEmpty ||
-            _insuranceExpiryController.text.trim().isEmpty) {
-          _showError('Please fill in all insurance fields.');
-          return false;
+        // Insurance is REQUIRED for vehicle/plow providers, and required-if-
+        // claimed for hand-tool providers who say they carry it. Hand-tool
+        // providers with no insurance must instead acknowledge responsibility.
+        if (_hasVehicle || _carriesInsurance) {
+          if (_insuranceCarrierController.text.trim().isEmpty ||
+              _insurancePolicyController.text.trim().isEmpty ||
+              _insuranceExpiryController.text.trim().isEmpty) {
+            _showError('Please fill in all insurance fields.');
+            return false;
+          }
+          if (_insurancePhoto == null) {
+            _showError('Please upload a photo of your insurance card.');
+            return false;
+          }
+          if (_hasVehicle && !_insuranceConfirmed) {
+            _showError('Please confirm your general liability insurance coverage.');
+            return false;
+          }
+          return true;
         }
-        if (_insurancePhoto == null) {
-          _showError('Please upload a photo of your insurance card.');
-          return false;
-        }
-        if (!_insuranceConfirmed) {
-          _showError('Please confirm your general liability insurance coverage.');
+        if (!_noInsuranceAck) {
+          _showError(
+              'Please acknowledge responsibility, or switch on "I carry insurance" and add your policy.');
           return false;
         }
         return true;
@@ -238,10 +254,17 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         'dl_number': _dlNumberController.text.trim().toUpperCase(),
         'dl_state': _dlStateController.text.trim().toUpperCase(),
         if (dlUrl != null) 'dl_photo_url': dlUrl,
-        'insurance_carrier': _insuranceCarrierController.text.trim(),
-        'insurance_policy': _insurancePolicyController.text.trim().toUpperCase(),
-        'insurance_expiry': _insuranceExpiryController.text.trim(),
+        // Insurance: vehicle providers always; hand-tool providers only if they
+        // said they carry it. Otherwise record the no-insurance acknowledgment.
+        'has_insurance': _hasVehicle || _carriesInsurance,
+        if (_hasVehicle || _carriesInsurance) ...{
+          'insurance_carrier': _insuranceCarrierController.text.trim(),
+          'insurance_policy': _insurancePolicyController.text.trim().toUpperCase(),
+          'insurance_expiry': _insuranceExpiryController.text.trim(),
+        },
         if (insuranceUrl != null) 'insurance_photo_url': insuranceUrl,
+        if (!_hasVehicle && !_carriesInsurance)
+          'insurance_ack_at': DateTime.now().toUtc().toIso8601String(),
         'terms_agreed': true,
         'service_agreement_signed_at': DateTime.now().toUtc().toIso8601String(),
         'service_agreement_name': _signatureController.text.trim(),
@@ -590,61 +613,132 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     );
   }
 
+  // Carrier / policy / expiry / card-photo fields — shared by the two paths
+  // that actually collect insurance (vehicle providers, and hand-tool providers
+  // who say they carry it).
+  Widget _insuranceFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _insuranceCarrierController,
+          decoration: const InputDecoration(
+            labelText: 'Insurance Carrier',
+            border: OutlineInputBorder(),
+          ),
+          textCapitalization: TextCapitalization.words,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _insurancePolicyController,
+          decoration: const InputDecoration(
+            labelText: 'Policy Number',
+            border: OutlineInputBorder(),
+          ),
+          textCapitalization: TextCapitalization.characters,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _insuranceExpiryController,
+          decoration: const InputDecoration(
+            labelText: 'Expiration Date (MM/DD/YYYY)',
+            prefixIcon: Icon(Icons.calendar_today_outlined),
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.datetime,
+        ),
+        const SizedBox(height: 20),
+        const Text('Insurance Card Photo',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        _photoUpload(
+          photo: _insurancePhoto,
+          label: 'Upload Insurance Card',
+          onTap: () => _pickPhoto(false),
+        ),
+      ],
+    );
+  }
+
   Widget _buildInsurancePage() {
+    // Vehicle / plow providers: insurance is required (they can cause serious
+    // property damage), so keep the full required form + the coverage checkbox.
+    if (_hasVehicle) {
+      return _card(
+        title: 'Insurance',
+        subtitle:
+            'Because you plow with a vehicle, valid liability insurance is required.',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _insuranceFields(),
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _insuranceConfirmed,
+              onChanged: (val) => setState(() => _insuranceConfirmed = val ?? false),
+              activeColor: SnowServColors.iceBlue,
+              title: const Text(
+                'I confirm I carry at least \$1,000,000 in general liability insurance.',
+                style: TextStyle(fontSize: 13),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Hand-tool providers: insurance is optional. They either add a policy or
+    // acknowledge they carry none and are personally responsible.
     return _card(
       title: 'Insurance',
-      subtitle: 'Valid general liability insurance is required to work on SnowServ.',
+      subtitle: 'Optional for hand-shoveling — but recommended.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _insuranceCarrierController,
-            decoration: const InputDecoration(
-              labelText: 'Insurance Carrier',
-              border: OutlineInputBorder(),
-            ),
-            textCapitalization: TextCapitalization.words,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _insurancePolicyController,
-            decoration: const InputDecoration(
-              labelText: 'Policy Number',
-              border: OutlineInputBorder(),
-            ),
-            textCapitalization: TextCapitalization.characters,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _insuranceExpiryController,
-            decoration: const InputDecoration(
-              labelText: 'Expiration Date (MM/DD/YYYY)',
-              prefixIcon: Icon(Icons.calendar_today_outlined),
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.datetime,
-          ),
-          const SizedBox(height: 20),
-          const Text('Insurance Card Photo',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          _photoUpload(
-            photo: _insurancePhoto,
-            label: 'Upload Insurance Card',
-            onTap: () => _pickPhoto(false),
-          ),
-          const SizedBox(height: 12),
-          CheckboxListTile(
+          SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            value: _insuranceConfirmed,
-            onChanged: (val) => setState(() => _insuranceConfirmed = val ?? false),
+            title: const Text('I carry liability insurance',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            value: _carriesInsurance,
             activeColor: SnowServColors.iceBlue,
-            title: const Text(
-              'I confirm I carry at least \$1,000,000 in general liability insurance.',
-              style: TextStyle(fontSize: 13),
-            ),
-            controlAffinity: ListTileControlAffinity.leading,
+            onChanged: (val) => setState(() => _carriesInsurance = val),
           ),
+          if (_carriesInsurance) ...[
+            const SizedBox(height: 8),
+            _insuranceFields(),
+          ] else ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: SnowServColors.iceBlue.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border:
+                    Border.all(color: SnowServColors.iceBlue.withValues(alpha: 0.25)),
+              ),
+              child: const Text(
+                'SnowServ does not provide insurance for you. Carrying your own '
+                'liability coverage is strongly recommended.',
+                style: TextStyle(fontSize: 12, color: SnowServColors.iceBlue),
+              ),
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _noInsuranceAck,
+              onChanged: (val) => setState(() => _noInsuranceAck = val ?? false),
+              activeColor: SnowServColors.iceBlue,
+              title: const Text(
+                'I understand I am personally responsible for any property damage '
+                'or injury that arises from my work, as described in the Provider '
+                'Service Agreement.',
+                style: TextStyle(fontSize: 13),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+          ],
         ],
       ),
     );

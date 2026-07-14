@@ -2543,10 +2543,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                               color: SnowServColors.navy)),
                     ),
                     const SizedBox(height: 6),
-                    _infoRow('Carrier', p['insurance_carrier']),
-                    _infoRow('Policy #', p['insurance_policy']),
-                    _infoRow('Expiry', p['insurance_expiry']),
-                    _docViewButton('Insurance card', p['insurance_photo_url']),
+                    _infoRow(
+                        'Coverage',
+                        p['has_insurance'] == true
+                            ? 'On file'
+                            : 'None — provider acknowledged responsibility'),
+                    if (p['has_insurance'] == true) ...[
+                      _infoRow('Carrier', p['insurance_carrier']),
+                      _infoRow('Policy #', p['insurance_policy']),
+                      _infoRow('Expiry', p['insurance_expiry']),
+                      _docViewButton('Insurance card', p['insurance_photo_url']),
+                    ],
                     const SizedBox(height: 10),
                     // Payouts section — bank/ID/1099 live at Stripe now (#21), so
                     // we only surface the Connect Express onboarding status here.
