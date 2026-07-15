@@ -33,6 +33,14 @@
 		<true/>
 		<key>NSCameraUsageDescription</key>
 		<string>SnowServ needs camera access to take job completion photos.</string>
+		<!-- SnowServ only ever requests "when in use" location. This key is
+		     required because the geolocator plugin links CoreLocation's
+		     always-authorization API at the binary level (App Store static
+		     analysis flags its absence — ITMS-90683), even though the app
+		     never requests background/always location. Phrased to match the
+		     app's real behavior. -->
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>SnowServ uses your location to check current snow conditions for pricing, to match you with nearby jobs, and to confirm a provider is at the job site when they start and complete work. Location is only used while the app is in use.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>SnowServ uses your location to check current snow conditions for pricing, to match you with nearby jobs, and to confirm a provider is at the job site when they start and complete work. Location is only used while the app is in use.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

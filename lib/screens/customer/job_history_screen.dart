@@ -26,23 +26,10 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
 
   Future<void> rateJob(String jobId, String? providerId, int stars) async {
     try {
-      await supabase.from('jobs').update({'customer_rating': stars}).eq('id', jobId);
-      if (providerId != null) {
-        final ratedJobs = await supabase
-            .from('jobs')
-            .select('customer_rating')
-            .eq('provider_id', providerId)
-            .not('customer_rating', 'is', null);
-        if (ratedJobs.isNotEmpty) {
-          final ratings = (ratedJobs as List)
-              .map((j) => (j['customer_rating'] as num).toDouble())
-              .toList();
-          final avg = ratings.reduce((a, b) => a + b) / ratings.length;
-          await supabase.from('providers').update({
-            'rating': double.parse(avg.toStringAsFixed(1)),
-          }).eq('id', providerId);
-        }
-      }
+      // Server-side (SECURITY DEFINER): verifies we own this completed job, records
+      // the star rating and recomputes the provider's average. The customer no
+      // longer writes the provider's row directly (RLS forbids it now).
+      await supabase.rpc('rate_job', params: {'p_job_id': jobId, 'p_stars': stars});
       loadHistory();
     } catch (e) {
       if (mounted) {

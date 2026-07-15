@@ -471,8 +471,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Admin "preferred driver" override (providers.preferred_until). While live,
   // this provider wins a new job only when they're EQUAL-OR-CLOSER than the
   // driver who'd otherwise get it (never sent a worse-distance job), and it
-  // auto-expires at preferred_until. See migration
-  // 20260707071500_preferred_driver_expiry_distance.sql + lib/utils/dispatch.dart.
+  // auto-expires at preferred_until. Implemented in the dispatch_jobs() RPC (see
+  // migration 20260707071500_preferred_driver_expiry_distance.sql) — the sole
+  // dispatcher now that the client-side one is gone (RLS lockdown Stage 2).
 
   // True while the override is still live (future timestamp).
   bool _isPreferred(Map<String, dynamic> p) {

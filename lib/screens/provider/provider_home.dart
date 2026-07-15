@@ -11,7 +11,6 @@ import 'package:geolocator/geolocator.dart';
 import '../../theme.dart';
 import '../../config/app_config.dart';
 import '../../utils/job_helpers.dart';
-import '../../utils/dispatch.dart';
 import '../../utils/legal.dart';
 import '../../utils/account_deletion.dart';
 import 'job_history_screen.dart';
@@ -323,17 +322,12 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     setState(() => _dispatchedJob = null);
 
     final jobId = job['id'].toString();
-    final rejected = List<dynamic>.from(job['rejected_providers'] ?? []);
-    rejected.add(providerId!);
 
     try {
-      await supabase.from('jobs').update({
-        'dispatched_to': null,
-        'dispatched_at': null,
-        'rejected_providers': rejected,
-      }).eq('id', jobId);
-      await dispatchToNearest(supabase, jobId, rejected,
-          (job['job_lat'] as num?)?.toDouble(), (job['job_lng'] as num?)?.toDouble());
+      // Server-side (SECURITY DEFINER): drops us onto the rejected list, resets the
+      // job to the queue and re-dispatches. The client no longer reassigns jobs
+      // across providers (RLS forbids writing another provider's job).
+      await supabase.rpc('provider_release_job', params: {'p_job_id': jobId});
     } catch (e) {
       debugPrint('Decline error: $e');
     } finally {
@@ -777,33 +771,18 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     );
     if (confirm != true) return;
     try {
-      final rejected = List<dynamic>.from(job['rejected_providers'] ?? []);
-      rejected.add(providerId!);
-      await supabase.from('jobs').update({
-        'status': 'requested',
-        'provider_id': null,
-        'dispatched_to': null,
-        'dispatched_at': null,
-        'rejected_providers': rejected,
-      }).eq('id', jobId);
-      if (inProgress) {
-        // Post-start cancel: the charge stays with the job (capture already
-        // happened; re-capture on the next Start is idempotent). Count it on
-        // this provider for admin visibility — best-effort, never blocks the
-        // cancel itself.
-        try {
-          await supabase.rpc('increment_post_start_cancel',
-              params: {'p_provider_id': providerId});
-        } catch (_) {}
-      }
-      // Distinct status post-start so the customer push can be honest about
-      // the charge ("you won't be charged again / cancel for a full refund").
+      // Server-side (SECURITY DEFINER) release: resets the job to the queue, bumps
+      // this provider's post-start-cancel counter when it was in progress, and
+      // re-dispatches. Returns whether it was in progress so the customer push is
+      // honest about the charge. (Capture already happened post-start; re-capture
+      // on the next provider's Start is idempotent, so no double charge.)
+      final res = await supabase.rpc('provider_release_job', params: {'p_job_id': jobId});
+      final wasInProgress = res == true;
+      // Distinct status post-start: "you won't be charged again / cancel for a full refund".
       supabase.functions.invoke('notify-customer', body: {
         'job_id': jobId,
-        'status': inProgress ? 'provider_cancelled_after_start' : 'provider_cancelled',
+        'status': wasInProgress ? 'provider_cancelled_after_start' : 'provider_cancelled',
       });
-      await dispatchToNearest(supabase, jobId, rejected,
-          (job['job_lat'] as num?)?.toDouble(), (job['job_lng'] as num?)?.toDouble());
       loadActiveJobs();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

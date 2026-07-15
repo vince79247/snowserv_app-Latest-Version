@@ -362,7 +362,12 @@ class _RoleRouterState extends State<RoleRouter> {
           .select('role')
           .eq('id', supabase.auth.currentUser!.id)
           .maybeSingle();
-      if (data == null) return;
+      if (data == null) {
+        // Session with no profile row (e.g. an interrupted signup). Don't hang
+        // on the spinner forever — sign out so AuthGate shows a clean login.
+        await supabase.auth.signOut();
+        return;
+      }
       final fetchedRole = data['role'] as String?;
 
       if (fetchedRole == 'provider') {

@@ -5,6 +5,7 @@ import '../../theme.dart';
 import '../../utils/legal.dart';
 import '../faq_screen.dart';
 import '../quote_screen.dart';
+import 'reset_password_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -66,6 +67,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         );
         return;
       }
+      if (passwordController.text.trim().length < 6) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password must be at least 6 characters.')),
+        );
+        return;
+      }
     } else {
       if (emailController.text.trim().isEmpty ||
           passwordController.text.trim().isEmpty) {
@@ -88,7 +95,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               .from('profiles')
               .select('role')
               .eq('id', response.user!.id)
-              .single();
+              .maybeSingle();
+          if (profile == null) {
+            // Logged in, but no profile row (an older interrupted signup).
+            // Don't leave them stuck — sign out with a clear message.
+            await supabase.auth.signOut();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text("We couldn't finish setting up this account. "
+                    'Please sign up again or contact support@snowserv.app.'),
+                duration: Duration(seconds: 6),
+              ));
+              setState(() => loading = false);
+            }
+            return;
+          }
           if (profile['role'] != selectedRole && mounted) {
             await supabase.auth.signOut();
             ScaffoldMessenger.of(context).showSnackBar(
@@ -104,43 +125,30 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           }
         }
       } else {
+        // Name/phone/role ride along as user metadata. The profiles/users/
+        // providers rows are then created SERVER-SIDE by the on_auth_user_created
+        // trigger (SECURITY DEFINER) — atomically, and regardless of the signup's
+        // no-session-yet timing. The app no longer inserts them client-side: that
+        // ran as the anon role in a swallowed try/catch, so any failure silently
+        // orphaned the account (signup "succeeded" but login could never find a
+        // profile). REQUIRES the trigger to be live — see PRELAUNCH build-5 cutover.
         final response = await supabase.auth.signUp(
           email: emailController.text.trim(),
           password: passwordController.text.trim(),
+          data: {
+            'role': selectedRole,
+            'full_name': nameController.text.trim(),
+            'phone': phoneController.text.trim(),
+          },
         );
-        if (response.user != null) {
-          try {
-            await supabase.from('profiles').insert({
-              'id': response.user!.id,
-              'role': selectedRole,
-              'full_name': nameController.text.trim(),
-              'phone': phoneController.text.trim(),
-            });
-            await supabase.from('users').insert({
-              'id': response.user!.id,
-              'name': nameController.text.trim(),
-              'email': emailController.text.trim(),
-              'phone': phoneController.text.trim(),
-              'role': selectedRole,
-            });
-            if (selectedRole == 'provider') {
-              await supabase.from('providers').insert({
-                'user_id': response.user!.id,
-                'is_online': false,
-              });
-            }
-          } catch (e) {
-            debugPrint('Profile setup error: $e');
-          }
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Account created! Check your email to confirm, then log in.'),
-                duration: Duration(seconds: 6),
-              ),
-            );
-            setState(() => isLogin = true);
-          }
+        if (response.user != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created! Check your email to confirm, then log in.'),
+              duration: Duration(seconds: 6),
+            ),
+          );
+          setState(() => isLogin = true);
         }
       }
     } catch (e) {
@@ -153,6 +161,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         userMessage = 'Please confirm your email before logging in. Check your inbox.';
       } else if (message.contains('Invalid login')) {
         userMessage = 'Incorrect email or password.';
+      } else if (message.contains('Password') || message.contains('at least 6')) {
+        userMessage = 'Password must be at least 6 characters.';
       } else {
         userMessage = 'Something went wrong. Please try again.';
       }
@@ -166,20 +176,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
-  Future<void> handleForgotPassword() async {
-    final email = emailController.text.trim();
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email first, then tap Forgot Password.')),
-      );
-      return;
-    }
-    await supabase.auth.resetPasswordForEmail(email);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset email sent. Check your inbox.')),
-      );
-    }
+  void handleForgotPassword() {
+    // Opens the in-app code-based reset flow (send 6-digit code → verify →
+    // set new password). The screen owns sending + entry; pre-fill the email
+    // if one's already typed.
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResetPasswordScreen(initialEmail: emailController.text.trim()),
+      ),
+    );
   }
 
   @override

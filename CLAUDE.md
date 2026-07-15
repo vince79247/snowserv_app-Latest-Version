@@ -198,8 +198,16 @@ lib/
   for is_admin users → opens AdminPanelScreen directly.
 - admin-doc-url (and future admin-only server actions) verify the caller's login
   token maps to an is_admin profile. To grant admin: set profiles.is_admin=true.
-- NOT yet done: locking down RLS so the DB enforces admin-only writes broadly
-  (see PRELAUNCH.md — full RLS lockdown is a dedicated pre-launch task).
+- RLS lockdown STAGE 1 done (2026-07-14, migration 20260714120000_rls_lockdown_stage1):
+  the public/anon-key READ leak is closed (anon now reads 0 rows from jobs/addresses/
+  users/providers; service_areas stays public for the quote). SELECT policies are scoped
+  (self / job-counterparty / admin via an is_admin() helper). WRITES are still permissive
+  for logged-in users (no app change / no build needed for Stage 1). STAGE 2 WRITTEN (not
+  yet applied — would break build 4): migrations 20260714130000 (signup trigger
+  handle_new_user) + 20260714140000 (rate_job + provider_release_job RPCs, tight owner/admin
+  writes, provider read = own-jobs+open-queue so provider_notes stays private, money/status
+  column tamper guards) + client changes (dispatch.dart deleted; decline/cancel/rating call
+  RPCs; signup passes metadata). APPLIED AT THE BUILD-5 CUTOVER — see PRELAUNCH.md.
 
 ## Provider flow
 1. Toggle online → loads available jobs (status=requested, dispatched_to=this provider)

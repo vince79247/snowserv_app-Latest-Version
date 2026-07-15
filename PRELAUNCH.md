@@ -17,10 +17,25 @@ anytime. (Added 2026-07-07.)
    TIMING (decided 2026-07-11): this is DECOUPLED from App Store / Play Store submission
    — the stores review the app binary, not the database, so RLS state never gates or
    delays a submission or an app update. It's gated to the moment REAL customers sign up
-   and enter real data (name/address/card-on-file), since the anon key is public. So:
-   keep modifying the app freely now; do the lockdown as the FINAL gate right before
-   flipping on real-customer signups. It's reversible SQL (loosen/tighten anytime), but
-   deliberately done once, thoroughly, with full flow re-testing — not rushed mid-build.
+   and enter real data (name/address/card-on-file), since the anon key is public.
+   ✅ STAGE 1 DONE (2026-07-14, migration 20260714120000_rls_lockdown_stage1): closed the
+   PUBLIC/anon-key READ leak. Inspection had found RLS *enabled* but the policies were
+   `USING true` / explicit "Allow anon select" — the anon key (shipped in the app + site)
+   could read all jobs (incl. admin-only provider_notes), addresses, users, providers.
+   Stage 1 replaced those with scoped SELECT policies (self / job-counterparty / admin;
+   service_areas stays public for the quote) while keeping WRITES permissive for logged-in
+   users, so NO app change / NO new build was needed. Verified: anon now reads 0 rows from
+   every private table; a logged-in customer sees only their own; signup/quote/waitlist
+   still work. Reversible via `alter table <t> disable row level security`.
+   ✅ STAGE 2 WRITTEN (2026-07-14) — migrations 20260714130000 (signup trigger) +
+   20260714140000 (rls_lockdown_stage2) + the matching client changes are all in the repo,
+   NOT YET APPLIED (they'd break build 4). Stage 2 moves the client dispatcher +
+   customer→provider rating + signup-row creation to SECURITY DEFINER RPCs/trigger
+   (rate_job, provider_release_job, handle_new_user; lib/utils/dispatch.dart deleted),
+   tightens WRITES to owner/admin-only (+ atomic queue-grab), tightens the approved-provider
+   READ to own-jobs+open-queue (so a provider can't read another provider's jobs — and
+   provider_notes), and adds money/status column tamper guards. APPLIED AT BUILD-5 CUTOVER
+   (see the checklist) + on-device re-tested.
 4. **App Store essentials** (iOS only) — privacy-policy URL in App Store Connect,
    metadata + screenshots, and test on a REAL iPhone (not just simulators).
 5. **Custom SMTP for auth emails** (you create the account → Claude wires the config).
@@ -44,6 +59,46 @@ NOT launch blockers — do before you SCALE, not before the first pilot:
 
 Low-risk momentum any time: a TestFlight build on your own iPhone, and a marketing
 website / pre-signup quote page — the latter needs NONE of the above (no payments).
+
+## Build 5 cutover checklist (security + auth hardening release)
+Build 5 bundles several changes that are ALREADY in the repo but must go live together
+with matching server-side steps. Do these AT cutover, in order, then upload the build.
+Nothing here is live until build 5 ships — build 4 keeps its current behavior.
+
+Repo already contains (client, ships automatically in the build):
+- iOS ITMS-90683 fix (NSLocationAlwaysAndWhenInUseUsageDescription re-added to Info.plist).
+- Forgot-password = in-app 6-digit CODE flow (reset_password_screen.dart + auth_screen wiring).
+- Signup now passes name/phone/role as user metadata and NO LONGER inserts profile rows
+  client-side (that's the trigger's job now — see step 2).
+- Login/RoleRouter hardened against a missing-profile account (sign out cleanly, no hang).
+
+Server-side steps to run AT cutover (Management API — token in macOS keychain:
+`security find-generic-password -s "Supabase CLI" -w`):
+1. **Bump** pubspec.yaml `1.0.0+4` → `1.0.0+5`.
+2. **Apply the signup trigger** — run migration `20260714130000_signup_handle_new_user_
+   trigger.sql` and record it in `supabase_migrations.schema_migrations`. ⚠️ MUST NOT be
+   applied before build 5 is the live client (build 4 still inserts rows client-side, and
+   the trigger would corrupt provider signups with a defaulted role). Coupled to step-1
+   client code.
+3. **Set the recovery email template to send the CODE** (the OTP flow needs `{{ .Token }}`;
+   the default template only has a magic link). PATCH `mailer_templates_recovery_content`
+   via /v1/projects/<ref>/config/auth, e.g.:
+   `<h2>Reset your SnowServ password</h2><p>Enter this 6-digit code in the app:</p>
+   <p style="font-size:28px;font-weight:bold;letter-spacing:4px">{{ .Token }}</p>
+   <p>This code expires in 1 hour. If you didn't request it, ignore this email.</p>`
+4. **Apply RLS Stage 2** — migration `20260714140000_rls_lockdown_stage2.sql` (run it
+   AFTER the signup trigger in step 2; it revokes the anon inserts the trigger replaces).
+   Adds rate_job + provider_release_job RPCs, tightens jobs/providers/users/addresses
+   read+write to owner/admin (+ the queue-grab transition), and adds money/status column
+   tamper guards. Record it in schema_migrations like the others. ⚠️ Breaks build 4 if
+   applied early — this is the whole reason it's a cutover step.
+5. Build + upload (the rsync dance — see [[reference-ios-rsync-build-export-conflict]]).
+
+On-device tests after build 5 lands (needs a REAL inbox — mind SMTP blocker #5):
+- Signup (real email) → confirm email → log in → lands in the right role home.
+- Forgot password → receive code → set new password → log in with it.
+- Provider decline & post-start cancel still re-dispatch (RLS Stage 2).
+- Rate a completed job (RLS Stage 2 rating RPC).
 
 ## Handoff — where we left off (2026-07-07 session, late-night part 2)
 Everything committed + pushed to GitHub branch `geofenced-pricing-zones` (not merged to
@@ -144,10 +199,10 @@ blockers" above.
   AND deleted it on GitHub (was "SnowServ2": repo scope, no expiration). Git already
   authenticates via the IDE's GitHub OAuth login (gho_ token in the macOS Keychain), so
   no PAT is in the URL or needed. Leak closed 2026-07-07.
-- 🧊 **Full RLS lockdown** — the app currently runs on permissive/loose row-level
-  security. Tightening every table's policies so the DB enforces who-can-do-what
-  is the big one: touches every flow (order, accept, payout, admin) and needs
-  full re-testing. **Dedicated session right before launch — do not rush mid-build.**
+- 🧊 **Full RLS lockdown** — ✅ Stage 1 shipped 2026-07-14 (closed the public/anon-key
+  READ leak; migration 20260714120000). ⏳ Stage 2 (write-hardening: dispatcher/rating/
+  signup → SECURITY DEFINER RPCs, strict owner-only writes, job-scoped provider reads,
+  column tamper protection) rides on the next build + on-device re-testing. See blocker #3.
   - CAVEAT: the customer "N jobs ahead of you" line (customer_home
     `_refreshQueuePositions`) counts the assigned provider's OTHER active job
     rows — it works today only because SELECT on jobs is permissive. When
