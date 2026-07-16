@@ -1,9 +1,11 @@
 // Captures the authorization hold placed at order time — i.e. actually charges
-// the customer — once a provider has accepted the job. Called from the provider
-// app on Accept (both the dispatch card and the "Jobs Waiting" board).
+// the customer — when a provider STARTS the job (markInProgress → in_progress),
+// NOT on Accept. The payment stays a hold through requested/assigned so a
+// customer who cancels before work begins gets an instant hold release (see
+// refund-job), never a charge-then-refund. Accept does not call this.
 //
 // Idempotent: if the payment is already captured, it returns success without
-// double-charging.
+// double-charging (so a post-start re-dispatch never double-charges the card).
 
 // CORS: the app runs on WEB too — the browser preflights functions.invoke, so
 // the function must answer OPTIONS and stamp responses or the call is blocked.
