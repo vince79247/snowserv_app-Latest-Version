@@ -52,7 +52,7 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
 }
 
 // Returns false if the token is invalid and should be cleared from the DB.
-async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string): Promise<boolean> {
+async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string): Promise<{ ok: boolean; code?: string }> {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
     method: 'POST',
     headers: {
@@ -63,12 +63,11 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
       message: { token: fcmToken, notification: { title, body }, apns: { payload: { aps: { sound: 'default' } } } },
     }),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const code = err?.error?.details?.[0]?.errorCode ?? err?.error?.status
-    return code !== 'UNREGISTERED' && code !== 'INVALID_ARGUMENT'
-  }
-  return true
+  if (res.ok) return { ok: true }
+  const err = await res.json().catch(() => ({}))
+  const code = err?.error?.details?.[0]?.errorCode ?? err?.error?.status ?? String(res.status)
+  console.error(`FCM send failed: HTTP ${res.status} ${code}`, JSON.stringify(err?.error ?? {}))
+  return { ok: false, code }
 }
 
 // CORS: the app runs on WEB too — the browser preflights functions.invoke,
@@ -129,15 +128,15 @@ Deno.serve(async (req) => {
     let sent = 0
     for (const profile of profiles) {
       if (profile.fcm_token) {
-        const ok = await sendNotification(
+        const result = await sendNotification(
           accessToken,
           profile.fcm_token,
           'New Job Available!',
           `${serviceDesc} — $${job.base_price}`
         )
-        if (ok) {
+        if (result.ok) {
           sent++
-        } else {
+        } else if (result.code === 'UNREGISTERED') {
           await supabase.from('profiles').update({ fcm_token: null }).eq('id', profile.id)
         }
       }

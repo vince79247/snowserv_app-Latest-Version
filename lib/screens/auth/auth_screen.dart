@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart' show TextInput;
 import 'dart:math';
 import '../../theme.dart';
 import '../../utils/legal.dart';
@@ -91,6 +92,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           password: passwordController.text.trim(),
         );
         if (response.user != null) {
+          // Credentials accepted — let iOS/iCloud Keychain offer to save them so
+          // Face ID fills the password next time. Safe even if the role check
+          // below signs them out (the password is still valid for that account).
+          TextInput.finishAutofillContext();
           final profile = await supabase
               .from('profiles')
               .select('role')
@@ -142,6 +147,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           },
         );
         if (response.user != null && mounted) {
+          TextInput.finishAutofillContext(); // let iOS save the new credentials
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Account created! Check your email to confirm, then log in.'),
@@ -323,6 +329,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           labelText: isLogin ? 'Email' : 'Email *',
                           prefixIcon: const Icon(Icons.email_outlined),
                         ),
+                        autofillHints: const [AutofillHints.username, AutofillHints.email],
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 12),
@@ -332,6 +339,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           labelText: isLogin ? 'Password' : 'Password *',
                           prefixIcon: const Icon(Icons.lock_outline),
                         ),
+                        autofillHints: const [AutofillHints.password],
                         obscureText: true,
                       ),
                       const SizedBox(height: 24),

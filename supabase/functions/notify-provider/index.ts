@@ -28,7 +28,7 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   return tokenData.access_token
 }
 
-async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string): Promise<boolean> {
+async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string): Promise<{ ok: boolean; code?: string }> {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -46,12 +46,11 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
       },
     }),
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const code = err?.error?.details?.[0]?.errorCode ?? err?.error?.status
-    return code !== 'UNREGISTERED' && code !== 'INVALID_ARGUMENT'
-  }
-  return true
+  if (res.ok) return { ok: true }
+  const err = await res.json().catch(() => ({}))
+  const code = err?.error?.details?.[0]?.errorCode ?? err?.error?.status ?? String(res.status)
+  console.error(`FCM send failed: HTTP ${res.status} ${code}`, JSON.stringify(err?.error ?? {}))
+  return { ok: false, code }
 }
 
 function getNotificationContent(status: string): { title: string; body: string } | null {
@@ -108,13 +107,16 @@ Deno.serve(async (req: Request) => {
 
     const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')!)
     const accessToken = await getAccessToken(serviceAccount)
-    const ok = await sendNotification(accessToken, profile.fcm_token, notification.title, notification.body)
+    const result = await sendNotification(accessToken, profile.fcm_token, notification.title, notification.body)
 
-    if (!ok) {
+    // Only clear a token Firebase says is genuinely dead (UNREGISTERED). A config
+    // error like THIRD_PARTY_AUTH_ERROR means a VALID token we couldn't reach — keep
+    // it, and report the real failure instead of a fake sent:1.
+    if (!result.ok && result.code === 'UNREGISTERED') {
       await supabase.from('profiles').update({ fcm_token: null }).eq('id', provider.user_id)
     }
 
-    return new Response(JSON.stringify({ sent: ok ? 1 : 0 }), { headers: { ...cors, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify(result.ok ? { sent: 1 } : { sent: 0, error: result.code }), { headers: { ...cors, 'Content-Type': 'application/json' } })
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors })
   }

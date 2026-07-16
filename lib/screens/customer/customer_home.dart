@@ -407,8 +407,8 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
               ...legalMenuTiles(context),
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text('Log Out', style: TextStyle(color: Colors.red)),
+                leading: const Icon(Icons.logout, color: SnowServColors.navy),
+                title: const Text('Log Out'),
                 onTap: () async {
                   Navigator.pop(context);
                   final uid = supabase.auth.currentUser?.id;
@@ -422,9 +422,12 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                   await supabase.auth.signOut();
                 },
               ),
+              // Deliberate gap: keep the destructive Delete Account well clear of
+              // Log Out (they used to sit adjacent and both red, and got mis-tapped).
+              const SizedBox(height: 32),
               const Divider(height: 1, indent: 16, endIndent: 16),
               // App Store Guideline 5.1.1(v): account deletion must be available
-              // in-app. Kept alongside Log Out so it's discoverable, not buried.
+              // in-app — kept at the very bottom, visually separated from Log Out.
               deleteAccountTile(context),
             ],
           ),
