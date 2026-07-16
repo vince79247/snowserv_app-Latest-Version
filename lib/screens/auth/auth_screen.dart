@@ -267,7 +267,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       ),
                     ],
                   ),
-                  child: Column(
+                  // AutofillGroup is REQUIRED for iOS/Android to offer to save
+                  // the credentials (and for Face-ID fill next time). Without it
+                  // the autofillHints below do nothing on submit.
+                  child: AutofillGroup(
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
@@ -393,7 +397,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         ),
                       ],
                     ],
-                  ),
+                  )),
                 ),
 
                 const SizedBox(height: 8),
