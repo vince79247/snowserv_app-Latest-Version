@@ -75,6 +75,16 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
   return { ok: false, code }
 }
 
+// Provider's take-home from a job total, using the admin-editable commission.
+// Kept in lockstep with lib/utils/job_helpers.dart providerPay + AppConfig.
+async function providerPay(supabase: any, total: number): Promise<number> {
+  const { data } = await supabase
+    .from('app_settings').select('value').eq('key', 'commission_pct').maybeSingle()
+  let commissionPct = Number(data?.value)
+  if (!Number.isFinite(commissionPct) || commissionPct < 0 || commissionPct > 100) commissionPct = 25
+  return Math.round(Number(total) * (100 - commissionPct) / 100)
+}
+
 // CORS: the app runs on WEB too — the browser preflights functions.invoke,
 // so answer OPTIONS and stamp responses or browser calls are blocked.
 const cors = {
@@ -126,7 +136,11 @@ Deno.serve(async (req) => {
     if (job.walkway) services.push('Sidewalk')
     if (job.salting) services.push('Deicer')
     const serviceDesc = services.join(' + ') || 'Service'
-    const price = job.final_price ?? job.base_price ?? 0
+
+    // Show the provider their NET take-home, never the customer's gross price.
+    // Mirror lib/utils/job_helpers.dart providerPay: total × (100 - commission%)
+    // / 100, rounded. Commission is admin-editable (app_settings.commission_pct).
+    const pay = await providerPay(supabase, job.final_price ?? job.base_price ?? 0)
 
     const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')!)
     const accessToken = await getAccessToken(serviceAccount)
@@ -134,7 +148,7 @@ Deno.serve(async (req) => {
       accessToken,
       profile.fcm_token,
       'New Job Offer!',
-      `${serviceDesc} — $${price}. Tap to view.`
+      `${serviceDesc} — Your pay: $${pay}. Tap to view.`
     )
 
     // Only clear a genuinely dead token (UNREGISTERED); keep valid tokens on a

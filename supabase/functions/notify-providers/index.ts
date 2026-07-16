@@ -70,6 +70,16 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
   return { ok: false, code }
 }
 
+// Provider's take-home from a job total, using the admin-editable commission.
+// Kept in lockstep with lib/utils/job_helpers.dart providerPay + AppConfig.
+async function providerPay(supabase: any, total: number): Promise<number> {
+  const { data } = await supabase
+    .from('app_settings').select('value').eq('key', 'commission_pct').maybeSingle()
+  let commissionPct = Number(data?.value)
+  if (!Number.isFinite(commissionPct) || commissionPct < 0 || commissionPct > 100) commissionPct = 25
+  return Math.round(Number(total) * (100 - commissionPct) / 100)
+}
+
 // CORS: the app runs on WEB too — the browser preflights functions.invoke,
 // so answer OPTIONS and stamp responses or browser calls are blocked.
 const cors = {
@@ -125,6 +135,9 @@ Deno.serve(async (req) => {
     const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')!)
     const accessToken = await getAccessToken(serviceAccount)
 
+    // Show the provider their NET take-home, never the customer's gross price.
+    const pay = await providerPay(supabase, job.final_price ?? job.base_price ?? 0)
+
     let sent = 0
     for (const profile of profiles) {
       if (profile.fcm_token) {
@@ -132,7 +145,7 @@ Deno.serve(async (req) => {
           accessToken,
           profile.fcm_token,
           'New Job Available!',
-          `${serviceDesc} — $${job.base_price}`
+          `${serviceDesc} — Your pay: $${pay}`
         )
         if (result.ok) {
           sent++
