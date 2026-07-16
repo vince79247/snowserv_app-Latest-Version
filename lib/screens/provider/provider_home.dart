@@ -1701,8 +1701,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                   ],
                                 ),
                                 _addressRow(job),
-                                // Customer contact — call to sort out a gate, a
-                                // dog, where to pile snow, etc.
+                                // Customer contact — call OR text to sort out a
+                                // gate, a dog, where to pile snow, etc.
                                 Builder(builder: (_) {
                                   final cust = job['users'];
                                   final name = (cust?['name'] as String?)?.trim();
@@ -1710,6 +1710,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                   if ((phone == null || phone.isEmpty)) {
                                     return const SizedBox.shrink();
                                   }
+                                  final dialable =
+                                      phone.replaceAll(RegExp(r'[^0-9+]'), '');
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Row(
@@ -1720,19 +1722,28 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                         Expanded(
                                           child: Text(
                                               name?.isNotEmpty == true
-                                                  ? name!
-                                                  : 'Customer',
+                                                  ? '$name · $phone'
+                                                  : phone,
+                                              overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
                                                   fontSize: 13,
                                                   color: SnowServColors.navy)),
                                         ),
                                         TextButton.icon(
                                           onPressed: () => launchUrl(Uri(
-                                              scheme: 'tel',
-                                              path: phone.replaceAll(
-                                                  RegExp(r'[^0-9+]'), ''))),
+                                              scheme: 'tel', path: dialable)),
                                           icon: const Icon(Icons.call, size: 16),
-                                          label: Text(phone),
+                                          label: const Text('Call'),
+                                          style: TextButton.styleFrom(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8),
+                                              minimumSize: const Size(0, 32)),
+                                        ),
+                                        TextButton.icon(
+                                          onPressed: () => launchUrl(Uri(
+                                              scheme: 'sms', path: dialable)),
+                                          icon: const Icon(Icons.sms, size: 16),
+                                          label: const Text('Text'),
                                           style: TextButton.styleFrom(
                                               padding: const EdgeInsets.symmetric(
                                                   horizontal: 8),
