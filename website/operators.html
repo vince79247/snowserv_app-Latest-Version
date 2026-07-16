@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SnowServ — Commercial & Emergency Response Network</title>
+<meta name="description" content="Operate a plow truck, loader, or triaxle dump? Join SnowServ's commercial and emergency snow-response network — get on our standby list for large-property and municipal snow work.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="/" style="text-decoration:none;">
+      <svg viewBox="0 0 24 24" fill="#4A90D9"><path d="M22,11h-4.17l3.24,-3.24l-1.41,-1.42L15,11h-2V9l4.66,-4.66l-1.42,-1.41L13,6.17V2h-2v4.17L7.76,2.93L6.34,4.34L11,9v2H9L4.34,6.34L2.93,7.76L6.17,11H2v2h4.17l-3.24,3.24l1.41,1.42L9,13h2v2l-4.66,4.66l1.42,1.41L11,17.83V22h2v-4.17l3.24,3.24l1.42,-1.41L13,15v-2h2l4.66,4.66l1.41,-1.42L15.83,13H22z"/></svg>
+      SnowServ
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="mailto:support@snowserv.app">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding:64px 0 72px;">
+  <div class="wrap">
+    <h1>Got a truck? Get on the list.</h1>
+    <p class="sub">SnowServ is building a network of commercial operators — plow trucks, loaders, triaxle dumps, and haul equipment — for large-property clearing and emergency snow response. When a big storm hits and cities and property managers need equipment fast, we want to call you.</p>
+  </div>
+</section>
+
+<section style="padding:56px 0 24px;">
+  <div class="wrap">
+    <div class="steps">
+      <div class="card">
+        <div class="num">1</div>
+        <h3>Tell us what you run</h3>
+        <p>Your equipment, capacity, and how far you'll travel. Takes a minute — no account, no commitment.</p>
+      </div>
+      <div class="card">
+        <div class="num">2</div>
+        <h3>You're on standby</h3>
+        <p>We keep you on our operator list and reach out when commercial or emergency work comes up in your area.</p>
+      </div>
+      <div class="card">
+        <div class="num">3</div>
+        <h3>Get called when it counts</h3>
+        <p>Big storms mean big demand. Being on the list first means you're first in line for the work.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding:32px 0 80px;">
+  <div class="wrap">
+    <h2 class="center">Join the operator network</h2>
+    <p class="lead">Private — your details go straight to our team, never shown publicly.</p>
+
+    <form id="opForm" class="form-wrap" novalidate>
+      <div class="field row2">
+        <div>
+          <label for="name">Your name *</label>
+          <input id="name" name="name" type="text" autocomplete="name" required>
+        </div>
+        <div>
+          <label for="company">Company</label>
+          <input id="company" name="company" type="text" autocomplete="organization">
+        </div>
+      </div>
+
+      <div class="field row2">
+        <div>
+          <label for="email">Email *</label>
+          <input id="email" name="email" type="email" autocomplete="email" required>
+        </div>
+        <div>
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" type="tel" autocomplete="tel">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="equipment">Primary equipment *</label>
+        <select id="equipment" name="equipment" required>
+          <option value="" selected disabled>Choose one…</option>
+          <option>Plow truck</option>
+          <option>Loader / payloader</option>
+          <option>Triaxle dump truck</option>
+          <option>Skid steer</option>
+          <option>Heavy snow blower / thrower</option>
+          <option>Multiple / other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="fleet">Fleet / capacity</label>
+        <input id="fleet" name="fleet" type="text" placeholder="e.g. 2 triaxles + 1 loader, or just 1 plow truck">
+      </div>
+
+      <div class="field row2">
+        <div>
+          <label for="base_zip">Home base ZIP</label>
+          <input id="base_zip" name="base_zip" type="text" inputmode="numeric" autocomplete="postal-code">
+        </div>
+        <div>
+          <label for="service_radius">How far will you travel?</label>
+          <select id="service_radius" name="service_radius">
+            <option value="" selected disabled>Choose one…</option>
+            <option>Up to 25 miles</option>
+            <option>Up to 50 miles</option>
+            <option>50–100 miles</option>
+            <option>Statewide / will travel for emergencies</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="dot_number">DOT number (if you have one)</label>
+        <input id="dot_number" name="dot_number" type="text">
+      </div>
+
+      <div class="check-row">
+        <input id="insured" name="insured" type="checkbox">
+        <label for="insured" style="margin:0;font-weight:500;">I carry commercial insurance on my equipment</label>
+      </div>
+
+      <div class="field">
+        <label for="notes">Anything else?</label>
+        <textarea id="notes" name="notes" placeholder="Availability, other equipment, experience with municipal/emergency work…"></textarea>
+      </div>
+
+      <button class="btn btn-primary" type="submit" id="opSubmit" style="margin-top:24px;width:100%;justify-content:center;">Join the network</button>
+      <p class="form-note">By submitting you agree we may contact you about snow-removal work. No account is created and there's no obligation.</p>
+      <div class="form-msg" id="opMsg" role="status" aria-live="polite"></div>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="brand" style="font-size:18px;">
+      <svg viewBox="0 0 24 24" fill="#4A90D9" style="width:20px;height:20px;"><path d="M22,11h-4.17l3.24,-3.24l-1.41,-1.42L15,11h-2V9l4.66,-4.66l-1.42,-1.41L13,6.17V2h-2v4.17L7.76,2.93L6.34,4.34L11,9v2H9L4.34,6.34L2.93,7.76L6.17,11H2v2h4.17l-3.24,3.24l1.41,1.42L9,13h2v2l-4.66,4.66l1.42,1.41L11,17.83V22h2v-4.17l3.24,3.24l1.42,-1.41L13,15v-2h2l4.66,4.66l1.41,-1.42L15.83,13H22z"/></svg>
+      SnowServ
+    </div>
+    <div>
+      <a href="/">Home</a>
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms of Service</a>
+      <a href="mailto:support@snowserv.app">Contact</a>
+    </div>
+    <div class="fine">© <span id="yr"></span> SnowServ. All rights reserved. &nbsp;·&nbsp; support@snowserv.app</div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+
+  // Public Supabase anon (publishable) key — safe in client code by design.
+  var SB_URL = 'https://swttuujhcgpcsrxgupzv.supabase.co';
+  var SB_KEY = 'sb_publishable_SnyCvdfwgHOQe-NB0D8Ipw_DUI9uWRe';
+
+  var form = document.getElementById('opForm');
+  var msg = document.getElementById('opMsg');
+  var btn = document.getElementById('opSubmit');
+
+  function val(id) {
+    var el = document.getElementById(id);
+    var v = (el.value || '').trim();
+    return v === '' ? null : v;
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    msg.className = 'form-msg';
+    if (!val('name') || !val('email') || !val('equipment')) {
+      msg.className = 'form-msg err';
+      msg.textContent = 'Please fill in your name, email, and primary equipment.';
+      return;
+    }
+    btn.disabled = true;
+    var original = btn.textContent;
+    btn.textContent = 'Submitting…';
+
+    var payload = {
+      name: val('name'), company: val('company'), email: val('email'),
+      phone: val('phone'), equipment: val('equipment'), fleet: val('fleet'),
+      base_zip: val('base_zip'), service_radius: val('service_radius'),
+      insured: document.getElementById('insured').checked, dot_number: val('dot_number'),
+      notes: val('notes')
+    };
+
+    try {
+      var res = await fetch(SB_URL + '/rest/v1/operator_network', {
+        method: 'POST',
+        headers: {
+          'apikey': SB_KEY,
+          'Authorization': 'Bearer ' + SB_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      form.reset();
+      msg.className = 'form-msg ok';
+      msg.textContent = "You're on the list. We'll reach out when there's work in your area — thanks for joining.";
+    } catch (err) {
+      msg.className = 'form-msg err';
+      msg.innerHTML = 'Something went wrong submitting the form. Please email us at <a href="mailto:support@snowserv.app">support@snowserv.app</a> and we\'ll add you.';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+</script>
+</body>
+</html>

@@ -90,8 +90,26 @@ footer .fine { width: 100%; margin-top: 20px; border-top: 1px solid rgba(255,255
 .legal a.back { display: inline-block; margin-bottom: 24px; font-weight: 600; }
 .disc { background: var(--frost); border-left: 3px solid var(--glacier); padding: 14px 18px; border-radius: 8px; font-size: 14px; color: var(--ink-soft); margin-top: 28px; }
 
+/* Operator signup form */
+.form-wrap { max-width: 640px; margin: 40px auto 0; text-align: left; }
+.field { margin-top: 18px; }
+.field.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.field label { display: block; font-weight: 600; color: var(--navy); font-size: 14px; margin-bottom: 6px; }
+.field input, .field select, .field textarea {
+  width: 100%; padding: 12px 14px; border: 1px solid var(--hairline); border-radius: 12px;
+  font-family: inherit; font-size: 15px; color: var(--ink); background: #fff;
+}
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--ice-light); }
+.field textarea { resize: vertical; min-height: 84px; }
+.check-row { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+.check-row input { width: auto; }
+.form-note { color: var(--ink-soft); font-size: 12.5px; margin-top: 12px; text-align: center; }
+.form-msg { margin-top: 16px; padding: 12px 16px; border-radius: 12px; font-size: 14.5px; display: none; }
+.form-msg.ok  { display: block; background: #E7F6EC; color: #1B7A3D; }
+.form-msg.err { display: block; background: #FDEAEA; color: #B3261E; }
+
 @media (max-width: 760px) {
   .hero h1 { font-size: 36px; }
-  .steps, .two-col { grid-template-columns: 1fr; }
+  .steps, .two-col, .field.row2 { grid-template-columns: 1fr; }
   nav { display: none; }
 }
