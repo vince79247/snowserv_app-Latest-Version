@@ -37,6 +37,25 @@ growth) · **PRO** (needs an attorney/CPA — don't guess).
   much. If pursued, do it as a separate **"Request a quote"** flow (customer
   describes the site → you price manually / send a contract), not instant pricing.
   Probably a post-launch product line once residential is proven.
+- **Emergency / disaster snow-removal network (heavy-equipment operators)** —
+  PHASE 2/3 (idea, Vince 2026-07-16). Position SnowServ as the single point of
+  contact a municipality/state calls in a declared snow emergency (e.g. Buffalo
+  2022): activate a pre-vetted pool of operators with triaxle dumps, loaders,
+  and haul trucks, dispatch them by location/capability (the residential dispatch
+  engine transfers almost directly), log hours/GPS/loads for FEMA reimbursement,
+  and take a margin/commission — the same prime+subcontractor model that already
+  exists for hurricane debris (AshBritt/CrowderGulf). REALITIES that make this a
+  SEPARATE BUSINESS, not a feature: customer is government (B2G, slow procurement),
+  FEMA reimburses the *city* (≥75%) rather than hiring trucks directly, contracts
+  are awarded via RFP *before* the storm (pre-positioning is everything), and it
+  needs heavy insurance/bonding/prevailing-wage compliance. A different supply
+  side too (trucking/excavation companies, not driveway providers). DO NOT build
+  the contracting/B2G side pre-launch. **CHEAP thing worth starting early: passively
+  collect the supply side** — a "Commercial & Emergency Response Network" operator
+  intake (equipment type, capacity, location, insurance/DOT) so the network moat
+  builds before competitors think of it and you can tell a city "we already have N
+  operators on standby in your county." Cheapest channel = a form on the marketing
+  website → a Supabase table (mirrors the waitlist insert pattern), no app build.
 
 ## Payments, tax & legal
 - **Stripe Connect** — NOW (high priority, architectural). Today all money lands in
