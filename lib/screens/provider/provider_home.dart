@@ -50,6 +50,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   bool loading = false;
   RealtimeChannel? _jobsChannel;
   StreamSubscription? _fcmSub;
+  StreamSubscription<Position>? _locationSub;
   Timer? _countdownTimer;
   int _secondsRemaining = AppConfig.dispatchTimeoutSeconds;
   bool _declining = false;
@@ -74,6 +75,36 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     loadWaitingJobs();
   }
 
+  // While the provider is online, keep providers.current_lat/lng fresh as they
+  // drive. Dispatch ranks by this location, so a one-shot fix at go-online (their
+  // driveway) would keep routing jobs to a stale spot all shift. Foreground /
+  // when-in-use only — NO background location. distanceFilter throttles DB writes
+  // to roughly every 75 m moved, not every GPS tick.
+  void _startLocationUpdates() {
+    _locationSub?.cancel();
+    _locationSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 75,
+      ),
+    ).listen((position) async {
+      if (providerId == null || !isOnline) return;
+      try {
+        await supabase.from('providers').update({
+          'current_lat': position.latitude,
+          'current_lng': position.longitude,
+        }).eq('id', providerId!);
+      } catch (e) {
+        debugPrint('Live location update failed: $e');
+      }
+    }, onError: (e) => debugPrint('Location stream error: $e'), cancelOnError: false);
+  }
+
+  void _stopLocationUpdates() {
+    _locationSub?.cancel();
+    _locationSub = null;
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // While the app is backgrounded (e.g. the provider is in Apple Maps after
@@ -87,6 +118,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     WidgetsBinding.instance.removeObserver(this);
     _jobsChannel?.unsubscribe();
     _fcmSub?.cancel();
+    _locationSub?.cancel();
     _stopCountdown();
     super.dispose();
   }
@@ -216,9 +248,12 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     });
 
     if (value) {
+      _startLocationUpdates();
       loadDispatchedJob();
       _checkAndDispatchWaitingJob();
       loadWaitingJobs();
+    } else {
+      _stopLocationUpdates();
     }
   }
 
