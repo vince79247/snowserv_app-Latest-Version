@@ -61,10 +61,12 @@ snow removal,snow plowing,driveway,shoveling,snow shovel,salting,deicing,plow,wi
 ## 6. URLs
 - **Support URL:** https://snowserv.app  (or a support page; support@snowserv.app is live)
 - **Marketing URL:** https://snowserv.app
-- **Privacy Policy URL** (ALREADY published, from lib/utils/legal.dart):
-  https://docs.google.com/document/d/e/2PACX-1vTs3QKh1Sh_d9RfCX4w1lgWhugWIld3VGiLSJnFHE5-Yd-qIj9v5rrrI8FMYTtYa85aY2aP2-aKFHRi/pub
-  - NOTE: a docs.google.com URL is accepted, but a branded snowserv.app/privacy page
-    reads better and is more durable. Optional polish, not a blocker.
+- **Privacy Policy URL:** https://snowserv.app/privacy  (LIVE — verified HTTP 200, 2026-07-17)
+- **Terms of Service URL** (if the form asks): https://snowserv.app/terms  (LIVE)
+  - NOTE: the IN-APP legal links (lib/utils/legal.dart) still point to the older
+    Google-Docs copies of these. A 2-line update to the snowserv.app pages should ride
+    the next app build for consistency — not a submission blocker (the Google-Docs
+    links still open fine).
 
 ## 7. App Review notes  ← the most important part for avoiding rejection
 ```
@@ -136,16 +138,32 @@ Tip: use a clean demo account with realistic sample data; hide any real personal
 
 ---
 
+## Pre-submission verification (Claude, 2026-07-17 — tested against the LIVE DB)
+The demo review path was re-checked end-to-end after the RLS lockdown + signup-trigger
+changes, since a broken demo login is the #1 rejection cause:
+- ✅ **Demo login works** — `support@snowserv.app / SnowServReview1` authenticates against
+  the live auth endpoint and issues a token. Account is a **confirmed customer**.
+- ✅ **Yonkers service zone is ACTIVE** with a polygon (5 vertices) + zip fallback and live
+  pricing (driveway $120 / both $160 / salting $45) — so the reviewer's Yonkers test
+  address will price and order (won't hit "not available in your area").
+- ✅ **Stripe is in TEST mode**; the 4242… test card + the manual-capture hold flow are
+  what the reviewer note describes. (Webhook → job-create verified earlier in the build.)
+- ℹ️ No provider is online, which is fine: the customer flow places the order and it shows
+  as an active job regardless. Provider-side demo is offered "on request" in the notes.
+
 ## What's DONE vs. what needs YOU
 DONE (in repo / already set up): app name, bundle id com.snowserv.app, icon+splash,
-working iOS Stripe Checkout, **privacy policy + terms already published and linked in-app.**
+working iOS Stripe Checkout, **privacy policy + terms published (snowserv.app/privacy,
+/terms — LIVE)**, export-compliance exemption declared, demo review account verified.
 
 NEEDS YOU:
-- [x] Demo review account (customer): support@snowserv.app / SnowServReview1 (done 2026-07-12).
-- [ ] Capture **screenshots** (§11).
+- [x] Demo review account (customer): support@snowserv.app / SnowServReview1 — **verified
+      working 2026-07-17** (authenticates + confirmed customer).
+- [ ] Capture **screenshots** (§11) — the one thing only you can do (needs the app running).
 - [ ] Create the app record in **App Store Connect** and paste §1–§10.
-- [ ] Verify a clean **release build** on a real iPhone, then archive + upload (the
-      TestFlight/next hands-on session).
+- [ ] Upload **build 7** (Face ID + live-location fixes) via Xcode, then submit for review.
+- [ ] (Optional) If you want the reviewer to see the provider side too, create one provider
+      login and I'll approve + position it in Yonkers so a test order dispatches live.
 
 ## Not required (so we don't chase them)
 - Sign in with Apple: only required if we add social login (Google/Facebook). We use
