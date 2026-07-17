@@ -741,6 +741,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   String? _customerPhone(dynamic customerId) =>
       _customerRow(customerId)['phone'] as String?;
 
+  String? _customerEmail(dynamic customerId) =>
+      _customerRow(customerId)['email'] as String?;
+
   num _jobPrice(Map<String, dynamic> j) =>
       (j['final_price'] ?? j['base_price'] ?? 0) as num;
 
@@ -770,6 +773,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     if (!await launchUrl(uri) && mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('$phone')));
+    }
+  }
+
+  // Opens the admin's mail app (Zoho/Apple Mail/etc.) pre-addressed to the
+  // customer — sends from support@snowserv.app if that's the default account.
+  // No email backend needed; for branded/templated/logged sends we'd route
+  // through the Resend edge function instead (see PRELAUNCH #5).
+  Future<void> _email(String address, {String? subject}) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: address.trim(),
+      query: subject == null ? null : 'subject=${Uri.encodeComponent(subject)}',
+    );
+    if (!await launchUrl(uri) && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(address)));
     }
   }
 
@@ -807,6 +825,34 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   minimumSize: const Size(0, 32)),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  // Email quick action — its own row because addresses are long. Opens the
+  // admin's mail client pre-addressed (optionally with a subject).
+  Widget _emailRow(String label, String? email, {String? subject}) {
+    if (email == null || email.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.email_outlined, size: 16, color: SnowServColors.navy),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(email,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: SnowServColors.navy)),
+          ),
+          TextButton.icon(
+            onPressed: () => _email(email, subject: subject),
+            icon: const Icon(Icons.send_outlined, size: 16),
+            label: const Text('Email'),
+            style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32)),
+          ),
         ],
       ),
     );
@@ -1811,6 +1857,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ],
                 ),
                 _contactRow('Customer', _customerPhone(job['customer_id'])),
+                _emailRow('Customer', _customerEmail(job['customer_id']),
+                    subject: job['job_number'] != null
+                        ? 'SnowServ — regarding your order #${job['job_number']}'
+                        : 'SnowServ — regarding your order'),
                 Row(
                   children: [
                     const Icon(Icons.local_shipping,
