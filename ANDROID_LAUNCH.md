@@ -12,8 +12,11 @@ I can do in the repo · ✅ done.
       namespace + applicationId + MainActivity moved. — done, commit `<pending>`.
 - [ ] **[you]** Generate a **release keystore** (one-time) and keep the passwords safe:
       `keytool -genkey -v -keystore ~/snowserv-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias snowserv`
-- [ ] **[claude]** Wire `android/key.properties` + release `signingConfig` in Gradle
-      (and gitignore the keystore + key.properties). Do AFTER you make the keystore.
+      Then copy `android/key.properties.example` → `android/key.properties` and fill in
+      the four values. That's the ONLY remaining step to get signed release bundles.
+- [x] **[claude]** Wired release `signingConfig` in Gradle to read from
+      `android/key.properties` (gitignored) with a debug-key fallback so builds don't
+      break pre-keystore; added `key.properties.example` template. — done 2026-07-17.
 
 ## 2. Firebase Android app (unlocks FCM push)
 - [x] **[claude]** Android app registered in Firebase (`com.snowserv.app`,
@@ -36,10 +39,16 @@ I can do in the repo · ✅ done.
       login, order, dispatch, and a **real push job offer** landing on Android.
       (Needs a physical Android phone or an emulator — none connected yet.)
 
-## 5. Play Store prep (later)
-- [ ] **[you]** Google Play Developer account ($25 one-time).
-- [ ] **[claude]** `flutter build appbundle` config, versioning, store listing assets.
-- [ ] **[you]** Privacy policy URL, data-safety form, screenshots.
+## 5. Play Store prep
+- [ ] **[you]** Google Play Developer account ($25 one-time) — registering as the
+      **LLC/organization** (decided 2026-07-17: skips the 20-testers/14-day rule that
+      new *personal* accounts must do). Needs a **D-U-N-S number** (free from D&B, ~1–2
+      wks, only needs the EIN *number* not the 147C) — start that request now.
+- [x] **[claude]** `flutter build appbundle` VERIFIED — produces a release `.aab`
+      (58 MB) cleanly. 2026-07-17. (Debug-signed until key.properties exists; §1.)
+- [ ] **[claude]** Store listing assets + data-safety form draft (can reuse the iOS
+      App Store listing copy).
+- [ ] **[you]** Privacy policy URL (have it: snowserv.app/privacy), screenshots, submit.
 
 ---
 ## Known cross-platform issues found in the audit (not Android-specific)

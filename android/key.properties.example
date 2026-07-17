@@ -1,0 +1,21 @@
+# SnowServ — Android release signing config.
+#
+# COPY this file to  android/key.properties  and fill in your real values.
+# key.properties and *.jks are GITIGNORED — never commit them, and never lose the
+# passwords: if you lose the keystore you can never publish an update to this app
+# on Google Play again.
+#
+# 1) Generate the upload keystore ONCE (keep the passwords somewhere safe like a
+#    password manager):
+#
+#      keytool -genkey -v -keystore ~/snowserv-release.jks \
+#        -keyalg RSA -keysize 2048 -validity 10000 -alias snowserv
+#
+# 2) Copy this file to android/key.properties and fill in the four values below.
+# 3) `flutter build appbundle` will then produce a properly-signed release .aab.
+
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=snowserv
+# Absolute path to the .jks you generated in step 1:
+storeFile=/Users/vince/snowserv-release.jks
