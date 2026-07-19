@@ -703,16 +703,16 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   }
 
   // Claim a job off the "Jobs Waiting" board. Unlike a pushed dispatch, this
-  // is provider-initiated, so it works even for a job this provider declined
-  // earlier (we drop them from the rejected list). The conditional update is
-  // atomic — only the first provider to grab an unclaimed job wins.
+  // is provider-initiated and does NOT consult rejected_providers, so it works
+  // even for a job this provider declined earlier. We deliberately leave
+  // rejected_providers untouched: writing it back from the client sends text[]
+  // into the uuid[] column (Postgres 42804), and a stale self-entry there only
+  // affects future AUTO re-dispatch, never this manual claim. The conditional
+  // update is atomic — only the first provider to grab an unclaimed job wins.
   Future<void> claimWaitingJob(Map<String, dynamic> job) async {
     if (providerId == null) return;
     final jobId = job['id'].toString();
     try {
-      final rejected = List<dynamic>.from(job['rejected_providers'] ?? [])
-        ..removeWhere((id) => id.toString() == providerId);
-
       int? eta;
       if (job['job_lat'] != null && job['job_lng'] != null) {
         final provData = await supabase
@@ -737,7 +737,6 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
             'provider_id': providerId,
             'dispatched_to': null,
             'dispatched_at': null,
-            'rejected_providers': rejected,
             if (eta != null) 'eta_minutes': eta,
           })
           .eq('id', jobId)
