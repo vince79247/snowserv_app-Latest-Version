@@ -13,7 +13,7 @@ Deno.serve(async (req: Request) => {
     // Load job + provider info
     const { data: job, error: jobErr } = await supabase
       .from('jobs')
-      .select('*, providers!inner(id, stripe_connect_id, payouts_enabled, users!inner(name, email))')
+      .select('*, providers!jobs_provider_id_fkey!inner(id, stripe_connect_id, payouts_enabled, users!inner(name, email))')
       .eq('id', job_id)
       .single()
 

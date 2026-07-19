@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: jobs, error } = await supabase
       .from('jobs')
-      .select('*, providers!inner(id, stripe_connect_id, payouts_enabled, users!inner(name, email, id))')
+      .select('*, providers!jobs_provider_id_fkey!inner(id, stripe_connect_id, payouts_enabled, users!inner(name, email, id))')
       .eq('status', 'completed')
       .eq('payout_status', 'pending')
       .lt('created_at', cutoff)
