@@ -2,6 +2,17 @@
   "hosting": {
     "public": "build/web",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "headers": [
+      {
+        "//": "Always revalidate the root and every HTML/JS entry point (incl. the un-hashed main.dart.js) so a redeploy can never strand a browser on a stale build — the Flutter-web white-screen-after-deploy. 304s make this near-free. Big hashed assets (wasm, fonts, images) keep the default cache.",
+        "source": "/",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "**/*.@(html|js|json)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
   }
 }
