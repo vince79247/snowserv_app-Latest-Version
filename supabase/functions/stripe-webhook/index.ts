@@ -145,8 +145,16 @@ Deno.serve(async (req: Request) => {
       payment_intent_id: paymentIntentId,
     }
     if (m.customer_notes) jobBody.customer_notes = m.customer_notes
+    // Driveway size for qualification dispatch (only present on driveway orders).
+    if (m.driveway_size) jobBody.driveway_size = m.driveway_size
     if (m.job_lat) jobBody.job_lat = Number(m.job_lat)
     if (m.job_lng) jobBody.job_lng = Number(m.job_lng)
+    // Sales tax Stripe Tax calculated on this order (cents → dollars). It stays with
+    // the platform to remit to the state — providers are paid off the pre-tax
+    // final_price, never this. $0 until a tax registration exists (pre-CoA).
+    if (session.total_details && session.total_details.amount_tax != null) {
+      jobBody.tax_amount = Number(session.total_details.amount_tax) / 100
+    }
 
     const jobRes = await fetch(`${supabaseUrl}/rest/v1/jobs`, {
       method: 'POST',

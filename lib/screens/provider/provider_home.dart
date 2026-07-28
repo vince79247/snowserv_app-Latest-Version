@@ -529,8 +529,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
                 leading: const Icon(Icons.directions_car_outlined, color: SnowServColors.navy),
-                title: const Text('Vehicle & Insurance'),
-                subtitle: const Text('Update your vehicle, deicer & insurance'),
+                title: const Text('Equipment, Vehicle & Insurance'),
+                subtitle: const Text('Update your equipment, vehicle, deicer & insurance'),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context,
@@ -553,7 +553,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                 title: const Text('Help & FAQ'),
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const FaqScreen()));
+                  Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => const FaqScreen(initialTab: 1)));
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
@@ -877,6 +878,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
 
     final confirmed = await showDialog<bool>(
       context: context,
+      // Non-dismissible: a stray tap on the scrim must not discard a photo the
+      // provider just captured (they back out via Cancel). Low-RAM Android can
+      // also kill the app while the camera is open — this at least removes the
+      // accidental-dismiss path.
+      barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Start Job'),
@@ -974,8 +980,16 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     return photos;
   }
 
+  // Re-entrancy guards: block a double-tap from stacking a second Start/Complete
+  // dialog (a real risk on a laggy device — you can tap twice before the first
+  // dialog appears).
+  bool _startBusy = false;
+  bool _completeBusy = false;
+
   Future<void> markInProgress(Map<String, dynamic> job) async {
     final jobId = job['id'].toString();
+    if (_startBusy) return;
+    _startBusy = true;
     try {
       // Guard against a stale card: if the customer cancelled (or the job
       // otherwise moved on) but the dashboard hadn't refreshed, don't start it
@@ -1095,11 +1109,15 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           SnackBar(content: Text('Error: $e')),
         );
       }
+    } finally {
+      _startBusy = false;
     }
   }
 
   Future<void> completeJob(Map<String, dynamic> job) async {
     final jobId = job['id'].toString();
+    if (_completeBusy) return;
+    _completeBusy = true;
     final notesController = TextEditingController();
     final List<File> selectedPhotos = [];
     final picker = ImagePicker();
@@ -1110,6 +1128,9 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
 
     final confirmed = await showDialog<bool>(
       context: context,
+      // Non-dismissible: don't let a stray scrim tap throw away the required
+      // completion photo mid-flow (the provider backs out via Cancel).
+      barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Complete Job'),
@@ -1226,6 +1247,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         ),
       ),
     );
+    _completeBusy = false; // dialog closed — reset the double-tap guard
 
     if (confirmed != true) return;
 

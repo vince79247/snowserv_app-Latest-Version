@@ -26,6 +26,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
 
   // Step 1 - Equipment
   String _providerType = 'solo';
+  // Primary equipment — drives qualification-based dispatch. Defaults to the
+  // conservative 'shovel' (won't over-promise driveway capability); providers
+  // pick snowblower/plow to be matched to driveway jobs.
+  String _equipment = 'shovel';
   int _crewSize = 1;
   bool _hasVehicle = false;
   final _vehicleMakeController = TextEditingController();
@@ -241,6 +245,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
 
       await supabase.from('providers').update({
         'provider_type': _providerType,
+        'equipment': _equipment,
         'crew_size': _crewSize,
         'has_vehicle': _hasVehicle,
         'has_salt': _hasSalt,
@@ -465,6 +470,36 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             onChanged: (val) => setState(() {
               _providerType = val!;
               _crewSize = val == 'solo' ? 1 : val == 'small_crew' ? 2 : 4;
+            }),
+          ),
+          const SizedBox(height: 16),
+          const Text('Primary equipment',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          const Text(
+            'This is how we match you to jobs. Pick Snowblower or Plow truck to '
+            'be sent driveway jobs; Shovel only gets walkway & sidewalk jobs.',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _equipment,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(
+                  value: 'shovel',
+                  child: Text('Shovel only (walkways & sidewalks)')),
+              DropdownMenuItem(
+                  value: 'snowblower',
+                  child: Text('Snowblower (driveways & walkways)')),
+              DropdownMenuItem(
+                  value: 'plow', child: Text('Plow truck (driveways & lots)')),
+            ],
+            onChanged: (val) => setState(() {
+              _equipment = val!;
+              // A plow truck IS a vehicle → auto-enable the vehicle/insurance
+              // flow so they don't have to toggle it separately.
+              if (val == 'plow') _hasVehicle = true;
             }),
           ),
           const SizedBox(height: 16),

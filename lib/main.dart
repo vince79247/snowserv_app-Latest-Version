@@ -10,6 +10,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/customer/customer_home.dart';
 import 'screens/provider/provider_home.dart';
+import 'screens/admin/admin_screen.dart';
 import 'screens/provider/provider_registration_screen.dart';
 import 'theme.dart';
 import 'config/app_config.dart';
@@ -222,6 +223,9 @@ class RoleRouter extends StatefulWidget {
 class _RoleRouterState extends State<RoleRouter> {
   String? role;
   String? registrationStatus;
+  // Admin is a first-class login: an is_admin account lands straight on the
+  // Admin Panel — it is NOT a customer or provider and never sees those homes.
+  bool isAdmin = false;
 
   @override
   void initState() {
@@ -359,7 +363,7 @@ class _RoleRouterState extends State<RoleRouter> {
     try {
       final data = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, is_admin')
           .eq('id', supabase.auth.currentUser!.id)
           .maybeSingle();
       if (data == null) {
@@ -369,6 +373,7 @@ class _RoleRouterState extends State<RoleRouter> {
         return;
       }
       final fetchedRole = data['role'] as String?;
+      final fetchedAdmin = data['is_admin'] == true;
 
       if (fetchedRole == 'provider') {
         final providerData = await supabase
@@ -379,11 +384,17 @@ class _RoleRouterState extends State<RoleRouter> {
         if (mounted) {
           setState(() {
             role = fetchedRole;
+            isAdmin = fetchedAdmin;
             registrationStatus = providerData?['registration_status'] ?? 'incomplete';
           });
         }
       } else {
-        if (mounted) setState(() => role = fetchedRole);
+        if (mounted) {
+          setState(() {
+            role = fetchedRole;
+            isAdmin = fetchedAdmin;
+          });
+        }
       }
     } catch (e) {
       if (mounted) setState(() => role = 'unknown');
@@ -395,6 +406,9 @@ class _RoleRouterState extends State<RoleRouter> {
     if (role == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    // Admin is first-class: an admin account goes straight to the Admin Panel,
+    // never a customer/provider home. Driven by is_admin (role may also be 'admin').
+    if (isAdmin || role == 'admin') return const AdminPanelScreen();
     if (role == 'customer') return const CustomerHome();
     if (role == 'provider') {
       if (registrationStatus == 'approved') return const ProviderHome();

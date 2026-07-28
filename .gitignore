@@ -37,3 +37,10 @@ supabase/.temp/
 
 # Secrets
 *firebase-adminsdk*.json
+android/key.properties
+*.jks
+*.keystore
+
+# Local tooling caches
+.claude/
+.firebase/

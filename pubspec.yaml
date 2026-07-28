@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+10
+version: 1.0.0+11
 
 environment:
   sdk: ^3.12.2
@@ -62,6 +62,14 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon.png"
   remove_alpha_ios: true
+  # Web PWA + favicon — regenerates web/icons/* + web/favicon.png from the real
+  # SnowServ snowflake (they were still the default Flutter logo). Colors match
+  # the navy icon background.
+  web:
+    generate: true
+    image_path: "assets/icon.png"
+    background_color: "#0D1B2A"
+    theme_color: "#0D1B2A"
 
 # Launch screen. Frost background (matches the app's scaffold color) with the
 # app icon centered — the navy snowflake reads cleanly on the light background

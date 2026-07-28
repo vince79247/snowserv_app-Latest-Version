@@ -43,9 +43,13 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
   Future<void> loadHistory() async {
     setState(() => loading = true);
     try {
+      // Explicit columns only — never '*' — so provider_notes and other admin-only
+      // fields are not shipped to the customer's device (see customer_home loadMyJobs).
       final data = await supabase
           .from('jobs')
-          .select('*, addresses(*)')
+          .select('id, job_number, status, service_type, driveway, walkway, salting, '
+              'base_price, surge_multiplier, final_price, snow_level, completion_photos, '
+              'customer_rating, created_at, provider_id, addresses(*)')
           .eq('customer_id', supabase.auth.currentUser!.id)
           .eq('status', 'completed')
           .order('created_at', ascending: false);

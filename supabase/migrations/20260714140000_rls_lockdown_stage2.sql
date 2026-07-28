@@ -53,14 +53,14 @@ create or replace function public.provider_release_job(p_job_id uuid)
 returns boolean language plpgsql security definer set search_path = public as $$
 declare
   v_mine uuid[];
-  v_status text; v_prov uuid; v_disp uuid; v_rejected text[];
+  v_status text; v_prov uuid; v_disp uuid; v_rejected uuid[];
   v_was_inprogress boolean;
-  v_actor text;
+  v_actor uuid;
 begin
   select array_agg(id) into v_mine from public.providers where user_id = auth.uid();
   if v_mine is null then raise exception 'not a provider'; end if;
 
-  select status, provider_id, dispatched_to, coalesce(rejected_providers, '{}')
+  select status, provider_id, dispatched_to, coalesce(rejected_providers, '{}'::uuid[])
     into v_status, v_prov, v_disp, v_rejected
     from public.jobs where id = p_job_id for update;
   if not found then raise exception 'job not found'; end if;
@@ -70,7 +70,7 @@ begin
   end if;
 
   v_was_inprogress := (v_status = 'in_progress');
-  v_actor := coalesce(v_prov, v_disp)::text;
+  v_actor := coalesce(v_prov, v_disp);
 
   update public.jobs set
     status = 'requested',

@@ -6,8 +6,9 @@ import '../../theme.dart';
 
 final _supabase = Supabase.instance.client;
 
-/// Lets an approved provider update the vehicle, equipment and insurance details
-/// on file (e.g. a new truck, a new insurance carrier). Contact info (name/phone)
+/// Lets an approved provider update their equipment (dispatch-matching), vehicle,
+/// and insurance details on file (e.g. a new truck, a broken snowblower, a new
+/// insurance carrier). Contact info (name/phone)
 /// lives in EditProfileScreen; payouts (bank/ID) are handled by Stripe Connect
 /// Express via the account menu. The driver's-license record is intentionally
 /// NOT editable here — changing it should go through support / re-verification.
@@ -31,6 +32,10 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
   final _policyCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
 
+  // Primary equipment — drives which jobs dispatch prefers you for (see the
+  // Getting Started / Dispatching FAQ). Editable any time: gear breaks, gets
+  // sold, or gets upgraded, so this shouldn't be locked to registration.
+  String _equipment = 'shovel';
   bool _hasVehicle = false;
   bool _hasSalt = false;
   File? _newInsurancePhoto;
@@ -62,10 +67,15 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
       final p = await _supabase
           .from('providers')
           .select(
-              'has_vehicle, vehicle_make, vehicle_model, vehicle_year, vehicle_plate, vehicle_vin, crew_size, has_salt, insurance_carrier, insurance_policy, insurance_expiry, insurance_photo_url')
+              'equipment, has_vehicle, vehicle_make, vehicle_model, vehicle_year, vehicle_plate, vehicle_vin, crew_size, has_salt, insurance_carrier, insurance_policy, insurance_expiry, insurance_photo_url')
           .eq('user_id', id)
           .maybeSingle();
       if (p != null && mounted) {
+        // Legacy providers (registered before this field) have equipment=null —
+        // fall back to has_vehicle as the best guess (matches the dispatch
+        // migration's own backfill), so the dropdown never shows a wrong pick.
+        _equipment = (p['equipment'] as String?) ??
+            (p['has_vehicle'] == true ? 'plow' : 'shovel');
         _hasVehicle = p['has_vehicle'] == true;
         _hasSalt = p['has_salt'] == true;
         _makeCtrl.text = (p['vehicle_make'] as String?) ?? '';
@@ -99,6 +109,7 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
     try {
       final id = _supabase.auth.currentUser!.id;
       final update = <String, dynamic>{
+        'equipment': _equipment,
         'has_vehicle': _hasVehicle,
         'crew_size': int.tryParse(_crewCtrl.text.trim()) ?? 1,
         'has_salt': _hasSalt,
@@ -167,7 +178,7 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Vehicle & Insurance')),
+      appBar: AppBar(title: const Text('Equipment, Vehicle & Insurance')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -175,6 +186,36 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  _sectionTitle('Equipment'),
+                  const Text(
+                    'This is how we match you to jobs — keep it current if your '
+                    'gear changes (breaks down, gets sold, gets upgraded). Pick '
+                    'Snowblower or Plow truck to be sent driveway jobs.',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: _equipment,
+                    decoration:
+                        const InputDecoration(border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(
+                          value: 'shovel',
+                          child: Text('Shovel only (walkways & sidewalks)')),
+                      DropdownMenuItem(
+                          value: 'snowblower',
+                          child:
+                              Text('Snowblower (driveways & walkways)')),
+                      DropdownMenuItem(
+                          value: 'plow',
+                          child: Text('Plow truck (driveways & lots)')),
+                    ],
+                    onChanged: (v) => setState(() {
+                      _equipment = v!;
+                      if (v == 'plow') _hasVehicle = true;
+                    }),
+                  ),
+                  const Divider(height: 28),
                   _sectionTitle('Vehicle'),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -201,6 +242,22 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
                   ),
                   const Divider(height: 28),
                   _sectionTitle('Insurance'),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      _hasVehicle
+                          ? '* Required — vehicle & plow providers must carry liability insurance.'
+                          : 'Optional for shovel & snowblower providers — you can leave this blank. Add it only if you carry your own coverage.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight:
+                            _hasVehicle ? FontWeight.w600 : FontWeight.normal,
+                        color: _hasVehicle
+                            ? SnowServColors.danger
+                            : Colors.black54,
+                      ),
+                    ),
+                  ),
                   _field(_carrierCtrl, 'Insurance carrier'),
                   _field(_policyCtrl, 'Policy number'),
                   _field(_expiryCtrl, 'Expiry (MM/YYYY)'),

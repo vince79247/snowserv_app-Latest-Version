@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../theme.dart';
+import '../../config/app_config.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/legal.dart';
 import '../../utils/account_deletion.dart';
@@ -26,25 +27,11 @@ final supabase = Supabase.instance.client;
 // build returns to its own origin instead, so it never uses this.
 const _kFunctionsBase = 'https://swttuujhcgpcsrxgupzv.supabase.co/functions/v1';
 
-/// Storm-pricing bands — the SINGLE SOURCE OF TRUTH for both the surge
-/// multiplier (loadSurge) and the customer-facing snow-depth price scale, so the
-/// scale can never disagree with what's actually charged. Snow on the
-/// ground -> price multiplier.
-class StormBand {
-  final int minInches; // inclusive lower bound
-  final int? maxInches; // exclusive upper bound; null = open-ended top band
-  final double multiplier;
-  const StormBand(this.minInches, this.maxInches, this.multiplier);
-  String get label =>
-      maxInches == null ? '$minInches"+' : '$minInches–$maxInches"';
-}
-
-const List<StormBand> kStormBands = [
-  StormBand(0, 3, 1.0),
-  StormBand(3, 6, 1.3),
-  StormBand(6, 10, 1.7),
-  StormBand(10, null, 2.3),
-];
+// Storm-pricing bands are the SINGLE SOURCE OF TRUTH for both the surge
+// multiplier (loadSurge) and the customer-facing snow-depth price scale, so the
+// scale can never disagree with what's charged. They now live in AppConfig
+// (admin-editable via app_settings.storm_bands) — read AppConfig.stormBands.
+// The StormBand type is defined there too.
 
 class CustomerHome extends StatefulWidget {
   const CustomerHome({super.key});
@@ -55,6 +42,10 @@ class CustomerHome extends StatefulWidget {
 
 class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver {
   String selectedService = 'sidewalk';
+  // Driveway size — only asked when the order includes a driveway. Drives
+  // qualification dispatch (a large driveway prefers snowblower/plow); it does
+  // NOT change the price. Defaults to 'small' so we never over-classify.
+  String drivewaySize = 'small';
   bool salting = false;
   bool loading = false;
   List<Map<String, dynamic>> myJobs = [];
@@ -214,11 +205,11 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
       // Storm pricing (formerly "surge") — reflects how much harder the job is
       // at depth, and helps get providers out in bad storms. Contiguous bands:
       // 0-3" 1.0x, 3-6" 1.3x, 6-10" 1.7x, 10"+ 2.3x.
-      // Highest band whose threshold the current depth meets (kStormBands is
+      // Highest band whose threshold the current depth meets (stormBands is
       // ordered ascending, so the last match wins). Same table drives the
       // customer-facing price scale.
       double multiplier = 1.0;
-      for (final b in kStormBands) {
+      for (final b in AppConfig.stormBands) {
         if (inches >= b.minInches) multiplier = b.multiplier;
       }
 
@@ -270,9 +261,15 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
 
   Future<void> loadMyJobs() async {
     try {
+      // Explicit columns only — never '*'. provider_notes (admin-only remarks),
+      // before_photos, on-site distances, capture_*/payout_* are internal and must
+      // not be shipped to the customer's device even though the UI wouldn't show them.
       final data = await supabase
           .from('jobs')
-          .select()
+          .select('id, job_number, status, service_type, driveway, walkway, salting, '
+              'base_price, surge_multiplier, final_price, snow_level, completion_photos, '
+              'customer_rating, payment_intent_id, created_at, address_id, provider_id, '
+              'dispatched_to, dispatched_at, rejected_providers')
           .eq('customer_id', supabase.auth.currentUser!.id)
           .order('created_at', ascending: false);
       if (!mounted) return;
@@ -611,8 +608,8 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     final depth = snowDepthInches ?? 0;
     final base = getTotalBase();
     int active = 0;
-    for (int i = 0; i < kStormBands.length; i++) {
-      if (depth >= kStormBands[i].minInches) active = i;
+    for (int i = 0; i < AppConfig.stormBands.length; i++) {
+      if (depth >= AppConfig.stormBands[i].minInches) active = i;
     }
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -665,8 +662,8 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                       letterSpacing: 0.5)),
             ],
           ),
-          for (int i = 0; i < kStormBands.length; i++)
-            _scaleRow(kStormBands[i], base, i == active),
+          for (int i = 0; i < AppConfig.stormBands.length; i++)
+            _scaleRow(AppConfig.stormBands[i], base, i == active),
           const SizedBox(height: 10),
           Text(
             'Normally \$$base. Heavy snow means deeper digging and getting a '
@@ -1013,6 +1010,8 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
         'address_mode': orderingForSomeoneElse ? 'new' : 'saved',
         'walkway': (selectedService == 'sidewalk' || selectedService == 'sidewalk_driveway').toString(),
         'driveway': (selectedService == 'driveway' || selectedService == 'sidewalk_driveway').toString(),
+        if (selectedService == 'driveway' || selectedService == 'sidewalk_driveway')
+          'driveway_size': drivewaySize,
         'salting': salting.toString(),
         'base_price': getTotalBase().toString(),
         'surge_multiplier': surgeMultiplier.toString(),
@@ -1103,6 +1102,36 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  // Small/large driveway selector chip (see `drivewaySize`). Dispatch-only; no
+  // price effect.
+  Widget _drivewaySizeChip(String value, String title, String subtitle) {
+    final selected = drivewaySize == value;
+    return GestureDetector(
+      onTap: () => setState(() => drivewaySize = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? SnowServColors.iceBlue : SnowServColors.glacier,
+            width: 2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, color: SnowServColors.navy)),
+            Text(subtitle,
+                style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget serviceButton(String key, String label, int price, IconData icon) {
@@ -1669,6 +1698,27 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
               serviceButton('driveway', 'Driveway Only', _priceDriveway, Icons.directions_car),
               serviceButton('sidewalk_driveway', 'Sidewalk + Driveway', _priceBoth, Icons.home),
 
+            if (selectedService == 'driveway' ||
+                selectedService == 'sidewalk_driveway') ...[
+              const SizedBox(height: 16),
+              const Text('Driveway size',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600, color: SnowServColors.navy)),
+              const SizedBox(height: 2),
+              const Text('Helps us send the right crew — same price either way.',
+                  style: TextStyle(fontSize: 12, color: Colors.black54)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: _drivewaySizeChip('small', 'Small', '1–2 cars')),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: _drivewaySizeChip(
+                          'large', 'Large', '3+ cars / long')),
+                ],
+              ),
+            ],
+
             const SizedBox(height: 16),
             Material(
               color: Colors.white,
@@ -1801,6 +1851,14 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Providers are independent professionals. SnowServ connects you with '
+              'them but isn\'t responsible for property damage from a job — see our '
+              'Terms of Service.',
+              style: TextStyle(
+                  fontSize: 11, color: Colors.grey.shade600, height: 1.3),
             ),
             if (_savedCard != null) ...[
               const SizedBox(height: 8),

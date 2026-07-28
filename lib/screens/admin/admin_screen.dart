@@ -8,6 +8,7 @@ import '../../utils/geo.dart';
 import '../../config/app_config.dart';
 import 'zone_editor_screen.dart';
 import 'admin_map_screen.dart';
+import 'support_assistant_screen.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -287,6 +288,164 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Could not save: $e')));
       }
+    }
+  }
+
+  // Admin-editable storm pricing (snow depth -> price multiplier ladder).
+  // Persists to app_settings.storm_bands via AppConfig; the
+  // create-checkout-session function reads the SAME row, so the customer price
+  // scale and the actual charge stay in lockstep. The first band is always the
+  // standard price (0"/1.0×) and is fixed — the admin tunes the surge bands'
+  // depth thresholds AND their multipliers.
+  Future<void> _editStormPricing() async {
+    // Editable rows = every band above the 0" standard baseline.
+    final rows = AppConfig.stormBands.where((b) => b.minInches > 0).toList();
+    final inchCtrls = [
+      for (final b in rows) TextEditingController(text: b.minInches.toString())
+    ];
+    final multCtrls = [
+      for (final b in rows) TextEditingController(text: _fmtMult(b.multiplier))
+    ];
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Storm pricing'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Price multiplier by snow on the ground. Up to the first '
+                'threshold is the standard price (1.0×). Deeper snow uses that '
+                'band\'s multiplier. Thresholds must increase down the list.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 12),
+              const Row(children: [
+                Expanded(
+                    flex: 5,
+                    child: Text('From (inches)',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey))),
+                SizedBox(width: 10),
+                Expanded(
+                    flex: 4,
+                    child: Text('Multiplier',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey))),
+              ]),
+              const SizedBox(height: 4),
+              for (int i = 0; i < inchCtrls.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: TextField(
+                          controller: inchCtrls[i],
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                            suffixText: '"',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 4,
+                        child: TextField(
+                          controller: multCtrls[i],
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                            suffixText: '×',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (saved != true) return;
+
+    // Parse + validate (mirrors AppConfig.parseStormBands / the server).
+    final mins = <int>[];
+    final mults = <double>[];
+    for (int i = 0; i < inchCtrls.length; i++) {
+      final m = int.tryParse(inchCtrls[i].text.trim());
+      final x = double.tryParse(multCtrls[i].text.trim());
+      if (m == null || x == null) {
+        _stormError('Enter a number in every field.');
+        return;
+      }
+      if (m <= 0) {
+        _stormError('Snow-depth thresholds must be greater than 0 inches.');
+        return;
+      }
+      if (x < AppConfig.stormMultMin || x > AppConfig.stormMultMax) {
+        _stormError(
+            'Multipliers must be between ${AppConfig.stormMultMin.toStringAsFixed(1)}× and ${AppConfig.stormMultMax.toStringAsFixed(1)}×.');
+        return;
+      }
+      if (mins.isNotEmpty && m <= mins.last) {
+        _stormError('Each threshold must be deeper than the one above it.');
+        return;
+      }
+      mins.add(m);
+      mults.add(x);
+    }
+    if (mins.isEmpty) {
+      _stormError('Keep at least one storm band.');
+      return;
+    }
+
+    // Rebuild the full ladder with the fixed 0" standard band on top.
+    final bands = <StormBand>[
+      StormBand(0, mins.first, 1.0),
+      for (int i = 0; i < mins.length; i++)
+        StormBand(mins[i], i < mins.length - 1 ? mins[i + 1] : null, mults[i]),
+    ];
+    try {
+      await AppConfig.setStormBands(bands);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Storm pricing updated.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not save: $e')));
+      }
+    }
+  }
+
+  void _stormError(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -681,6 +840,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         title: const Text('Admin Panel'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.support_agent_outlined),
+            tooltip: 'Support Draft Assistant',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SupportAssistantScreen(),
+              ),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.map_outlined),
             tooltip: 'Live map',
             onPressed: () => Navigator.push(
@@ -696,7 +865,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: loadAll),
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Supabase.instance.client.auth.signOut(),
             child: const Text('Log Out', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -1666,6 +1835,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       children: [
         if (includeTicker) _buildLiveTicker(),
         _dispatchTimerBar(),
+        _stormPricingBar(),
         if (cancelledCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -1699,6 +1869,55 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Compact settings row at the top of the Jobs tab: shows the current dispatch
   // offer window and lets the admin tune it (single source of truth via
   // AppConfig — both the provider countdown and the cron expiry follow it).
+  // Compact summary of the storm ladder in the Jobs tab, e.g.
+  // "3"→1.3× · 6"→1.7× · 10"→2.3×". Tap to edit the thresholds + multipliers.
+  Widget _stormPricingBar() {
+    final surge = AppConfig.stormBands.where((b) => b.minInches > 0).toList();
+    final summary = surge.isEmpty
+        ? 'standard price only'
+        : surge
+            .map((b) => '${b.minInches}"→${_fmtMult(b.multiplier)}×')
+            .join('  ·  ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: InkWell(
+        onTap: _editStormPricing,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.ac_unit, size: 16, color: Colors.orange),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Storm pricing: $summary',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange),
+                ),
+              ),
+              const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.tune, size: 14, color: Colors.orange),
+                SizedBox(width: 4),
+                Text('Edit',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange)),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _dispatchTimerBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),

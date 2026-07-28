@@ -108,14 +108,59 @@ function matchZone(
   return null
 }
 
-// ---- storm pricing (ported from kStormBands) -------------------------------
-const STORM_BANDS = [
+// ---- storm pricing ---------------------------------------------------------
+// The snow-depth -> multiplier ladder. Default = the Yonkers launch ladder; the
+// live value is admin-editable in app_settings.storm_bands, which the Flutter
+// client (AppConfig.stormBands) reads too — so the price shown always equals the
+// price charged. Both sides validate identically and fall back to this default.
+type StormBand = { min: number; mult: number }
+const DEFAULT_STORM_BANDS: StormBand[] = [
   { min: 0, mult: 1.0 },
   { min: 3, mult: 1.3 },
   { min: 6, mult: 1.7 },
   { min: 10, mult: 2.3 },
 ]
-async function surgeForPoint(lat: number | null, lng: number | null): Promise<number> {
+
+// Read + validate app_settings.storm_bands. Any problem → the default ladder, so
+// a bad stored value can never break checkout. Mirror of AppConfig.parseStormBands.
+async function loadStormBands(
+  supabaseUrl: string,
+  dbHeaders: Record<string, string>,
+): Promise<StormBand[]> {
+  try {
+    const r = await fetch(
+      `${supabaseUrl}/rest/v1/app_settings?key=eq.storm_bands&select=value`,
+      { headers: dbHeaders },
+    )
+    const rows = await r.json()
+    const raw = Array.isArray(rows) && rows[0]?.value
+    if (!raw) return DEFAULT_STORM_BANDS
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_STORM_BANDS
+    const bands: StormBand[] = []
+    for (const item of parsed) {
+      const min = Number(item?.min)
+      const mult = Number(item?.mult)
+      if (!Number.isFinite(min) || !Number.isFinite(mult)) return DEFAULT_STORM_BANDS
+      if (min < 0 || mult < 1.0 || mult > 5.0) return DEFAULT_STORM_BANDS
+      bands.push({ min, mult })
+    }
+    bands.sort((a, b) => a.min - b.min)
+    if (bands[0].min !== 0) return DEFAULT_STORM_BANDS
+    for (let i = 1; i < bands.length; i++) {
+      if (bands[i].min <= bands[i - 1].min) return DEFAULT_STORM_BANDS
+    }
+    return bands
+  } catch {
+    return DEFAULT_STORM_BANDS
+  }
+}
+
+async function surgeForPoint(
+  lat: number | null,
+  lng: number | null,
+  bands: StormBand[],
+): Promise<number> {
   if (lat == null || lng == null) return 1.0
   try {
     const url =
@@ -124,7 +169,7 @@ async function surgeForPoint(lat: number | null, lng: number | null): Promise<nu
     const meters = Number(r?.current?.snow_depth ?? 0)
     const inches = (Number.isFinite(meters) ? meters : 0) * 39.3701
     let mult = 1.0
-    for (const b of STORM_BANDS) if (inches >= b.min) mult = b.mult
+    for (const b of bands) if (inches >= b.min) mult = b.mult
     return mult
   } catch {
     return 1.0 // no storm data → base price (never over/undercharge on a fetch error)
@@ -228,7 +273,8 @@ Deno.serve(async (req: Request) => {
         ? perProperty(zone.price_driveway, multiplier)
         : perProperty(zone.price_sidewalk, multiplier)
     const baseTotal = servicePrice + (wantsSalting ? perProperty(zone.price_salting, multiplier) : 0)
-    const surge = await surgeForPoint(geo?.lat ?? null, geo?.lng ?? null)
+    const stormBands = await loadStormBands(supabaseUrl, dbHeaders)
+    const surge = await surgeForPoint(geo?.lat ?? null, geo?.lng ?? null, stormBands)
     const finalPrice = Math.round(baseTotal * surge)
     const amountCents = finalPrice * 100
     if (!Number.isFinite(amountCents) || amountCents < 50) {
@@ -275,6 +321,17 @@ Deno.serve(async (req: Request) => {
     body.append('line_items[0][price_data][currency]', 'usd')
     body.append('line_items[0][price_data][unit_amount]', String(amountCents))
     body.append('line_items[0][price_data][product_data][name]', job_description ?? 'SnowServ snow removal')
+    // Sales tax (Stripe Tax): tax is added ON TOP of the service price (exclusive),
+    // never baked in, so final_price stays the pre-tax amount our payout math uses.
+    // The product tax category comes from the account default (set to "General -
+    // Services" in the Stripe Tax dashboard). INERT until a tax registration exists
+    // for the buyer's state — Stripe computes $0 tax where we aren't registered, so
+    // this is safe to ship before the NY Certificate of Authority registration.
+    body.append('line_items[0][price_data][tax_behavior]', 'exclusive')
+    body.append('automatic_tax[enabled]', 'true')
+    // automatic_tax needs an address to source the rate: collect the payer's billing
+    // address on the Checkout page and let Stripe use it (customer_update[address]).
+    body.append('billing_address_collection', 'required')
     body.append('payment_intent_data[capture_method]', 'manual') // the HOLD
     body.append('payment_intent_data[description]', job_description ?? 'SnowServ snow removal')
     body.append(
@@ -283,6 +340,7 @@ Deno.serve(async (req: Request) => {
     )
     if (customerId) {
       body.append('customer', customerId)
+      body.append('customer_update[address]', 'auto') // save the collected address for tax
       body.append('payment_intent_data[setup_future_usage]', 'off_session')
     }
     for (const [k, v] of Object.entries(meta)) body.append(`metadata[${k}]`, v)

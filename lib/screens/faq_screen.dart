@@ -4,7 +4,13 @@ import '../utils/legal.dart';
 import '../config/app_config.dart';
 
 class FaqScreen extends StatefulWidget {
-  const FaqScreen({super.key});
+  // Which tab opens first: 0 = For Customers, 1 = For Providers. The provider
+  // home screen passes 1 so its "Help & FAQ" entry doubles as a provider guide
+  // (Getting Started / How Dispatching Works / Earnings / Using the App) without
+  // needing a whole separate onboarding page — it lands right where a provider
+  // needs it instead of on the customer tab.
+  final int initialTab;
+  const FaqScreen({super.key, this.initialTab = 0});
 
   @override
   State<FaqScreen> createState() => _FaqScreenState();
@@ -26,6 +32,7 @@ class _FaqScreenState extends State<FaqScreen> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
+      initialIndex: widget.initialTab,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Help & FAQ'),
@@ -237,6 +244,10 @@ const _customerSections = [
       'Contact us at support@snowserv.app and we\'ll make it right. Include your order details and a description of the issue.',
     ),
     _FaqItem(
+      'Who\'s responsible if my property is damaged?',
+      'Providers on SnowServ are independent professionals, responsible for their own work — SnowServ is the marketplace that connects you with them. If you believe a provider damaged your property, email support@snowserv.app right away with your job number and photos, and we\'ll help you work it out with the provider. The full details are in our Terms of Service.',
+    ),
+    _FaqItem(
       'Is my address information secure?',
       'Yes. Your address and payment information are stored securely. We never share your personal information with third parties beyond what is required to complete your service.',
     ),
@@ -269,11 +280,19 @@ List<_FaqSection> get _providerSections {
       'How do I go online to receive jobs?',
       'Open the app and toggle the Online switch on your home screen. Make sure location services are enabled — we use your GPS to match you with nearby jobs. You\'ll receive a push notification for each new job dispatch.',
     ),
+    _FaqItem(
+      'How do I update my equipment if it changes?',
+      'Tap the person icon in the top right, then "Equipment, Vehicle & Insurance." You can change your equipment there any time — no need to contact support. Keep it current if your snowblower breaks down, you sell your plow truck, or you upgrade — it directly affects which jobs you\'re matched to (see "How Dispatching Works" below).',
+    ),
   ]),
   _FaqSection('How Dispatching Works', [
     _FaqItem(
       'How are jobs assigned to me?',
-      'When a customer places an order, our system offers it to the best-matched online provider — balanced by both distance and current workload, so it goes to a nearby provider with the fewest jobs already lined up. You\'ll get a push notification and have 4 minutes to accept or decline. If you don\'t respond in time, the job moves to the next best provider.',
+      'When a customer places an order, our system offers it to the best-matched online provider — balanced by distance, current workload, and (for larger driveways) your equipment — so it goes to a nearby, available provider who can actually do the job. You\'ll get a push notification and have 4 minutes to accept or decline. If you don\'t respond in time, the job moves to the next best provider.',
+    ),
+    _FaqItem(
+      'Does my equipment affect which jobs I get?',
+      'Yes, for large driveways. If you\'ve registered as "Shovel only," you\'re still eligible for every walkway, sidewalk, and small-driveway job, and you can always be offered a large driveway too if no better-equipped provider is available nearby — you\'re just not first in line for those. Snowblower and plow-truck providers are matched equally for driveways of any size. This is a soft preference, not a hard rule — a job is never left stranded over equipment. Keep your equipment updated (see "Getting Started" above) so this stays accurate.',
     ),
     _FaqItem(
       'Can I receive more than one job at a time?',
@@ -328,8 +347,12 @@ List<_FaqSection> get _providerSections {
       '1. Accept the dispatched job from the notification or dispatch card\n2. Tap Directions on the job card to navigate to the address\n3. Tap Start Job when you arrive and begin work\n4. Tap Complete Job when finished — a live completion photo is required\n5. Your earnings are recorded and queued for payout',
     ),
     _FaqItem(
+      'Should I take a photo BEFORE I start? (Protect yourself)',
+      'Yes — we strongly recommend it. When you tap Start Job, you\'re offered an optional "before" photo (for example, the snowed-in driveway, deep drifts, or a car blocking access). It\'s the single best thing you can do to protect yourself: if a customer later disputes the work or the conditions, that photo shows exactly what you were dealing with when you arrived. It\'s optional and skippable, but taking it is smart — especially on big or difficult jobs.',
+    ),
+    _FaqItem(
       'Do I need to take completion photos?',
-      'Yes — a live completion photo is required. You take it with your camera at the job (there\'s no gallery upload), so it\'s genuine proof the work was done. You can also snap an optional "before" photo when you tap Start Job — a snowed-in driveway before you clear it is your best protection in a dispute.',
+      'Yes — a live completion photo is required. You take it with your camera at the job (there\'s no gallery upload), so it\'s genuine proof the work was done. Pair it with the optional "before" photo (see above) and you\'ve documented the job start to finish.',
     ),
     _FaqItem(
       'Will the app navigate me to the job?',
@@ -341,6 +364,10 @@ List<_FaqSection> get _providerSections {
     ),
   ]),
   _FaqSection('Support', [
+    _FaqItem(
+      'What if I damage a customer\'s property?',
+      'As an independent contractor, you\'re responsible for the safe performance of every job — including any damage you cause. That\'s exactly why the optional "before" photo and appropriate insurance matter: they protect you. If an incident happens, tell us at support@snowserv.app right away so we can help resolve it. Your responsibilities are spelled out in the Provider Service Agreement you signed at registration.',
+    ),
     _FaqItem(
       'What if I have a dispute with a customer?',
       'Contact us at support@snowserv.app with the job ID and details of the issue. We review disputes fairly and will follow up with both parties.',
