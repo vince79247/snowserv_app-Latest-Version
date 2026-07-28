@@ -115,19 +115,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             }
             return;
           }
-          if (profile['role'] != selectedRole && mounted) {
-            await supabase.auth.signOut();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'This account is registered as a ${profile['role']}. Please select ${profile['role']} and try again.',
-                ),
-                duration: const Duration(seconds: 5),
-              ),
-            );
-            setState(() => loading = false);
-            return;
-          }
+          // No role-match guard at login anymore: login doesn't ask for a role,
+          // so there's nothing to mismatch. RoleRouter reads the profile after
+          // sign-in and routes to customer home, provider home, or the Admin
+          // Panel. (The old guard here signed admins out because there was no
+          // Admin tab for the picked role to match.)
         }
       } else {
         // Name/phone/role ride along as user metadata. The profiles/users/
@@ -285,24 +277,29 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       ),
                       const SizedBox(height: 20),
 
-                      SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                            value: 'customer',
-                            label: Text('Customer'),
-                          ),
-                          ButtonSegment(
-                            value: 'provider',
-                            label: Text('Provider'),
-                          ),
-                        ],
-                        selected: {selectedRole},
-                        onSelectionChanged: (val) =>
-                            setState(() => selectedRole = val.first),
-                      ),
-                      const SizedBox(height: 20),
-
+                      // Role is chosen at SIGN-UP only. At LOGIN we don't ask
+                      // "are you a customer or provider" — you enter email +
+                      // password and RoleRouter routes you by your account
+                      // (customer home, provider home, or Admin Panel). This is
+                      // also what lets an ADMIN log in: there was never an Admin
+                      // tab, and the old guard demanded the picked tab match.
                       if (!isLogin) ...[
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(
+                              value: 'customer',
+                              label: Text('Customer'),
+                            ),
+                            ButtonSegment(
+                              value: 'provider',
+                              label: Text('Provider'),
+                            ),
+                          ],
+                          selected: {selectedRole},
+                          onSelectionChanged: (val) =>
+                              setState(() => selectedRole = val.first),
+                        ),
+                        const SizedBox(height: 20),
                         const Text(
                           '* All fields are required',
                           style: TextStyle(fontSize: 12, color: Colors.red),
