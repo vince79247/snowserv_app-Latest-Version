@@ -375,6 +375,16 @@ class _RoleRouterState extends State<RoleRouter> {
       final fetchedRole = data['role'] as String?;
       final fetchedAdmin = data['is_admin'] == true;
 
+      // The admin panel is a full-width back-office screen; every other screen is
+      // the phone-width web column. Set the web column width HERE — this runs in
+      // async loadRole (off the build phase, so no "markNeedsBuild during build"
+      // and no resize flash) and covers logging STRAIGHT IN as an admin, which
+      // RoleRouter renders directly (openAdminPanel's push path is never hit).
+      // On mobile the notifier is unused (the _WebFrame only applies on web).
+      webContentMaxWidth.value = (fetchedAdmin || fetchedRole == 'admin')
+          ? kAdminWebWidth
+          : kPhoneWebWidth;
+
       if (fetchedRole == 'provider') {
         final providerData = await supabase
             .from('providers')
