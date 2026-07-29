@@ -53,8 +53,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     super.initState();
     _tabController = TabController(length: 6, vsync: this);
     loadAll();
-    // Keep the live ticker moving: re-pull jobs quietly every 30s.
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+    // Keep the dashboard live: quiet re-pull every 15s. Tightened from 30s —
+    // during a storm the admin is watching orders land and providers come online,
+    // and a half-minute lag reads as "the app is stale". One admin, 3 small
+    // queries, so the load is trivial.
+    _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) _silentRefresh();
     });
   }
@@ -66,16 +69,50 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     super.dispose();
   }
 
-  // Lightweight refresh for the live ticker: re-pulls jobs only, with no
-  // loading spinner. Rebuilds the ticker (and updates "Xm ago" elapseds).
+  // Pending-review first, so a new registration lands at the top of the list.
+  static List<Map<String, dynamic>> _sortProviders(Iterable<dynamic> rows) {
+    final list = List<Map<String, dynamic>>.from(rows);
+    list.sort((a, b) {
+      const order = {'pending_review': 0, 'approved': 1};
+      final aOrder = order[a['registration_status']] ?? 2;
+      final bOrder = order[b['registration_status']] ?? 2;
+      return aOrder.compareTo(bOrder);
+    });
+    return list;
+  }
+
+  // Quiet background refresh (no spinner) of everything that changes while the
+  // admin is just WATCHING — during a storm nobody should have to hit reload:
+  //   jobs      → new orders, status changes, the live ticker + "Xm ago"
+  //   providers → who's online/offline, and NEW REGISTRATIONS appearing
+  //   disputes  → the pending badge
+  // Used to re-pull jobs ONLY, so provider online/offline and new provider
+  // signups sat frozen until a manual refresh (a registration looked like it had
+  // vanished — found 2026-07-29). Queries run in parallel to stay snappy; users /
+  // payouts / zones are deliberately left to loadAll (they're not time-critical
+  // and users is the heaviest table).
   Future<void> _silentRefresh() async {
     try {
-      final jobsData = await supabase
-          .from('jobs')
-          .select('*, addresses(*)')
-          .order('created_at', ascending: false);
+      final results = await Future.wait([
+        supabase.from('jobs').select('*, addresses(*)').order('created_at', ascending: false),
+        supabase
+            .from('providers')
+            .select('*, users!inner(name, email, phone)')
+            .order('created_at', ascending: false),
+        // Resilient like loadAll: a disputes hiccup shouldn't stall the rest.
+        supabase
+            .from('disputes')
+            .select('*, jobs(job_number, final_price, base_price, service_type)')
+            .order('created_at', ascending: false)
+            .then<dynamic>((v) => v)
+            .catchError((_) => disputes),
+      ]);
       if (mounted) {
-        setState(() => jobs = List<Map<String, dynamic>>.from(jobsData));
+        setState(() {
+          jobs = List<Map<String, dynamic>>.from(results[0] as Iterable);
+          providers = _sortProviders(results[1] as Iterable);
+          disputes = List<Map<String, dynamic>>.from(results[2] as Iterable);
+        });
       }
     } catch (_) {
       // Transient network blips shouldn't spam the admin — next tick retries.
@@ -124,13 +161,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       } catch (_) {}
 
       if (mounted) {
-        final providerList = List<Map<String, dynamic>>.from(providersData);
-        providerList.sort((a, b) {
-          const order = {'pending_review': 0, 'approved': 1};
-          final aOrder = order[a['registration_status']] ?? 2;
-          final bOrder = order[b['registration_status']] ?? 2;
-          return aOrder.compareTo(bOrder);
-        });
+        final providerList = _sortProviders(providersData);
         setState(() {
           jobs = List<Map<String, dynamic>>.from(jobsData);
           users = List<Map<String, dynamic>>.from(usersData);
