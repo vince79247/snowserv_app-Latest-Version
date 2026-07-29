@@ -197,6 +197,7 @@ async function geocodeCensus(oneLine: string): Promise<{ lat: number; lng: numbe
     const res = await fetch(
       'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress' +
         `?address=${encodeURIComponent(oneLine)}&benchmark=Public_AR_Current&format=json`,
+      { signal: AbortSignal.timeout(6000) },
     )
     if (!res.ok) return null
     const j = await res.json()
