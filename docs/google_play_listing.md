@@ -117,11 +117,15 @@ Payments run in Stripe TEST mode for review — pay with card 4242 4242 4242 424
 any future expiry, any CVC. Booking places an authorization HOLD (card not charged).
 
 HOW TO TEST
-1. Log in with the demo account (Customer tab).
+1. Enter the demo email + password and tap Log In. There is NO customer/provider
+   choice to make — the app routes you to the right home automatically (this account
+   lands on the customer home).
 2. The saved address is in Yonkers, NY (a served area).
 3. Choose a service and order; pay with the test card above; the order shows as active.
 ```
-(Verified working against the live DB 2026-07-17 — see docs/app_store_listing.md.)
+(Demo login re-verified working 2026-07-28 against the live DB — HTTP 200. Login flow
+updated build 12: the Customer/Provider tab was removed from login, so the old
+"Customer tab" step no longer applies — see docs/app_store_listing.md for iOS.)
 
 ## 10. Payments policy
 SnowServ charges for a **real-world, physical service** (a provider physically clears the

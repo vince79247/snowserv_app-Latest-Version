@@ -87,7 +87,8 @@ DEMO ACCOUNT (customer)
   Password: SnowServReview1
 
 HOW TO TEST (customer flow)
-1. Log in with the demo customer account above (customer role selected).
+1. Enter the demo email + password and tap Log In (no role to pick — the app routes
+   automatically; this account lands on the customer home).
 2. Add a service address in Yonkers, NY (e.g. any Yonkers street address) — the app
    geocodes it to confirm we serve that area and to price the job.
 3. Choose a service (e.g. Driveway) and tap to order.
