@@ -47,7 +47,12 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
       // fields are not shipped to the customer's device (see customer_home loadMyJobs).
       final data = await supabase
           .from('jobs')
-          .select('id, job_number, status, service_type, driveway, walkway, salting, '
+          // customer_id is REQUIRED here: "Report a problem" inserts it, and the
+          // disputes RLS insert policy checks auth.uid() = customer_id. Without
+          // it the insert sent null and every customer dispute failed with 42501
+          // (found 2026-07-29). Explicit column list on purpose — never select *
+          // here, so provider_notes can't leak to a customer.
+          .select('id, customer_id, job_number, status, service_type, driveway, walkway, salting, '
               'base_price, surge_multiplier, final_price, snow_level, completion_photos, '
               'customer_rating, created_at, provider_id, addresses(*)')
           .eq('customer_id', supabase.auth.currentUser!.id)

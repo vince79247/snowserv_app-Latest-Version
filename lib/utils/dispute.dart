@@ -121,9 +121,16 @@ Future<void> showDisputeDialog(BuildContext context, Map<String, dynamic> job,
                 : () async {
                     setLocal(() => submitting = true);
                     try {
+                      // When a CUSTOMER files, their own uid is the authoritative
+                      // customer_id — it's exactly what the RLS insert policy
+                      // checks (auth.uid() = customer_id). Don't depend on the
+                      // caller's job map having selected the column: that's how
+                      // every customer dispute silently failed with 42501.
+                      final uid = _supabase.auth.currentUser?.id;
                       await _supabase.from('disputes').insert({
                         'job_id': job['id'],
-                        'customer_id': job['customer_id'],
+                        'customer_id':
+                            isProvider ? job['customer_id'] : (job['customer_id'] ?? uid),
                         'provider_id': job['provider_id'],
                         'reason': reason,
                         'description': descController.text.trim(),

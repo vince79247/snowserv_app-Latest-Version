@@ -177,14 +177,43 @@ async function surgeForPoint(
 }
 
 // ---- geocoding (ported from lib/utils/geocode.dart) ------------------------
+// PRIMARY = US Census Bureau geocoder: free, keyless, and it PERMITS
+// server/datacenter use. Nominatim blocks datacenter IPs, so it failed here on
+// every real order (found 2026-07-29 on job #1178) — which silently forced surge
+// to 1.0x and left job_lat null. Nominatim stays as a fallback only.
+// Keep this chain in lockstep with lib/utils/geocode.dart: if the two sides
+// resolve an address differently they can pick different zones near a boundary,
+// and the shown price would stop matching the charged price.
 async function geocode(a: {
   address_line?: string; city?: string; state?: string; zip?: string
 }): Promise<{ lat: number; lng: number } | null> {
+  const oneLine =
+    `${a.address_line ?? ''}, ${a.city ?? ''}, ${a.state ?? ''} ${a.zip ?? ''}`
+  return (await geocodeCensus(oneLine)) ?? (await geocodeNominatim(oneLine))
+}
+
+async function geocodeCensus(oneLine: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    const q = encodeURIComponent(
-      `${a.address_line ?? ''}, ${a.city ?? ''}, ${a.state ?? ''} ${a.zip ?? ''}`)
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
+      'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress' +
+        `?address=${encodeURIComponent(oneLine)}&benchmark=Public_AR_Current&format=json`,
+    )
+    if (!res.ok) return null
+    const j = await res.json()
+    const m = j?.result?.addressMatches
+    if (Array.isArray(m) && m.length > 0) {
+      const lat = Number(m[0]?.coordinates?.y)
+      const lng = Number(m[0]?.coordinates?.x)
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng }
+    }
+  } catch { /* fall through */ }
+  return null
+}
+
+async function geocodeNominatim(oneLine: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(oneLine)}&format=json&limit=1`,
       { headers: { 'User-Agent': 'SnowServApp/1.0' } },
     )
     if (!res.ok) return null
@@ -293,8 +322,21 @@ Deno.serve(async (req: Request) => {
     meta.base_price = String(baseTotal)
     meta.surge_multiplier = String(surge)
     meta.final_price = String(finalPrice)
-    if (geo) { meta.job_lat = String(geo.lat); meta.job_lng = String(geo.lng) }
-    else { delete meta.job_lat; delete meta.job_lng }
+    // job_lat/lng drive DISPATCH proximity + the on-site verification chips —
+    // never the price (that's `zone` + `surge`, both computed from our own
+    // geocode above). So: prefer our server geocode; if it failed, fall back to
+    // the coordinates the CLIENT geocoded rather than dropping them, which used
+    // to leave every job unverifiable. Client values are only trusted for these
+    // two non-financial uses, and only if they're sane numbers.
+    if (geo) {
+      meta.job_lat = String(geo.lat)
+      meta.job_lng = String(geo.lng)
+    } else {
+      const cLat = Number(meta.job_lat), cLng = Number(meta.job_lng)
+      const sane = Number.isFinite(cLat) && Number.isFinite(cLng) &&
+        Math.abs(cLat) <= 90 && Math.abs(cLng) <= 180 && (cLat !== 0 || cLng !== 0)
+      if (!sane) { delete meta.job_lat; delete meta.job_lng }
+    }
 
     // ---- Stripe customer (so the card can be saved + offered next time) ----
     let customerId = stripe_customer_id
