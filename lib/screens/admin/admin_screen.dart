@@ -498,6 +498,67 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
   }
 
+  // Admin-issued refund for [jobId]. refund-job (which already authorizes admins)
+  // RELEASES the hold if the charge was never captured, or issues a full Stripe
+  // REFUND if it was — then we mark the job cancelled so it drops out of earnings
+  // and the weekly provider payout (a refunded job shouldn't pay the provider).
+  // Mirrors the customer cancel-refund. Irreversible for a captured charge → confirms.
+  Future<void> _refundJob(String? jobId) async {
+    if (jobId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Refund this job?'),
+        content: const Text(
+          'This issues a full refund to the customer (or releases the hold if the '
+          'charge was never captured) and marks the job cancelled — so it drops out '
+          'of earnings and the provider is NOT paid for it.\n\n'
+          "A captured refund posts back to the customer's card in 5–10 business "
+          "days and can't be undone.",
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Refund'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    String? action;
+    try {
+      final resp =
+          await supabase.functions.invoke('refund-job', body: {'job_id': jobId});
+      final data = resp.data;
+      if (data is Map && data['action'] is String) action = data['action'] as String;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Refund failed: $e'), backgroundColor: Colors.red));
+      return;
+    }
+    // The money movement succeeded → reverse the job (best-effort; if this write
+    // fails the refund still stands, so we don't report it as a failure).
+    try {
+      await supabase.from('jobs').update({'status': 'cancelled'}).eq('id', jobId);
+    } catch (_) {}
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(action == 'refunded'
+          ? "Refund issued — it posts back to the customer's card in 5–10 business days."
+          : 'Hold released — the customer was never charged.'),
+      backgroundColor: SnowServColors.success,
+    ));
+    loadAll();
+  }
+
   Widget _buildDisputesTab() {
     if (disputes.isEmpty) {
       return const Center(
@@ -569,6 +630,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   const SizedBox(height: 8),
                   Text('Resolution: ${d['resolution']}',
                       style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: SnowServColors.inkSoft)),
+                ],
+                if (d['job_id'] != null) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _refundJob(d['job_id']?.toString()),
+                      icon: const Icon(Icons.currency_exchange, size: 16),
+                      label: const Text('Refund customer'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red.shade700,
+                        side: BorderSide(color: Colors.red.shade300),
+                      ),
+                    ),
+                  ),
                 ],
                 if (isPending) ...[
                   const SizedBox(height: 10),
@@ -2064,6 +2140,25 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     ],
                   ],
                 ),
+                // Admin refund — charged jobs only (a hold is released, a captured
+                // charge is refunded); cancelled jobs are already reversed.
+                if (job['status'] == 'in_progress' || job['status'] == 'completed')
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => _refundJob(job['id']?.toString()),
+                      icon: Icon(Icons.currency_exchange,
+                          size: 15, color: Colors.red.shade700),
+                      label: Text('Refund customer',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ),
                 Row(
                   children: [
                     const Icon(Icons.person, size: 13, color: SnowServColors.navy),
