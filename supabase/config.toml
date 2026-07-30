@@ -61,3 +61,13 @@ verify_jwt = false
 [functions.process-payout]
 enabled = true
 verify_jwt = false
+
+# Called by the auth.users email-confirmation trigger through pg_net, which can't
+# present a Supabase JWT (same constraint as notify-dispatch). Publicly reachable
+# as a result — the guard is IDEMPOTENCY, not the gateway: profiles
+# .welcome_email_sent_at is claimed before sending and a repeat call is refused,
+# so the worst an attacker who guesses a user UUID can do is trigger the single
+# welcome email that user was already going to get. DO NOT remove that check.
+[functions.send-welcome-email]
+enabled = true
+verify_jwt = false
