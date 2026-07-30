@@ -58,6 +58,22 @@ REQUIRES: `ALTER TABLE service_areas ADD COLUMN IF NOT EXISTS polygon jsonb;`
 id, email, zip, address, created_at. Captured when someone's ZIP isn't served yet
 (from the order screen banner or the pre-signup quote screen).
 
+### disputes
+id, job_id, customer_id, provider_id, reason, description, status
+(pending/resolved/rejected), resolution, resolved_at, created_at, filed_by
+('customer'|'provider'). Filed in-app from a COMPLETED job via "Report a problem"
+(lib/utils/dispute.dart — shared by both job-history screens; also the App Store
+Guideline 1.2 objectionable-content report). Worked in the admin "Disputes" tab:
+Resolve / Reject (+ optional resolution note) and a one-tap "Refund customer".
+filed_by (2026-07-30) is the side that COMPLAINED — both parties are on every row,
+so without it, resolving a dispute couldn't notify anyone (it silently told nobody
+before). Set by a BEFORE INSERT trigger `set_dispute_filed_by()` from auth.uid(),
+NOT from the client, so it can't be spoofed; the client value is only a fallback
+for service-role inserts. Resolving pushes 'dispute_resolved' / 'dispute_closed'
+to the FILER via notify-customer or notify-provider — never blind-send to "the
+customer", or a provider's complaint leaks to the person they complained about.
+The resolution NOTE is internal (admin panel only) and is never pushed.
+
 ### payments
 Schema unknown.
 

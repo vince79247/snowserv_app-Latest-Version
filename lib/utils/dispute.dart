@@ -135,6 +135,12 @@ Future<void> showDisputeDialog(BuildContext context, Map<String, dynamic> job,
                         'reason': reason,
                         'description': descController.text.trim(),
                         'status': 'pending',
+                        // Which side is complaining, so resolving it in the
+                        // admin panel can push the outcome back to the right
+                        // person. A BEFORE INSERT trigger re-derives this from
+                        // auth.uid() and overrides us — this value is just the
+                        // fallback for service-role inserts.
+                        'filed_by': isProvider ? 'provider' : 'customer',
                       });
                       if (!ctx.mounted) return;
                       Navigator.pop(ctx);

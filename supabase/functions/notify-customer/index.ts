@@ -61,6 +61,20 @@ function getNotificationContent(status: string): { title: string; body: string }
         body: 'Your provider couldn\'t finish — we\'re finding you a new one at no extra charge. ' +
               'You won\'t be charged again. Prefer a full refund? Just cancel the job in the app.',
       }
+    // Outcome of a "Report a problem" the CUSTOMER filed. Deliberately vague on
+    // what we did — the admin's resolution note can contain internal detail and
+    // is never pushed to a phone.
+    case 'dispute_resolved':
+      return {
+        title: 'We resolved your report',
+        body: 'We reviewed the problem you reported and took action. Questions? Email support@snowserv.app.',
+      }
+    case 'dispute_closed':
+      return {
+        title: 'Update on your report',
+        body: 'We reviewed the problem you reported and closed it without further action. ' +
+              'If you disagree, reply to us at support@snowserv.app.',
+      }
     default:
       return null
   }

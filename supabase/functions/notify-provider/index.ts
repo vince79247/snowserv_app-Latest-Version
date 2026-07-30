@@ -28,7 +28,12 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   return tokenData.access_token
 }
 
-async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string): Promise<{ ok: boolean; code?: string }> {
+async function sendNotification(accessToken: string, fcmToken: string, title: string, body: string, urgent = true): Promise<{ ok: boolean; code?: string }> {
+  // Time-Sensitive rings through Focus/Do Not Disturb. Right for "a job just
+  // landed on you" / "your customer cancelled"; wrong for a dispute outcome,
+  // which must not wake a provider at 3am. Only work-now pushes get it.
+  const aps: Record<string, unknown> = { alert: { title, body }, sound: 'default' }
+  if (urgent) aps['interruption-level'] = 'time-sensitive'
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -36,12 +41,11 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
       message: {
         token: fcmToken,
         notification: { title, body },
-        // Time-Sensitive: auto-assigned jobs are urgent — ring through Focus/DND.
         apns: {
           headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
           // alert set explicitly — a partial aps payload can strip the
           // auto-generated alert text (see notify-dispatch).
-          payload: { aps: { alert: { title, body }, sound: 'default', 'interruption-level': 'time-sensitive' } },
+          payload: { aps },
         },
       },
     }),
@@ -53,7 +57,7 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
   return { ok: false, code }
 }
 
-function getNotificationContent(status: string): { title: string; body: string } | null {
+function getNotificationContent(status: string): { title: string; body: string; urgent?: boolean } | null {
   switch (status) {
     case 'cancelled':
       return { title: 'Job Cancelled', body: 'The customer cancelled this job.' }
@@ -61,6 +65,21 @@ function getNotificationContent(status: string): { title: string; body: string }
       return { title: 'New Job Assigned', body: 'Auto-accept picked up a job for you — open the app to view it.' }
     case 'admin_assigned':
       return { title: 'New Job Assigned', body: 'A job has been assigned to you — open the app to view it.' }
+    // Outcome of a "Report a problem" the PROVIDER filed. Same wording rules as
+    // notify-customer: no internal detail, point them at support to reply.
+    case 'dispute_resolved':
+      return {
+        title: 'We resolved your report',
+        body: 'We reviewed the problem you reported and took action. Questions? Email support@snowserv.app.',
+        urgent: false,
+      }
+    case 'dispute_closed':
+      return {
+        title: 'Update on your report',
+        body: 'We reviewed the problem you reported and closed it without further action. ' +
+              'If you disagree, reply to us at support@snowserv.app.',
+        urgent: false,
+      }
     default:
       return null
   }
@@ -107,7 +126,8 @@ Deno.serve(async (req: Request) => {
 
     const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')!)
     const accessToken = await getAccessToken(serviceAccount)
-    const result = await sendNotification(accessToken, profile.fcm_token, notification.title, notification.body)
+    const result = await sendNotification(
+      accessToken, profile.fcm_token, notification.title, notification.body, notification.urgent !== false)
 
     // Only clear a token Firebase says is genuinely dead (UNREGISTERED). A config
     // error like THIRD_PARTY_AUTH_ERROR means a VALID token we couldn't reach — keep

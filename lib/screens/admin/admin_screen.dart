@@ -520,6 +520,36 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         'resolution': noteController.text.trim().isEmpty ? null : noteController.text.trim(),
         'resolved_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', dispute['id']);
+
+      // Close the loop with whoever reported it — resolving used to update the
+      // row and tell nobody, so a customer or provider who complained just got
+      // silence. Route by disputes.filed_by (set from the filer's own auth uid),
+      // NOT by guessing: pushing a provider's resolution to the customer would
+      // leak that a complaint was even made.
+      final jobId = dispute['job_id']?.toString();
+      var notified = false;
+      if (jobId != null) {
+        final fn = dispute['filed_by'] == 'provider' ? 'notify-provider' : 'notify-customer';
+        try {
+          // Best-effort: the dispute IS resolved at this point. A dead FCM token
+          // or an offline filer must not look like the resolve failed.
+          final res = await supabase.functions.invoke(fn, body: {
+            'job_id': jobId,
+            'status': newStatus == 'resolved' ? 'dispute_resolved' : 'dispute_closed',
+          });
+          notified = (res.data is Map) && (res.data['sent'] == 1);
+        } catch (_) {}
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(notified
+              ? 'Dispute ${newStatus == 'resolved' ? 'resolved' : 'closed'} — the person who '
+                  'reported it was notified.'
+              : 'Dispute ${newStatus == 'resolved' ? 'resolved' : 'closed'}. No push went out '
+                  '(they have notifications off or no device) — follow up from support@snowserv.app.'),
+          duration: const Duration(seconds: 5),
+        ));
+      }
       loadAll();
     } catch (e) {
       if (mounted) {
@@ -651,8 +681,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   '\$${job?['final_price'] ?? job?['base_price'] ?? '—'}',
                   style: const TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
                 ),
-                Text('$custName (customer)  ·  $provName (provider)',
-                    style: const TextStyle(fontSize: 12, color: SnowServColors.inkSoft)),
+                // Lead with the side that actually complained — it changes how
+                // you read the report and who the resolution push goes to.
+                Text(
+                  d['filed_by'] == 'provider'
+                      ? '$provName (provider) reported this  ·  about $custName (customer)'
+                      : d['filed_by'] == 'customer'
+                          ? '$custName (customer) reported this  ·  about $provName (provider)'
+                          : '$custName (customer)  ·  $provName (provider)',
+                  style: const TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
+                ),
                 if ((d['description'] ?? '').toString().isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(d['description'].toString(), style: const TextStyle(fontSize: 13)),
