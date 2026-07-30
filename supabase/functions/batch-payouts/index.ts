@@ -9,14 +9,50 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// Decode (NOT verify — the platform already verified via verify_jwt) the caller's
+// Supabase JWT to learn who is invoking us. Returns { sub, role } or {}.
+function decodeCaller(auth: string | null): { sub?: string; role?: string } {
+  try {
+    if (!auth) return {}
+    const payload = auth.replace(/^Bearer\s+/i, '').split('.')[1]
+    if (!payload) return {}
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+  } catch {
+    return {}
+  }
+}
+
+async function isAdmin(url: string, key: string, userId?: string): Promise<boolean> {
+  if (!userId) return false
+  try {
+    const r = await fetch(`${url}/rest/v1/profiles?id=eq.${userId}&select=is_admin`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    })
+    const rows = await r.json()
+    return rows?.[0]?.is_admin === true
+  } catch {
+    return false
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, serviceKey)
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')!
+
+    // AUTHORIZATION: this function MOVES MONEY (Stripe transfers to providers),
+    // and verify_jwt only proves the caller is logged in — so without this check
+    // ANY customer or provider could trigger the whole payout run. Only an admin
+    // (the "Run Payouts" button) or an internal service-role call may do this.
+    const caller = decodeCaller(req.headers.get('Authorization'))
+    if (caller.role !== 'service_role') {
+      if (!(await isAdmin(supabaseUrl, serviceKey, caller.sub))) {
+        return new Response(JSON.stringify({ error: 'Admin only' }), { status: 403, headers: cors })
+      }
+    }
 
     // Commission is admin-configurable (app_settings.commission_pct). Provider
     // keeps the rest. Falls back to 25% if unset.

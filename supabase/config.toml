@@ -43,3 +43,21 @@ verify_jwt = false
 [functions.connect-return]
 enabled = true
 verify_jwt = false
+
+# ── PAYOUTS: public at the gateway, but they authorize THEMSELVES ─────────────
+# These MOVE MONEY (Stripe transfers to providers). They were deployed with
+# verify_jwt=false so the pg_cron payout job (net.http_post) could reach them —
+# which, combined with having no internal auth check, left them callable by
+# ANYONE on the internet (found + fixed 2026-07-29). They now require the caller
+# to be either the service role (the cron) or an is_admin profile, exactly like
+# capture-payment / refund-job.
+# DO NOT remove the in-function admin check on the assumption the gateway is
+# guarding these — it is not. Verified: no auth / anon key → 403 "Admin only";
+# service role + admin JWT → 200.
+[functions.batch-payouts]
+enabled = true
+verify_jwt = false
+
+[functions.process-payout]
+enabled = true
+verify_jwt = false
