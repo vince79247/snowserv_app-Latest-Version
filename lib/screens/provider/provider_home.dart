@@ -51,6 +51,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   RealtimeChannel? _jobsChannel;
   StreamSubscription? _fcmSub;
   StreamSubscription<Position>? _locationSub;
+  // Last known phone position while online. Kept purely so an OFFER can tell the
+  // provider how far away the job is BEFORE they accept — dispatch has no
+  // distance cap on purpose (a provider may happily drive two hours to work an
+  // area), which only works if they can see the drive they're agreeing to.
+  Position? _lastPosition;
   Timer? _countdownTimer;
   int _secondsRemaining = AppConfig.dispatchTimeoutSeconds;
   bool _declining = false;
@@ -89,6 +94,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
       ),
     ).listen((position) async {
       if (providerId == null || !isOnline) return;
+      // Refresh the "X away" labels as they drive, not just at go-online.
+      if (mounted) setState(() => _lastPosition = position);
       try {
         await supabase.from('providers').update({
           'current_lat': position.latitude,
@@ -230,6 +237,10 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           ).timeout(const Duration(seconds: 8));
           update['current_lat'] = position.latitude;
           update['current_lng'] = position.longitude;
+          // Seed the distance labels immediately — the position stream only
+          // emits after ~75 m of movement, so a provider standing still at the
+          // start of a shift would otherwise see no distance on their first offer.
+          _lastPosition = position;
         }
       } catch (e) {
         debugPrint('Location error on toggle online: $e');
@@ -867,6 +878,48 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   String _formatMeters(double m) =>
       m >= 1000 ? '${(m / 1000).toStringAsFixed(1)} km' : '${m.round()} m';
 
+  // Straight-line distance from the provider's phone to a job, in miles — what
+  // they think in, and honest about being "as the crow flies" rather than
+  // pretending to be a driving estimate we haven't computed.
+  double? _jobDistanceMiles(Map<String, dynamic> job) {
+    final pos = _lastPosition;
+    final jLat = (job['job_lat'] as num?)?.toDouble();
+    final jLng = (job['job_lng'] as num?)?.toDouble();
+    if (pos == null || jLat == null || jLng == null) return null;
+    return Geolocator.distanceBetween(pos.latitude, pos.longitude, jLat, jLng) / 1609.344;
+  }
+
+  // "3.4 mi away" chip for an offer / waiting job. Renders NOTHING when we can't
+  // tell (location off, or the job never geocoded) rather than showing a wrong
+  // or zero distance — an unknown distance must not read as "right next door".
+  // Far jobs are flagged, not hidden: accepting a long haul is the provider's
+  // call, and dispatch deliberately imposes no radius.
+  Widget _distanceChip(Map<String, dynamic> job, {bool onDark = false}) {
+    final miles = _jobDistanceMiles(job);
+    if (miles == null) return const SizedBox.shrink();
+    final far = miles >= 15;
+    final label = miles < 0.1
+        ? 'You\'re at this address'
+        : '${miles < 10 ? miles.toStringAsFixed(1) : miles.round()} mi away'
+            '${far ? ' · long trip' : ''}';
+    final fg = onDark
+        ? (far ? const Color(0xFFFFD79A) : Colors.white70)
+        : (far ? Colors.orange.shade800 : SnowServColors.inkSoft);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(far ? Icons.timer_outlined : Icons.near_me_outlined, size: 13, color: fg),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12, color: fg, fontWeight: far ? FontWeight.w600 : FontWeight.normal)),
+        ],
+      ),
+    );
+  }
+
   // Optional "before" photo(s) at Start — a proof-of-work / dispute shield (a
   // snowed-in driveway before the provider clears it). Camera-only (a live shot,
   // like the completion photo) and NOT required: the provider can Skip. Returns
@@ -1421,6 +1474,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
               ),
             ),
             _addressRow(job, color: Colors.white70),
+            _distanceChip(job, onDark: true),
             const SizedBox(height: 6),
             Text(
               'Your pay: \$${providerPay(job)}',
@@ -1525,6 +1579,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                             fontWeight: FontWeight.bold,
                             color: SnowServColors.navy)),
                     _addressRow(job),
+                    _distanceChip(job),
                     const SizedBox(height: 4),
                     Text('Your pay: \$${providerPay(job)}',
                         style: const TextStyle(

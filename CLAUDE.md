@@ -259,22 +259,32 @@ error). Does NOT use live tracking — one-shot fix at each tap (see punchlist #
    and shows as a red warning on the admin panel's provider cards.
 
 ## Dispatch (how jobs are routed)
-- Two dispatchers, kept in sync: the client `dispatchToNearest` (lib/utils/dispatch.dart,
-  runs at order time / on decline) and a pg_cron `dispatch_jobs()` running every minute
-  (supabase/migrations/*dispatch* — the always-on workhorse that expires stale offers
-  and dispatches queued jobs regardless of any app being open).
-- LOAD-AWARE ranking (both paths): fewest active jobs first, then proximity — no hard
-  cap, so nothing is stranded when everyone is busy.
+- ONE dispatcher: the pg_cron `dispatch_jobs()`, running every minute
+  (supabase/migrations/*dispatch*). It expires stale offers and dispatches queued jobs
+  regardless of any app being open. The old client-side mirror (`dispatchToNearest` in
+  lib/utils/dispatch.dart) was DELETED at the RLS Stage 2 cutover — don't reintroduce a
+  second dispatcher or go looking for that file; there is nothing left to "keep in sync".
+- RANKING (`dispatch_jobs`), in order: equipment fit (a shovel-only provider is pushed
+  last ONLY for a large-driveway job) → fewest active jobs → nearest. Eligibility is just
+  is_online + registration_status='approved' + not already rejected + not the customer
+  themselves.
+- NO DISTANCE CAP, deliberately (confirmed w/ Vince 2026-07-29): a provider willing to
+  drive two hours into an area and work it is a WIN, not an error, and a radius would
+  strand jobs in thin coverage. The provider is shown the distance instead of being
+  filtered by it — the offer card and the "Jobs Waiting" cards render a "N mi away" chip
+  (`_distanceChip` in provider_home), flagged "· long trip" past 15 mi, so accepting a
+  long haul is an informed choice. The chip renders NOTHING when the phone has no fix or
+  the job never geocoded — an unknown distance must never read as "right next door".
+  Likewise no LOAD cap, so nothing is stranded when everyone is busy.
 - PREFERRED-DRIVER OVERRIDE (providers.preferred_until timestamptz, admin-panel toggle
   on the provider card): the admin's "take care of a certain driver" lever. RELATIVE
   rule (not a fixed radius, not an unconditional bump): while the override is live, the
   preferred driver wins a new job ONLY when they're EQUAL-OR-CLOSER to it than the
   driver who'd otherwise be picked — so they're never sent a worse-distance job; the
   override just lets them win the close calls (incl. beating a less-busy-but-farther
-  driver). AUTO-EXPIRES at preferred_until (admin picks 4h/8h/24h; no cron). Both
-  dispatchers implement it identically: dispatch_jobs() picks the normal winner + the
-  nearest live-preferred driver and swaps only if pref_dist <= normal_dist; the client
-  dispatchToNearest mirrors this. Admin card shows a gold "Preferred · Nh left" badge.
+  driver). AUTO-EXPIRES at preferred_until (admin picks 4h/8h/24h; no cron).
+  dispatch_jobs() picks the normal winner + the nearest live-preferred driver and swaps
+  only if pref_dist <= normal_dist. Admin card shows a gold "Preferred · Nh left" badge.
 - AUTO-ACCEPT (providers.auto_accept, opt-in toggle on provider home): a job routed to
   an auto-accept provider is assigned directly (status=assigned) instead of a pending
   offer — no countdown to miss. Provider notified via notify-provider status
