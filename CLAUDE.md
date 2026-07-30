@@ -164,8 +164,11 @@ lib/
   mirrors the card onto users, and calls dispatch_jobs(). Needs STRIPE_WEBHOOK_SECRET.
 - checkout-return: verify_jwt=false; tiny HTML success/cancel page for the mobile
   in-app browser to land on after Checkout (owned https return URL, no extra hosting).
-- create-payment-intent: LEGACY/unused (flutter_stripe era) — kept, safe to delete.
-- get-payment-methods: LEGACY/unused (Checkout shows saved cards itself) — kept.
+- create-payment-intent + get-payment-methods: DELETED 2026-07-29 (legacy flutter_stripe
+  era, zero callers). get-payment-methods also took a stripe_customer_id from the request
+  with NO ownership check and returned that customer's card brand/last4/expiry — any
+  logged-in user could read another customer's card metadata. Source is in git history.
+  A stray Supabase "dynamic-endpoint" hello-world template was deleted at the same time.
 - refund-job: looks up payment_intent_id on job, issues full Stripe refund
 - notify-providers: notifies providers of new job
 - notify-provider: notifies single provider (e.g. cancellation)
