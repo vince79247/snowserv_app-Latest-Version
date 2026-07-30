@@ -3,14 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 
-// Single source of truth for the public Privacy Policy / Terms of Service URLs
-// (published Google Docs). Referenced from the sign-up consent line and the
-// in-app account menus, so a logged-in user can always reach them — not just at
-// sign-up. (The App Store also wants the privacy policy accessible in-app.)
-const String privacyPolicyUrl =
-    'https://docs.google.com/document/d/e/2PACX-1vTs3QKh1Sh_d9RfCX4w1lgWhugWIld3VGiLSJnFHE5-Yd-qIj9v5rrrI8FMYTtYa85aY2aP2-aKFHRi/pub';
-const String termsOfServiceUrl =
-    'https://docs.google.com/document/d/e/2PACX-1vTcXcBxj_5lSgLWeWzPpPFWxSmA1BOjMgNs1fdFg1NFqZnIEWtluIwCyXbJLpnttfc0vD2Mts6IZcxb/pub';
+// Single source of truth for the public Privacy Policy / Terms of Service URLs.
+// Referenced from the sign-up consent line and the in-app account menus, so a
+// logged-in user can always reach them — not just at sign-up. (The App Store
+// also wants the privacy policy accessible in-app.)
+//
+// These point at our OWN branded pages (website/privacy.html, website/terms.html).
+// They used to be published-Google-Docs links, which follow the phone's dark mode
+// and rendered as a black page on an iPhone in dark mode — looked broken/unbranded
+// (2026-07-29). Our pages are always light, styled, and are the SAME URLs declared
+// in the App Store / Play listings, so reviewers see one consistent policy.
+const String privacyPolicyUrl = 'https://snowserv.app/privacy';
+const String termsOfServiceUrl = 'https://snowserv.app/terms';
 
 Future<void> openLegalUrl(String url) async {
   await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);

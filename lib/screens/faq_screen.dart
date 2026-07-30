@@ -45,7 +45,7 @@ class _FaqScreenState extends State<FaqScreen> {
         ),
         body: TabBarView(
           children: [
-            const _FaqTab(sections: _customerSections),
+            _FaqTab(sections: _customerSections),
             _FaqTab(sections: _providerSections),
           ],
         ),
@@ -167,7 +167,32 @@ class _FaqItem {
 
 // ─── CUSTOMER CONTENT ────────────────────────────────────────────────────────
 
-const _customerSections = [
+// Storm tiers rendered from the LIVE admin-editable bands (app_settings.storm_bands
+// via AppConfig). The FAQ used to hardcode 1.3×/1.7×/2.3×, which went stale the
+// moment storm pricing was edited in the admin panel — the FAQ then contradicted
+// what customers were actually charged (found 2026-07-29).
+String _fmtMult(double m) =>
+    m == m.roundToDouble() ? m.toStringAsFixed(0) : m.toString();
+
+// Highest live multiplier, for the provider earnings example.
+double get _topStormMult => AppConfig.stormBands
+    .map((b) => b.multiplier)
+    .fold<double>(1.0, (a, b) => b > a ? b : a);
+
+String get _stormTiers => AppConfig.stormBands.map((b) {
+      final range = b.minInches == 0
+          ? (b.maxInches == null ? 'Any depth' : 'Up to ${b.maxInches} inches')
+          : (b.maxInches == null
+              ? '${b.minInches}+ inches'
+              : '${b.minInches}–${b.maxInches} inches');
+      final mult = b.multiplier == 1.0
+          ? 'standard price'
+          : '${_fmtMult(b.multiplier)}× multiplier';
+      return '$range: $mult';
+    }).join('\n');
+
+// Built at call time (not const) so the storm tiers above stay live.
+List<_FaqSection> get _customerSections => [
   _FaqSection('How It Works', [
     _FaqItem(
       'What is SnowServ?',
@@ -193,7 +218,12 @@ const _customerSections = [
   _FaqSection('Pricing & Payment', [
     _FaqItem(
       'What does it cost?',
-      'Sidewalk clearing: \$50\nDriveway clearing: \$100\nSidewalk + Driveway: \$125\nDeicer add-on: +\$40\n\nPrices vary by service area, and may be higher during heavy snowfall (see storm pricing below).',
+      'You choose sidewalk only, driveway only, or both — plus an optional deicer add-on.\n\n'
+          'Prices are set per service area, so the exact price for YOUR address is shown '
+          'on the order screen before you pay — no estimates and no surprises. Prices may '
+          'also be higher during heavy snowfall (see storm pricing below).\n\n'
+          'You can check the price for your address any time from the app, and there are '
+          'no contracts, subscriptions, or hidden fees.',
     ),
     _FaqItem(
       'Are there any contracts or hidden fees?',
@@ -201,7 +231,7 @@ const _customerSections = [
     ),
     _FaqItem(
       'What is storm pricing?',
-      'During heavier snow, the job takes more time and effort, so prices adjust automatically based on current snow depth:\n\nUp to 3 inches: standard price\n3–6 inches: 1.3× multiplier\n6–10 inches: 1.7× multiplier\n10+ inches: 2.3× multiplier\n\nThe storm pricing level is always shown on the order screen before you pay.',
+      'During heavier snow, the job takes more time and effort, so prices adjust automatically based on current snow depth:\n\n$_stormTiers\n\nThe storm pricing level is always shown on the order screen before you pay.',
     ),
     _FaqItem(
       'When am I charged?',
@@ -326,7 +356,7 @@ List<_FaqSection> get _providerSections {
     ),
     _FaqItem(
       'How does storm pricing affect my pay?',
-      'When it snows harder, storm pricing raises the total job price — and since you keep $keep%, your pay scales up with it automatically. The same snow-depth tiers customers see apply to your earnings:\n\nUp to 3 inches: standard price\n3–6 inches: 1.3× multiplier\n6–10 inches: 1.7× multiplier\n10+ inches: 2.3× multiplier\n\nExample: a \$125 job during a 2.3× storm bills at \$287.50, so your $keep% is \$${(287.50 * f).toStringAsFixed(2)}.',
+      'When it snows harder, storm pricing raises the total job price — and since you keep $keep%, your pay scales up with it automatically. The same snow-depth tiers customers see apply to your earnings:\n\n$_stormTiers\n\nExample: a job that normally bills \$100 would bill \$${(100 * _topStormMult).toStringAsFixed(0)} at the top tier (${_fmtMult(_topStormMult)}×), so your $keep% would be \$${(100 * _topStormMult * f).toStringAsFixed(2)}.',
     ),
     _FaqItem(
       'How long does it take to get paid?',
