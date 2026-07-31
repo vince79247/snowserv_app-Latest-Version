@@ -44,27 +44,57 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Admin search filters for the Users / Providers tabs (name, email, phone, #).
   String _customerSearch = '';
   String _providerSearch = '';
-  // Silent 30s poll that keeps the live ticker / jobs / earnings fresh without
-  // flashing the loading spinner.
+  // Fallback poll. Realtime (below) is the fast path; this only catches the case
+  // where the socket dropped without us noticing — hence 60s, not 15s.
   Timer? _ticker;
+  // Live push from Postgres for the three tables the admin watches during a
+  // storm. Vince's complaint that started this: "Why do I have to keep
+  // refreshing the app? What if we were live during a snowstorm?"
+  RealtimeChannel? _liveChannel;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 6, vsync: this);
     loadAll();
-    // Keep the dashboard live: quiet re-pull every 15s. Tightened from 30s —
-    // during a storm the admin is watching orders land and providers come online,
-    // and a half-minute lag reads as "the app is stale". One admin, 3 small
-    // queries, so the load is trivial.
-    _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
+    _subscribeLive();
+    // Safety net only: a dropped websocket is invisible, so keep a slow poll so
+    // the panel can never sit permanently stale. Realtime does the real work.
+    _ticker = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) _silentRefresh();
+    });
+  }
+
+  // One channel, three tables. Any insert/update/delete schedules a single
+  // coalesced refresh — dispatch alone fires several row writes per job (job +
+  // provider), and refetching once per event would hammer the DB and make the
+  // list flicker mid-storm.
+  void _subscribeLive() {
+    final chan = supabase.channel('admin_live');
+    for (final table in ['jobs', 'providers', 'disputes']) {
+      chan.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: table,
+        callback: (_) => _scheduleRefresh(),
+      );
+    }
+    _liveChannel = chan..subscribe();
+  }
+
+  void _scheduleRefresh() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
       if (mounted) _silentRefresh();
     });
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _ticker?.cancel();
+    if (_liveChannel != null) supabase.removeChannel(_liveChannel!);
     _tabController.dispose();
     super.dispose();
   }
