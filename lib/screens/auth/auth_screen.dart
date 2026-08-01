@@ -6,6 +6,7 @@ import '../../theme.dart';
 import '../../utils/legal.dart';
 import '../faq_screen.dart';
 import '../quote_screen.dart';
+import '../provider_interest_screen.dart';
 import 'reset_password_screen.dart';
 
 final supabase = Supabase.instance.client;
@@ -411,6 +412,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   },
                   icon: const Icon(Icons.calculate_outlined, size: 18, color: Colors.white),
                   label: const Text('Get an instant quote — no account needed',
+                      style: TextStyle(color: Colors.white, fontSize: 13)),
+                  style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white54)),
+                ),
+                const SizedBox(height: 8),
+                // Supply-side entry point. Sits next to the customer quote
+                // because pre-season the scarcer side is PROVIDERS — a storm
+                // with no one to dispatch to strands every order, and you can't
+                // recruit mid-storm.
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProviderInterestScreen()),
+                  ),
+                  icon: const Icon(Icons.ac_unit, size: 18, color: Colors.white),
+                  label: const Text('Plow with us — earn 75% per job',
                       style: TextStyle(color: Colors.white, fontSize: 13)),
                   style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white54)),
                 ),

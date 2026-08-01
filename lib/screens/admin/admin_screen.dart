@@ -33,6 +33,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   List<Map<String, dynamic>> pendingPayouts = [];
   List<Map<String, dynamic>> serviceAreas = [];
   List<Map<String, dynamic>> disputes = [];
+  // Recruiting pipeline — people who might become providers but haven't
+  // registered. Fed by the public "work with us" form and by admin cold-outreach.
+  List<Map<String, dynamic>> providerLeads = [];
 
   int get _pendingDisputes =>
       disputes.where((d) => d['status'] == 'pending').length;
@@ -189,6 +192,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             .order('created_at', ascending: false);
         disputesList = List<Map<String, dynamic>>.from(disputesData);
       } catch (_) {}
+      // Recruiting pipeline. Same resilient pattern — this table is new, and a
+      // missing/denied read must never take down the rest of the panel.
+      List<Map<String, dynamic>> leadsList = [];
+      try {
+        final leadsData = await supabase
+            .from('provider_leads')
+            .select()
+            .order('created_at', ascending: false);
+        leadsList = List<Map<String, dynamic>>.from(leadsData);
+      } catch (_) {}
 
       if (mounted) {
         final providerList = _sortProviders(providersData);
@@ -199,6 +212,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           pendingPayouts = List<Map<String, dynamic>>.from(payoutsData);
           serviceAreas = areasList;
           disputes = disputesList;
+          providerLeads = leadsList;
         });
       }
     } catch (e) {
@@ -2837,8 +2851,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Widget _buildProvidersTab() {
-    if (providers.isEmpty) return const Center(child: Text('No providers yet.'));
-
+    // NOTE: no early return on an empty roster. This tab used to bail out with
+    // "No providers yet", which would have hidden the storm-readiness funnel and
+    // the recruiting pipeline in the exact situation they exist for — zero
+    // providers, pre-season, trying to sign people up.
     final pendingCount = providers.where((p) => p['registration_status'] == 'pending_review').length;
     final onDuty = providers.where((p) => p['is_online'] == true).toList();
     final offDuty = providers.where((p) => p['is_online'] != true).toList();
@@ -3243,10 +3259,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             ],
           ),
         ),
+        _stormReadinessPanel(),
+        _leadsPanel(),
         _searchField('Search providers by name, email, phone, or #',
             (v) => setState(() => _providerSearch = v)),
         Expanded(
-          child: noMatches
+          child: providers.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('No providers registered yet.',
+                        style: TextStyle(color: Colors.grey)),
+                  ),
+                )
+              : noMatches
               ? Center(
                   child: Text('No providers match “$_providerSearch”.',
                       style: const TextStyle(color: Colors.grey)),
@@ -3268,6 +3294,417 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ),
         ),
       ],
+    );
+  }
+
+  // Minimum approved+payable providers before marketing to customers. Snow demand
+  // is spiky and non-deferrable — a storm lands and everyone wants service in the
+  // same six hours, and you cannot recruit mid-storm because everyone capable is
+  // already out working. Below this, a first storm strands customers.
+  static const int _kStormReadyFloor = 5;
+
+  // "How many providers could actually work a storm right now?" — deliberately
+  // NOT the headcount above it. A provider is only real if they are approved AND
+  // payouts_enabled: approved-but-unpayable is the silent killer, because they
+  // can accept and complete jobs and then can't be paid, which you'd discover
+  // during a storm.
+  Widget _stormReadinessPanel() {
+    final approved =
+        providers.where((p) => p['registration_status'] == 'approved').toList();
+    final payable = approved.where((p) => p['payouts_enabled'] == true).toList();
+    final unpayable = approved.length - payable.length;
+    // Dispatch only deprioritizes 'shovel' on LARGE driveways; null/snowblower/
+    // plow are all treated as capable (see dispatch_jobs). Mirror that exactly so
+    // this number means the same thing the dispatcher means.
+    final bigJobCapable =
+        payable.where((p) => p['equipment'] != 'shovel').length;
+
+    final Color tone;
+    final String verdict;
+    if (payable.isEmpty) {
+      tone = Colors.red.shade700;
+      verdict = 'No provider can be paid yet — a storm today would strand every order.';
+    } else if (payable.length < _kStormReadyFloor) {
+      tone = Colors.orange.shade800;
+      verdict = 'Below the $_kStormReadyFloor-provider floor — recruit before marketing to customers.';
+    } else if (bigJobCapable == 0) {
+      tone = Colors.orange.shade800;
+      verdict = 'Nobody payable can take a large driveway (all shovel-only).';
+    } else {
+      tone = SnowServColors.success;
+      verdict = 'Storm-ready.';
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: tone.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: tone.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.ac_unit, size: 15, color: tone),
+              const SizedBox(width: 6),
+              Text('STORM READINESS',
+                  style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: tone)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // FittedBox, not spaceAround: four figures plus three arrows overflow a
+          // ~390px phone, and the admin panel is meant to be usable from the road
+          // on an iPhone. scaleDown shrinks to fit instead of throwing a yellow
+          // overflow stripe; on the full-width web panel it renders at 1:1.
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _tallyItem('Registered', providers.length, Colors.black54),
+                  _funnelArrow(),
+                  _tallyItem('Approved', approved.length, Colors.black87),
+                  _funnelArrow(),
+                  _tallyItem('Can be paid', payable.length, tone),
+                  _funnelArrow(),
+                  _tallyItem('Big driveways', bigJobCapable, Colors.black87),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(verdict,
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tone)),
+          // The gap that costs real money — surfaced on its own line because it's
+          // fixable with one nudge ("finish your Stripe setup") and invisible
+          // otherwise.
+          if (unpayable > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange.shade800),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    '$unpayable approved provider${unpayable == 1 ? '' : 's'} '
+                    "haven't finished payout setup — they can take jobs but cannot be paid.",
+                    style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _funnelArrow() => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
+      );
+
+  static const _leadStatuses = <String, String>{
+    'new': 'New',
+    'contacted': 'Contacted',
+    'interested': 'Interested',
+    'registered': 'Registered',
+    'not_interested': 'Not interested',
+  };
+
+  static Color _leadStatusColor(String s) => switch (s) {
+        'interested' => SnowServColors.iceBlue,
+        'registered' => SnowServColors.success,
+        'contacted' => Colors.orange.shade700,
+        'not_interested' => Colors.grey,
+        _ => SnowServColors.navy,
+      };
+
+  // Recruiting pipeline, collapsed by default so it never buries the roster.
+  // Lives in the Providers tab on purpose — recruiting feeds that list, and
+  // during Sept/Oct outreach the funnel above is the reason to open this.
+  Widget _leadsPanel() {
+    final open = providerLeads
+        .where((l) => l['status'] != 'registered' && l['status'] != 'not_interested')
+        .length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: SnowServColors.hairline),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          leading: const Icon(Icons.groups_outlined, color: SnowServColors.navy, size: 20),
+          title: Text('Recruiting pipeline (${providerLeads.length})',
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 14, color: SnowServColors.navy)),
+          subtitle: Text(
+            open == 0
+                ? 'No one waiting on follow-up'
+                : '$open awaiting follow-up',
+            style: const TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
+          ),
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _addLeadDialog,
+                icon: const Icon(Icons.person_add_alt, size: 16),
+                label: const Text('Add a lead'),
+              ),
+            ),
+            const SizedBox(height: 4),
+            if (providerLeads.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'Nobody yet. Landscapers are the best source — they own trucks '
+                  'and are idle December through March.',
+                  style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
+                ),
+              )
+            else
+              ...providerLeads.map(_leadRow),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _leadRow(Map<String, dynamic> lead) {
+    final status = (lead['status'] ?? 'new').toString();
+    final color = _leadStatusColor(status);
+    final subtitle = [
+      lead['company'],
+      lead['phone'],
+      lead['email'],
+      lead['zip'],
+      lead['equipment'],
+    ].where((v) => v != null && v.toString().trim().isNotEmpty).join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: SnowServColors.surfaceSoft,
+          borderRadius: BorderRadius.circular(8),
+          border: Border(left: BorderSide(color: color, width: 3)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (lead['name']?.toString().trim().isNotEmpty ?? false)
+                        ? lead['name'].toString()
+                        : '(no name)',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(subtitle,
+                        style: const TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft)),
+                  if ((lead['notes'] ?? '').toString().trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text(lead['notes'].toString(),
+                          style: const TextStyle(
+                              fontSize: 11.5, fontStyle: FontStyle.italic, color: Colors.black54)),
+                    ),
+                  if ((lead['source'] ?? '').toString().trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text('via ${lead['source']}',
+                          style: TextStyle(fontSize: 10.5, color: Colors.grey.shade500)),
+                    ),
+                ],
+              ),
+            ),
+            // Status is the whole point of the pipeline, so make it one tap.
+            PopupMenuButton<String>(
+              tooltip: 'Change status',
+              onSelected: (v) => _setLeadStatus(lead, v),
+              itemBuilder: (_) => _leadStatuses.entries
+                  .map((e) => PopupMenuItem(value: e.key, child: Text(e.value)))
+                  .toList(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  border: Border.all(color: color),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(_leadStatuses[status] ?? status,
+                      style: TextStyle(color: color, fontSize: 10.5, fontWeight: FontWeight.bold)),
+                  Icon(Icons.arrow_drop_down, size: 15, color: color),
+                ]),
+              ),
+            ),
+            IconButton(
+              icon: Icon(Icons.delete_outline, size: 17, color: Colors.grey.shade500),
+              tooltip: 'Delete lead',
+              onPressed: () => _deleteLead(lead),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _setLeadStatus(Map<String, dynamic> lead, String status) async {
+    try {
+      await supabase.from('provider_leads').update({'status': status}).eq('id', lead['id']);
+      if (mounted) setState(() => lead['status'] = status);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not update: $e')));
+      }
+    }
+  }
+
+  Future<void> _deleteLead(Map<String, dynamic> lead) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this lead?'),
+        content: Text('${lead['name'] ?? 'This lead'} will be removed from the pipeline.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await supabase.from('provider_leads').delete().eq('id', lead['id']);
+      loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not delete: $e')));
+      }
+    }
+  }
+
+  Future<void> _addLeadDialog() async {
+    final name = TextEditingController();
+    final company = TextEditingController();
+    final phone = TextEditingController();
+    final email = TextEditingController();
+    final zip = TextEditingController();
+    final equipment = TextEditingController();
+    final source = TextEditingController();
+    final notes = TextEditingController();
+    bool saving = false;
+
+    Widget field(TextEditingController c, String label, {String? hint, int lines = 1}) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: TextField(
+            controller: c,
+            maxLines: lines,
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              isDense: true,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        );
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Add a lead'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  field(name, 'Name'),
+                  field(company, 'Company', hint: 'e.g. Vito\'s Landscaping'),
+                  field(phone, 'Phone'),
+                  field(email, 'Email'),
+                  field(zip, 'ZIP'),
+                  field(equipment, 'Equipment', hint: 'e.g. 2 trucks w/ plows, 1 blower'),
+                  // Free text, because knowing WHICH channel works is the whole
+                  // point of running outreach across several at once.
+                  field(source, 'Source', hint: 'landscaper call · Facebook · referral'),
+                  field(notes, 'Notes', lines: 3),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final hasSomething = [name, company, phone, email]
+                          .any((c) => c.text.trim().isNotEmpty);
+                      if (!hasSomething) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                            content: Text('Add at least a name, company, phone or email.')));
+                        return;
+                      }
+                      setLocal(() => saving = true);
+                      String? v(TextEditingController c) =>
+                          c.text.trim().isEmpty ? null : c.text.trim();
+                      try {
+                        await supabase.from('provider_leads').insert({
+                          'name': v(name),
+                          'company': v(company),
+                          'phone': v(phone),
+                          'email': v(email),
+                          'zip': v(zip),
+                          'equipment': v(equipment),
+                          'source': v(source) ?? 'admin',
+                          'notes': v(notes),
+                          'status': 'new',
+                        });
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        loadAll();
+                      } catch (e) {
+                        setLocal(() => saving = false);
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx)
+                              .showSnackBar(SnackBar(content: Text('Could not save: $e')));
+                        }
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(
+                      width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Add'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
