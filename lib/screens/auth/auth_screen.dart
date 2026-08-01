@@ -21,6 +21,9 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   bool isLogin = true;
   String selectedRole = 'customer';
+  // Opt-in for non-operational email only (season opening, new service areas,
+  // re-engagement). Defaults false — the Terms promise marketing is opt-in.
+  bool marketingOptIn = false;
   bool loading = false;
 
   final emailController = TextEditingController();
@@ -137,6 +140,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             'role': selectedRole,
             'full_name': nameController.text.trim(),
             'phone': phoneController.text.trim(),
+            // Read by handle_new_user, which treats anything but the string
+            // 'true' as a no — a build that omits this can't imply consent.
+            'marketing_opt_in': marketingOptIn.toString(),
           },
         );
         if (response.user != null && mounted) {
@@ -361,7 +367,47 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       ),
 
                       if (!isLogin) ...[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 6),
+                        // Consent for NON-operational email only. Ships UNCHECKED
+                        // and sits BELOW the Sign Up button on purpose: opt-in has
+                        // to be a deliberate act, not something that happens to
+                        // someone skimming a form. Job/receipt/account email is
+                        // unaffected and needs no checkbox — the Terms cover it.
+                        InkWell(
+                          onTap: () => setState(() => marketingOptIn = !marketingOptIn),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: Checkbox(
+                                    value: marketingOptIn,
+                                    onChanged: (v) =>
+                                        setState(() => marketingOptIn = v ?? false),
+                                    side: const BorderSide(color: Colors.white54),
+                                    checkColor: SnowServColors.navy,
+                                    fillColor: WidgetStateProperty.resolveWith((s) =>
+                                        s.contains(WidgetState.selected)
+                                            ? Colors.white
+                                            : Colors.transparent),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Email me when we open for the season or expand to new '
+                                    'areas. (Optional — you\'ll always get order updates.)',
+                                    style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.35),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         const LegalConsentText(),
                       ],
 
