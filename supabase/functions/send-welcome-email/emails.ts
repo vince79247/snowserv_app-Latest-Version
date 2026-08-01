@@ -21,7 +21,7 @@ export function shell(heading: string, bodyHtml: string): string {
     <tr><td bgcolor="#F7FBFF" style="background-color:#F7FBFF;padding:18px 32px;border-radius:0 0 12px 12px;border-top:1px solid #E2ECF6;text-align:center;">
       <p style="margin:0;font-size:12px;line-height:1.6;color:#5A7184;">
         Questions? <a href="mailto:support@snowserv.app" style="color:#1565C0;text-decoration:none;">support@snowserv.app</a><br>
-        SnowServ &middot; Yonkers, NY
+        You're receiving this because you created a SnowServ account.
       </p>
     </td></tr>
   </table>
@@ -47,7 +47,12 @@ export function customerEmail(name: string) {
         li('<b>Cancel before work starts and the hold is released</b> — no charge at all.'),
         li('<b>Your provider photographs the finished job</b>, so you can see the work even if you weren\'t home.'),
       ]),
-      p('Pricing depends on your area, and during a storm prices rise with snow depth. You\'ll always see the exact total before you confirm.'),
+      // Kept, but reordered to lead with the PROMISE rather than the increase, and
+      // to say WHY prices move. Unexplained surge reads as gouging; "deep snow is
+      // more work" reads as fair. This paragraph is also a cheap dispute shield —
+      // a timestamped, pre-order disclosure that storm pricing exists is exactly
+      // what you want on file when someone asks why a job was $165 and not $125.
+      p('You\'ll always see your exact total before you confirm — no surprises. Prices vary by area, and deep snow costs more than a dusting, simply because it\'s more work to clear.'),
       p('<a href="mailto:support@snowserv.app" style="color:#1565C0;">Email us</a> any time — a real person reads it.'),
     ].join('')),
   }
