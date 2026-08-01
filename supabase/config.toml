@@ -71,3 +71,12 @@ verify_jwt = false
 [functions.send-welcome-email]
 enabled = true
 verify_jwt = false
+
+# Called by the disputes AFTER INSERT trigger through pg_net (no JWT possible),
+# and by the admin panel on resolve. Publicly reachable as a result — but it only
+# ever mails the person named on an existing dispute row, chosen by filed_by, and
+# reveals nothing in the response. Worst case for someone guessing a dispute UUID
+# is re-sending that filer a mail they already received.
+[functions.send-dispute-email]
+enabled = true
+verify_jwt = false

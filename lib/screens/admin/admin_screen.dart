@@ -572,6 +572,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       // leak that a complaint was even made.
       final jobId = dispute['job_id']?.toString();
       var notified = false;
+      var emailed = false;
       if (jobId != null) {
         final fn = dispute['filed_by'] == 'provider' ? 'notify-provider' : 'notify-customer';
         try {
@@ -584,13 +585,34 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           notified = (res.data is Map) && (res.data['sent'] == 1);
         } catch (_) {}
       }
+      // Email as well as push. Push is the instant ping but it's ephemeral —
+      // it needs the app installed and notifications on, and it's gone once
+      // dismissed. An outcome someone may want to re-read, forward, or argue
+      // with needs to exist somewhere durable, and it reaches people who turned
+      // push off or deleted the app.
+      try {
+        final res = await supabase.functions.invoke('send-dispute-email', body: {
+          'dispute_id': dispute['id'],
+          'kind': newStatus == 'resolved' ? 'resolved' : 'closed',
+        });
+        emailed = (res.data is Map) && (res.data['sent'] == 1);
+      } catch (_) {}
       if (mounted) {
+        final verb = newStatus == 'resolved' ? 'resolved' : 'closed';
+        // Say which channels actually landed. "Notified" when nothing was
+        // delivered is how a silent failure becomes an angry customer.
+        final String how;
+        if (emailed && notified) {
+          how = 'emailed and pushed to the person who reported it.';
+        } else if (emailed) {
+          how = 'emailed to the person who reported it (no push — notifications off).';
+        } else if (notified) {
+          how = 'pushed to their phone (email did not send — check Resend).';
+        } else {
+          how = 'but nothing was delivered — follow up from support@snowserv.app.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(notified
-              ? 'Dispute ${newStatus == 'resolved' ? 'resolved' : 'closed'} — the person who '
-                  'reported it was notified.'
-              : 'Dispute ${newStatus == 'resolved' ? 'resolved' : 'closed'}. No push went out '
-                  '(they have notifications off or no device) — follow up from support@snowserv.app.'),
+          content: Text('Dispute $verb — $how'),
           duration: const Duration(seconds: 5),
         ));
       }
