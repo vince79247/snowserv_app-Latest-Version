@@ -9,6 +9,7 @@ import '../../config/app_config.dart';
 import 'zone_editor_screen.dart';
 import 'admin_map_screen.dart';
 import 'support_assistant_screen.dart';
+import '../../widgets/site_notes_panel.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -2345,6 +2346,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                 Text(formatDate(job['created_at']),
                     style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                // Standing notes on this PROPERTY (survive the job). Admin can
+                // hard-delete anything a provider shouldn't have written.
+                if (job['address_id'] != null)
+                  SiteNotesPanel(
+                    key: ValueKey('adminnotes-${job['address_id']}'),
+                    addressId: '${job['address_id']}',
+                    canAdd: false,
+                    isAdmin: true,
+                    dense: true,
+                  ),
                 _jobTimeline(job),
                 _locationVerification(job),
                 _captureFailedBanner(job),

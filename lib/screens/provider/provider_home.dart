@@ -20,6 +20,7 @@ import '../faq_screen.dart';
 import '../edit_profile_screen.dart';
 import '../admin/admin_screen.dart';
 import '../../utils/web_layout.dart';
+import '../../widgets/site_notes_panel.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -1895,6 +1896,15 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                     ),
                                   ),
                                 ],
+                                // What previous providers learned about this
+                                // property — gate codes, dogs, the thing you
+                                // must not plow over. Read BEFORE you arrive.
+                                if (job['address_id'] != null)
+                                  SiteNotesPanel(
+                                    key: ValueKey('notes-${job['address_id']}'),
+                                    addressId: '${job['address_id']}',
+                                    myProviderId: providerId,
+                                  ),
                                 const SizedBox(height: 10),
                                 SizedBox(
                                   width: double.infinity,
