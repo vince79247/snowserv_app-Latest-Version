@@ -3428,7 +3428,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 Expanded(
                   child: Text(
                     '$unpayable approved provider${unpayable == 1 ? '' : 's'} '
-                    "haven't finished payout setup — they can take jobs but cannot be paid.",
+                    "${unpayable == 1 ? "hasn't" : "haven't"} finished payout setup — "
+                    'they can take jobs but cannot be paid.',
                     style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900),
                   ),
                 ),
