@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
+import 'faq_screen.dart';
 
 // "Work with us" — a no-account interest form for people who might become
 // providers. Deliberately NOT the full registration: a landscaper contacted in
@@ -217,6 +218,20 @@ class _ProviderInterestScreenState extends State<ProviderInterestScreen> {
             'Full sign-up (license, insurance, payout setup) comes later.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
+          ),
+          const SizedBox(height: 6),
+          // Straight to the PROVIDER tab. The login screen's FAQ link opens on
+          // the customer tab, so a contractor arriving from a recruiting ad
+          // landed on answers written for homeowners and had to spot the tab.
+          // This page IS the recruiting landing page — the questions a
+          // contractor is weighing (pay, equipment, how dispatch picks) should
+          // be one tap from it, or he asks by DM instead and nobody scales.
+          TextButton.icon(
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const FaqScreen(initialTab: 1))),
+            icon: const Icon(Icons.help_outline, size: 16),
+            label: const Text('Questions about pay, equipment or how jobs are sent?',
+                style: TextStyle(fontSize: 12.5)),
           ),
         ],
       );
