@@ -175,8 +175,17 @@ specific day or admin approval, and getting banned costs you the whole group.
 > bigger jobs go.
 >
 > Straight up: we launch in November and I'm building the crew now, so I can't tell you how
-> many jobs there'll be. Early guys get first pick. If that's worth a shot, comment or DM
-> and I'll send the link.
+> many jobs there'll be. Early guys get first pick.
+>
+> If that's worth a shot: app.snowserv.app — tap "Plow with us." Takes a minute, no account
+> needed. Or comment/DM me and I'll answer anything.
+
+**Link in the post, not "DM me for the link."** The original said the latter, which recreates
+exactly the inbox work the Craigslist CTA was rewritten to avoid — and every DM is a lead
+that only converts if Vince is awake and answering. Self-serve converts at 3am from Italy.
+
+Some groups ban links outright. In those, drop the URL line and use "comment and I'll send
+it" — but only in the groups that actually require it, not as the default.
 
 ---
 
