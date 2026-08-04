@@ -37,7 +37,7 @@ keeps **75%** (`app_settings.commission_pct` = 25).
 | Sidewalk only | $80 | **$60** |
 | Driveway only | $120 | **$90** |
 | Sidewalk + driveway | $160 | **$120** |
-| Both + deicer | $205 | **$153.75** |
+| Both + deicer | $250 | **$187.50** |
 
 Storm pricing multiplies the whole job when snow is deep (up to 2× at 10"+). A
 sidewalk+driveway at 1.5× is **$240 to the customer, $180 to the provider** — same work,
@@ -80,10 +80,10 @@ category gets flagged.
 > - Sidewalk only: **$60**
 > - Driveway only: **$90**
 > - Sidewalk + driveway: **$120**
-> - Sidewalk + driveway + deicer: **$153.75**
+> - Sidewalk + driveway + deicer: **$187.50**
 >
-> Deicer is an add-on — it puts another **$33.75** in your pocket on any of the above. Deep
-> snow pays more too: pricing scales with depth, up to double in a big storm.
+> Deicer is an add-on — it puts another **$67.50** in your pocket. Deep snow pays more too:
+> pricing scales with depth, up to double in a big storm.
 >
 > Paid by direct deposit, weekly. The customer's card is authorized before the job is sent
 > to you, so you're not chasing anyone for money.
