@@ -91,7 +91,7 @@ category gets flagged.
 > promise you a certain number of jobs. What we can promise is that the early contractors
 > get first pick as customers come in, and that you'll be paid on time and in full.
 >
-> Interested? Apply here: **https://snowserv-a5a29.web.app** — tap "Plow with us."
+> Interested? Apply here: **https://app.snowserv.app** — tap "Plow with us."
 > Or reply to this post.
 
 ---
@@ -132,7 +132,7 @@ Keep it short. The goal is one link, not a pitch.
 > deposit. Driveway is $75 to you, driveway + sidewalk $93.75, more in deep snow. You need
 > your own equipment, insurance, and a smartphone. No fees to join.
 >
-> Sign-up is here: https://snowserv-a5a29.web.app (tap "Plow with us"). Takes a few minutes.
+> Sign-up is here: https://app.snowserv.app (tap "Plow with us"). Takes a few minutes.
 > Any questions, just ask — happy to talk it through.
 
 ---
@@ -167,7 +167,7 @@ You take photos before and after, right in the app. Those settle almost every di
 Plenty of contractors do both. This is for filling the gaps — you're not paying to
 advertise, you're not answering the phone, and you're not chasing anyone for a check.
 
-**"What's the app take my customers?"**
+**"What stops you taking my customers?"**
 Fair question. There's a non-solicitation clause in the contractor agreement about not
 taking SnowServ customers off-platform — same as any referral arrangement. Customers you
 already had are yours; nothing about them changes.
