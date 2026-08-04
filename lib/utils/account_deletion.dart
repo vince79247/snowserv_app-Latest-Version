@@ -44,7 +44,7 @@ Future<void> confirmAndDeleteAccount(BuildContext context) async {
               SizedBox(height: 12),
               Text(
                 'We permanently remove your personal details — your name, email, '
-                'phone, saved card, and (for providers) your bank, tax, licence '
+                'phone, saved card, and (for providers) your bank, tax, license '
                 'and insurance information.',
                 style: TextStyle(fontSize: 13),
               ),

@@ -82,6 +82,35 @@ category gets flagged.
 >
 > Deicer is an add-on — it pays you extra on top of any of these. Deep snow pays more too:
 > pricing scales with depth, up to double in a big storm.
+>
+> Paid by direct deposit, weekly. The customer's card is authorized before the job is sent
+> to you, so you're not chasing anyone for money.
+>
+> **How it works**
+> Job comes to your phone with the address, the work, the distance, and your pay. Accept or
+> decline — no penalty either way. Take a photo when you're done and you're paid.
+>
+> **What you need**
+> - Your own equipment (shovel, snowblower, or plow — plow/blower gets you the bigger jobs)
+> - A smartphone
+> - Insurance and a driver's license for the file
+> - To work as an independent contractor (1099)
+>
+> **Being straight with you:** we're brand new and haven't launched yet, so nobody can
+> promise you a certain number of jobs. What we can promise is that the early contractors
+> get first pick as customers come in, and that you'll be paid on time and in full.
+>
+> Interested? Read the details and leave your info here: https://app.snowserv.app
+> Tap "Plow with us" — takes about a minute, no account needed.
+>
+> Or reply to this post if you'd rather ask a question first.
+
+### Craigslist "compensation" field
+
+A separate short field on the posting form, rendered near the top of the post:
+
+> Your take-home: $60 sidewalk, $90 driveway, $120 both, $187.50 both + deicer. That's your
+> cut after our 25% — no other fees. Paid weekly by direct deposit.
 
 **Show both numbers — customer price AND take-home.** Vince flagged that "75% of every job —
 $60 sidewalk, $90 driveway" is ambiguous: the reader can't tell whether $60 is the job price
@@ -94,35 +123,9 @@ Quoting the deicer add-on as a single figure was dropped for a different reason:
 is priced per surface, "another $67.50" is only true for the both-surfaces job. The tier list
 carries the concrete number a contractor needs and stays correct through that change.
 
-### Craigslist "compensation" field
-
-Separate short field on the posting form; renders near the top of the post. Keep it explicit
-for the same reason as above:
-
-> Your take-home: $60 sidewalk, $90 driveway, $120 both, $187.50 both + deicer. That's your
-> cut after our 25% — no other fees. Paid weekly by direct deposit.
->
-> Paid by direct deposit, weekly. The customer's card is authorized before the job is sent
-> to you, so you're not chasing anyone for money.
->
-> **How it works**
-> Job comes to your phone with the address, the work, the distance, and your pay. Accept or
-> decline — no penalty either way. Take a photo when you're done and you're paid.
->
-> **What you need**
-> - Your own equipment (shovel, snowblower, or plow — plow/blower gets you the bigger jobs)
-> - A smartphone
-> - Insurance and a driver's licence for the file
-> - To work as an independent contractor (1099)
->
-> **Being straight with you:** we're brand new and haven't launched yet, so nobody can
-> promise you a certain number of jobs. What we can promise is that the early contractors
-> get first pick as customers come in, and that you'll be paid on time and in full.
->
-> Interested? Read the details and leave your info here: https://app.snowserv.app
-> Tap "Plow with us" — takes about a minute, no account needed.
->
-> Or reply to this post if you'd rather ask a question first.
+**US spelling.** It's "license", not "licence" — the audience is Yonkers contractors. A
+British spelling in an American gig ad reads as either careless or offshore, and this ad's
+whole job is to make a stranger trust an unknown company with his bank details.
 
 **The URL goes FIRST, deliberately.** "Plow with us" is NOT the five-step registration — it
 opens the no-account interest form (`provider_interest_screen.dart` → `provider_leads`):
@@ -211,7 +214,7 @@ Stripe handles the tax form.
 No. Decline anything, any time, no penalty. The job goes to the next contractor.
 
 **"Do I need insurance?"**
-Yes — you upload it during signup, along with your licence. That protects you as much as us.
+Yes — you upload it during signup, along with your license. That protects you as much as us.
 
 **"What if the customer says I damaged something?"**
 You take photos before and after, right in the app. Those settle almost every dispute.

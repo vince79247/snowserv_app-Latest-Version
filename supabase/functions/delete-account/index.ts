@@ -9,7 +9,7 @@
 // rows physically cannot be deleted while jobs/addresses reference them — and we
 // wouldn't want to anyway: job rows are needed for tax, payouts and disputes. So we
 //   1. scrub all personally identifying data (name/email/phone/card/bank/SSN/DOB/
-//      licence/insurance/tax/vehicle),
+//      license/insurance/tax/vehicle),
 //   2. delete the provider's private documents from storage,
 //   3. detach their card from Stripe,
 //   4. DELETE the auth.users row so they can never log in again.
@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
         }),
       })
 
-      // Their licence / insurance scans live in the PRIVATE provider-documents
+      // Their license / insurance scans live in the PRIVATE provider-documents
       // bucket. Purge them — leaving them behind would defeat the deletion.
       const docs = [provider.dl_photo_url, provider.insurance_photo_url].filter(Boolean)
       if (docs.length) {

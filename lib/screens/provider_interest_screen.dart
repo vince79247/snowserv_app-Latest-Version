@@ -4,7 +4,7 @@ import '../theme.dart';
 
 // "Work with us" — a no-account interest form for people who might become
 // providers. Deliberately NOT the full registration: a landscaper contacted in
-// September isn't going to upload a licence and insurance certificate on the
+// September isn't going to upload a license and insurance certificate on the
 // spot, and asking them to is how you lose them. Name + one way to reach them is
 // enough; the real registration happens later, in the app, when they're ready.
 //
@@ -214,7 +214,7 @@ class _ProviderInterestScreenState extends State<ProviderInterestScreen> {
           const SizedBox(height: 10),
           const Text(
             'This is just an introduction — no documents needed yet. '
-            'Full sign-up (licence, insurance, payout setup) comes later.',
+            'Full sign-up (license, insurance, payout setup) comes later.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
           ),
