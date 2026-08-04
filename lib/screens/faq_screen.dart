@@ -358,6 +358,14 @@ List<_FaqSection> get _providerSections {
     // residential so nobody signs up expecting parking lots and feels misled —
     // then point the ones with real equipment at the operator list, which is a
     // genuinely better fit for them than a $120 driveway.
+    // Vince asked that providers be told to flag underpriced jobs. Without this
+    // the feature is invisible: nobody opens a notes panel they were never told
+    // about, and the admin's price_multiplier lever stays unused because the
+    // signal never arrives.
+    _FaqItem(
+      'This job is bigger than the price suggests — what do I do?',
+      'Do the job as booked, then leave a note on the property. On the job card, open Property notes, choose "Bigger job than priced" and say what you found — "driveway is about 200 feet, takes twice as long as a normal one", or "corner lot, sidewalk on two streets".\n\nThat note stays with the ADDRESS, not the job, so the next provider sent there sees it too — and it goes straight to us. We can raise the price on that specific property for future orders, which means the next person who clears it gets paid properly for the work it actually takes.\n\nWe can\'t change the price of a job already booked — the customer\'s card was authorised for the amount they agreed to. But telling us is how it gets fixed for next time. If a property is badly mispriced, say so; that\'s useful to us and we\'d rather know.',
+    ),
     _FaqItem(
       'Do you send out commercial work — parking lots, complexes?',
       'No. Every job on SnowServ is residential — driveways, walkways and sidewalks at homes.\n\nWe don\'t take commercial contracts, so none will come to you through the app. If commercial is the part of your business you\'re trying to fill, SnowServ isn\'t the right fit for it, and it\'s better you know that before you sign up than after.\n\nWhat we do send is steady residential work in your area, matched to the equipment you have.',

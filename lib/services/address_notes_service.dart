@@ -21,6 +21,11 @@ class AddressNotesService {
     'safety': 'Safety',
     'access': 'Access',
     'quirk': 'Property quirk',
+    // The provider standing on the job is the only person who can see that a
+    // property is worth more than the zone price. Pairs with the admin's
+    // addresses.price_multiplier lever, which previously had no signal feeding
+    // it. A note, not a price change — the admin decides.
+    'pricing': 'Bigger job than priced',
   };
 
   /// Live (non-archived) notes for a property, newest first.

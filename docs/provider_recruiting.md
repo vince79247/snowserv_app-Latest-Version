@@ -4,8 +4,8 @@
 
 **The clock:** contractors commit to winter work in **September and October**. Whoever is
 going to be busy in November already is by then. Posting in November means recruiting the
-people nobody else wanted. Most of what's below can be posted remotely — leads land in the
-admin Providers tab (Leads pipeline) and get worked when Vince is back in October.
+people nobody else wanted. Leads land in the admin Providers tab (Leads pipeline) and can be
+worked from anywhere with a browser.
 
 **Target: 5 providers who are approved AND `payouts_enabled`.** Not 5 signups — 5 who have
 finished Stripe Connect onboarding. Budget a week of chasing between "he's interested" and
@@ -182,7 +182,8 @@ specific day or admin approval, and getting banned costs you the whole group.
 
 **Link in the post, not "DM me for the link."** The original said the latter, which recreates
 exactly the inbox work the Craigslist CTA was rewritten to avoid — and every DM is a lead
-that only converts if Vince is awake and answering. Self-serve converts at 3am from Italy.
+that only converts if Vince is awake and answering. Self-serve converts overnight and while
+he's travelling; a DM waits for him.
 
 **Invite COMMENTS, never DMs** (Vince's call, 2026-08-04 — he objected to the post soliciting
 DMs at all). They aren't equivalent: a comment is public, so one answer serves everyone

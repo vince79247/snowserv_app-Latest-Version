@@ -84,6 +84,16 @@ class _SiteNotesPanelState extends State<SiteNotesPanel> {
           fg: SnowServColors.iceBlue,
           icon: Icons.vpn_key_outlined
         );
+      case 'pricing':
+        // Green rather than a warning colour: this is money information for the
+        // admin, not a hazard, and it should read as useful rather than alarming
+        // to the next provider who sees it on the card.
+        return (
+          bg: const Color(0xFFE6F4EC),
+          border: const Color(0xFF9FD3B8),
+          fg: SnowServColors.success,
+          icon: Icons.trending_up
+        );
       default:
         return (
           bg: SnowServColors.surfaceSoft,
