@@ -102,15 +102,33 @@ category gets flagged.
 > promise you a certain number of jobs. What we can promise is that the early contractors
 > get first pick as customers come in, and that you'll be paid on time and in full.
 >
-> Interested? **Reply to this post** and I'll send you the details.
-> You can also sign up directly at https://app.snowserv.app — tap "Plow with us."
+> Interested? Read the details and leave your info here: https://app.snowserv.app
+> Tap "Plow with us" — takes about a minute, no account needed.
+>
+> Or reply to this post if you'd rather ask a question first.
 
-⚠️ **Reply-to-post goes FIRST, the URL second — deliberately.** Craigslist's spam filtering
-is hostile to gig posts whose main call to action is "apply on our website"; that's the
-signature of lead-gen spam and it's a ghosting trigger, especially from an unusual IP. You
-get the lead either way through CL's mail relay. Also: **CL strips HTML in gigs**, so there
-is no way to style the link or make it a button — a bare URL is the most you get, and it
-isn't reliably clickable.
+**The URL goes FIRST, deliberately.** "Plow with us" is NOT the five-step registration — it
+opens the no-account interest form (`provider_interest_screen.dart` → `provider_leads`):
+name, phone or email, ZIP, equipment, notes. A minute, no documents. That makes the website
+the *better* channel, not merely the more convenient one: you capture equipment type and
+ZIP as structured fields that map onto what dispatch cares about, and every lead lands in
+the admin Leads pipeline where they can be worked in one batch — instead of arriving as
+free-text emails someone has to read and retype.
+
+Reply-to-post stays as a second option because CL's mail relay is free and some contractors
+would rather ask a human before typing anything.
+
+**Two caveats:**
+- **Leads arrive silently.** Nothing pushes or emails when the form is submitted — check the
+  admin Leads tab. A contractor who fills it in and hears nothing for weeks goes cold, so
+  batch a reply pass at least weekly during the recruiting window.
+- **The form hardcodes `source: 'website form'`**, so Craigslist, Facebook and word-of-mouth
+  leads are indistinguishable. If channel attribution matters for deciding where to spend
+  October, that needs a per-channel source before the posts go up.
+
+**On formatting:** CL supports `<a href>` only in certain paid categories, so in gigs expect
+a bare, possibly non-clickable URL. `app.snowserv.app` is short enough to type from a phone,
+which is the whole reason the custom domain was worth setting up.
 
 ---
 
