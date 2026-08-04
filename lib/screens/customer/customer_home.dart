@@ -486,7 +486,28 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
   int get _priceSidewalk => _perProperty(_serviceArea?['price_sidewalk']);
   int get _priceDriveway => _perProperty(_serviceArea?['price_driveway']);
   int get _priceBoth => _perProperty(_serviceArea?['price_both']);
-  int get _priceSalting => _perProperty(_serviceArea?['price_salting']);
+
+  // Deicer is priced PER SURFACE — salting a sidewalk uses less salt and less
+  // time than salting a sidewalk and a driveway, and a single flat fee made a
+  // sidewalk-only order cost more to salt than to shovel.
+  //
+  // price_salting keeps its original meaning (both surfaces); the per-surface
+  // columns coalesce back to it so a zone saved before those columns existed
+  // prices sanely instead of falling to $0.
+  //
+  // ⚠️ create-checkout-session recomputes this server-side and its version is
+  // what the customer is actually CHARGED. The two must pick the same column
+  // for the same selection or the shown price won't match the charge.
+  int get _priceSalting {
+    final area = _serviceArea;
+    if (area == null) return 0;
+    final key = switch (selectedService) {
+      'sidewalk_driveway' => 'price_salting',
+      'driveway' => 'price_salting_driveway',
+      _ => 'price_salting_sidewalk',
+    };
+    return _perProperty(area[key] ?? area['price_salting']);
+  }
 
   // The ZIP for the current order — the "someone else" address when that toggle
   // is on, otherwise the customer's saved address. Used for waitlist capture and

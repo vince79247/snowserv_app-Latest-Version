@@ -1627,7 +1627,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                             ]),
                             const SizedBox(height: 4),
                             Text(
-                              'Sidewalk \$${a['price_sidewalk']}  •  Driveway \$${a['price_driveway']}  •  Both \$${a['price_both']}  •  Deicer +\$${a['price_salting']}',
+                              'Sidewalk \$${a['price_sidewalk']}  •  Driveway \$${a['price_driveway']}  •  Both \$${a['price_both']}\n'
+                              'Deicer +\$${a['price_salting_sidewalk'] ?? a['price_salting']} / '
+                              '+\$${a['price_salting_driveway'] ?? a['price_salting']} / '
+                              '+\$${a['price_salting']} (sidewalk / driveway / both)',
                               style: const TextStyle(fontSize: 12, color: Colors.grey),
                             ),
                             Row(

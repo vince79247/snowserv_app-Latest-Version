@@ -26,6 +26,8 @@ class _ZoneEditorScreenState extends State<ZoneEditorScreen> {
   final _drivewayCtrl = TextEditingController(text: '100');
   final _bothCtrl = TextEditingController(text: '125');
   final _saltingCtrl = TextEditingController(text: '40');
+  final _saltingWalkCtrl = TextEditingController(text: '40');
+  final _saltingDriveCtrl = TextEditingController(text: '40');
   final _searchCtrl = TextEditingController();
 
   final List<LatLng> _points = [];
@@ -45,6 +47,13 @@ class _ZoneEditorScreenState extends State<ZoneEditorScreen> {
       _drivewayCtrl.text = z['price_driveway']?.toString() ?? '100';
       _bothCtrl.text = z['price_both']?.toString() ?? '125';
       _saltingCtrl.text = z['price_salting']?.toString() ?? '40';
+      // Per-surface deicer fall back to the both-surfaces price for a zone saved
+      // before those columns existed, so opening and re-saving an old zone can't
+      // silently write $0 for salting a sidewalk.
+      _saltingWalkCtrl.text =
+          (z['price_salting_sidewalk'] ?? z['price_salting'])?.toString() ?? '40';
+      _saltingDriveCtrl.text =
+          (z['price_salting_driveway'] ?? z['price_salting'])?.toString() ?? '40';
       for (final v in parsePolygon(z['polygon'])) {
         _points.add(LatLng(v['lat']!, v['lng']!));
       }
@@ -58,6 +67,8 @@ class _ZoneEditorScreenState extends State<ZoneEditorScreen> {
     _drivewayCtrl.dispose();
     _bothCtrl.dispose();
     _saltingCtrl.dispose();
+    _saltingWalkCtrl.dispose();
+    _saltingDriveCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -102,16 +113,32 @@ class _ZoneEditorScreenState extends State<ZoneEditorScreen> {
       );
       return;
     }
+    // Every price parsed with `?? 0` before, so a blank field — or typing "$90"
+    // instead of "90" — silently saved that service as FREE, with no warning and
+    // nothing on the zone card to make it obvious. Refuse the save instead.
+    final prices = <String, num?>{
+      'price_sidewalk': num.tryParse(_sidewalkCtrl.text.trim()),
+      'price_driveway': num.tryParse(_drivewayCtrl.text.trim()),
+      'price_both': num.tryParse(_bothCtrl.text.trim()),
+      'price_salting': num.tryParse(_saltingCtrl.text.trim()),
+      'price_salting_sidewalk': num.tryParse(_saltingWalkCtrl.text.trim()),
+      'price_salting_driveway': num.tryParse(_saltingDriveCtrl.text.trim()),
+    };
+    if (prices.values.any((v) => v == null || v < 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(
+            'Enter every price as a plain number — digits only, no \$ sign.')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     final polygon =
         _points.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList();
     final payload = {
       'name': name,
       'polygon': polygon,
-      'price_sidewalk': num.tryParse(_sidewalkCtrl.text.trim()) ?? 0,
-      'price_driveway': num.tryParse(_drivewayCtrl.text.trim()) ?? 0,
-      'price_both': num.tryParse(_bothCtrl.text.trim()) ?? 0,
-      'price_salting': num.tryParse(_saltingCtrl.text.trim()) ?? 0,
+      ...prices,
     };
     try {
       if (widget.zone == null) {
@@ -264,11 +291,24 @@ class _ZoneEditorScreenState extends State<ZoneEditorScreen> {
                   Expanded(child: TextField(controller: _drivewayCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Driveway \$'))),
                 ]),
                 const SizedBox(height: 8),
+                TextField(controller: _bothCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Both \$')),
+                const SizedBox(height: 16),
+                // Deicer is priced per surface: salting a sidewalk uses less
+                // salt and less time than salting a sidewalk AND a driveway. One
+                // flat fee meant a sidewalk-only order could cost more to salt
+                // than to shovel.
+                const Text('Deicer add-on — priced per surface',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: SnowServColors.navy)),
+                const Text('Added on top of the service price above.',
+                    style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft)),
+                const SizedBox(height: 8),
                 Row(children: [
-                  Expanded(child: TextField(controller: _bothCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Both \$'))),
+                  Expanded(child: TextField(controller: _saltingWalkCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Deicer · sidewalk \$'))),
                   const SizedBox(width: 8),
-                  Expanded(child: TextField(controller: _saltingCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Deicer \$'))),
+                  Expanded(child: TextField(controller: _saltingDriveCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Deicer · driveway \$'))),
                 ]),
+                const SizedBox(height: 8),
+                TextField(controller: _saltingCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Deicer · both \$')),
               ],
             ),
           ),

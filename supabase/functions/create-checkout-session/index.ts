@@ -302,7 +302,20 @@ Deno.serve(async (req: Request) => {
       : wantsDriveway
         ? perProperty(zone.price_driveway, multiplier)
         : perProperty(zone.price_sidewalk, multiplier)
-    const baseTotal = servicePrice + (wantsSalting ? perProperty(zone.price_salting, multiplier) : 0)
+    // Deicer is priced per surface. price_salting is the both-surfaces price;
+    // the per-surface columns coalesce back to it so a zone row written before
+    // those columns existed prices sanely instead of charging $0.
+    // ⚠️ Must stay in lockstep with _priceSalting in customer_home.dart — this
+    // side is what the customer is CHARGED, that side is what they were SHOWN.
+    const saltingKey = wantsWalkway && wantsDriveway
+      ? 'price_salting'
+      : wantsDriveway
+        ? 'price_salting_driveway'
+        : 'price_salting_sidewalk'
+    const saltingPrice = wantsSalting
+      ? perProperty(zone[saltingKey] ?? zone.price_salting, multiplier)
+      : 0
+    const baseTotal = servicePrice + saltingPrice
     const stormBands = await loadStormBands(supabaseUrl, dbHeaders)
     const surge = await surgeForPoint(geo?.lat ?? null, geo?.lng ?? null, stormBands)
     const finalPrice = Math.round(baseTotal * surge)

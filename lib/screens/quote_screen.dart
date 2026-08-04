@@ -191,19 +191,37 @@ class _QuoteScreenState extends State<QuoteScreen> {
     );
   }
 
+  // Deicer is priced per surface, so the pre-signup quote shows a range rather
+  // than implying one flat add-on. Collapses to a single figure when a zone
+  // charges the same for every surface. Per-surface columns coalesce to
+  // price_salting for zones saved before they existed.
+  String _deicerRange(Map<String, dynamic> a) {
+    int v(String k, int fallback) => (a[k] as num?)?.round() ?? fallback;
+    final both = v('price_salting', 0);
+    final values = [
+      v('price_salting_sidewalk', both),
+      v('price_salting_driveway', both),
+      both,
+    ]..sort();
+    return values.first == values.last
+        ? '\$${values.first}'
+        : '\$${values.first}–\$${values.last}';
+  }
+
   Widget _buildQuoteResult() {
     final a = _area!;
     int p(String k) => (a[k] as num?)?.round() ?? 0;
-    Widget row(String label, int price) => Padding(
+    Widget rowText(String label, String value) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label, style: const TextStyle(fontSize: 15)),
-              Text('\$$price', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: SnowServColors.success)),
+              Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: SnowServColors.success)),
             ],
           ),
         );
+    Widget row(String label, int price) => rowText(label, '\$$price');
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -228,7 +246,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
           row('Sidewalk only', p('price_sidewalk')),
           row('Driveway only', p('price_driveway')),
           row('Sidewalk + Driveway', p('price_both')),
-          row('Deicer add-on', p('price_salting')),
+          rowText('Deicer add-on', _deicerRange(a)),
           const SizedBox(height: 8),
           const Text('Prices may be higher during heavy snow (storm pricing).',
               style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft)),
