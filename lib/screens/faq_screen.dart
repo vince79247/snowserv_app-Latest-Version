@@ -374,7 +374,13 @@ List<_FaqSection> get _providerSections {
   _FaqSection('Earnings & Payouts', [
     _FaqItem(
       'How much do I earn per job?',
-      'You keep $keep% of the total job price. The remaining $comm% covers platform fees, payment processing, insurance, and app maintenance.\n\nExample: A \$125 driveway + sidewalk job pays you \$${(125 * f).toStringAsFixed(2)}.',
+      // Deliberately a ROUND ILLUSTRATIVE number, not a real SnowServ price.
+      // This said "a \$125 driveway + sidewalk job" — a specific claim about our
+      // pricing that went stale the moment Yonkers moved to \$160, and would be
+      // wrong in a different way in every new service area. Prices are per-zone
+      // and admin-editable; any fixed figure written here is a promise that
+      // decays. \$100 reads as "for the sake of the example" and never expires.
+      'You keep $keep% of the total job price. The remaining $comm% covers platform fees, payment processing, insurance, and app maintenance.\n\nPrices are set per service area, so what a job pays depends on where it is — an area with bigger properties is priced higher, and your $keep% scales with it. As an example, on a \$100 job you\'d keep \$${(100 * f).toStringAsFixed(2)}.\n\nThe exact pay for every job is shown on the offer before you accept it.',
     ),
     _FaqItem(
       'Are there any fees or contracts to work with SnowServ?',
