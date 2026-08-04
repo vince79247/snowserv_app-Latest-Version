@@ -80,8 +80,10 @@ Deno.serve(async (req: Request) => {
 
     // Issue full refund via Stripe
     // Look up the current payment status to decide how to reverse it.
+    // latest_charge is expanded so we can see whether it's ALREADY refunded —
+    // without it Stripe returns just the charge id and we'd have to guess.
     const piRes = await fetch(
-      `https://api.stripe.com/v1/payment_intents/${paymentIntentId}`,
+      `https://api.stripe.com/v1/payment_intents/${paymentIntentId}?expand[]=latest_charge`,
       { headers: { Authorization: `Bearer ${stripeKey}` } }
     )
     const pi = await piRes.json()
@@ -125,6 +127,25 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // Charge was already refunded — report SUCCESS, not an error.
+    //
+    // This branch exists because its absence was a trap. The admin UI only marks
+    // the job cancelled (which is what hides the Refund button) AFTER this
+    // function returns OK. Returning 400 here meant a job whose money had already
+    // been returned kept its Refund button forever, failing identically on every
+    // press, with no way for an admin to clear it. Refunding is idempotent from
+    // the caller's point of view: the desired end state — customer made whole —
+    // is already true, so say so. Mirrors the `canceled` branch above.
+    const charge = (pi.latest_charge && typeof pi.latest_charge === 'object')
+      ? pi.latest_charge
+      : null
+    if (charge?.refunded === true) {
+      return new Response(
+        JSON.stringify({ action: 'refunded', status: 'succeeded', already: true }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Payment was already captured (a provider had accepted) → real refund,
     // which the bank posts back over 5–10 business days.
     const refundBody = new URLSearchParams()
@@ -141,6 +162,16 @@ Deno.serve(async (req: Request) => {
     const refund = await refundRes.json()
 
     if (refund.error) {
+      // Belt-and-braces for the same case: a refund raced in between our read
+      // above and this write, or the charge was refunded outside the app
+      // (straight from the Stripe dashboard, which is exactly what an admin
+      // does when the button is broken). Still the desired end state.
+      if (refund.error.code === 'charge_already_refunded') {
+        return new Response(
+          JSON.stringify({ action: 'refunded', status: 'succeeded', already: true }),
+          { headers: { ...cors, 'Content-Type': 'application/json' } }
+        )
+      }
       return new Response(JSON.stringify({ error: refund.error.message }), { status: 400, headers: cors })
     }
 

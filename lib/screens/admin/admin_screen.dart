@@ -661,11 +661,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     if (confirmed != true) return;
 
     String? action;
+    bool already = false;
     try {
       final resp =
           await supabase.functions.invoke('refund-job', body: {'job_id': jobId});
       final data = resp.data;
       if (data is Map && data['action'] is String) action = data['action'] as String;
+      if (data is Map && data['already'] == true) already = true;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -679,9 +681,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     } catch (_) {}
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(action == 'refunded'
-          ? "Refund issued — it posts back to the customer's card in 5–10 business days."
-          : 'Hold released — the customer was never charged.'),
+      // Don't claim we just issued a refund when the money had already gone
+      // back — an admin needs to know whether this click moved money or only
+      // caught the records up.
+      content: Text(already
+          ? 'Already refunded — job marked cancelled and the button is now cleared.'
+          : action == 'refunded'
+              ? "Refund issued — it posts back to the customer's card in 5–10 business days."
+              : 'Hold released — the customer was never charged.'),
       backgroundColor: SnowServColors.success,
     ));
     loadAll();
