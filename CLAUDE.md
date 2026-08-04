@@ -106,13 +106,18 @@ lib/
 - REGIONAL: prices come from the matched service_areas zone (geofenced polygon that
   the geocoded address falls inside), editable in the admin "Areas" tab — NOT hardcoded.
   Values below are the Yonkers launch defaults.
-- Sidewalk only: $50
-- Driveway only: $100
-- Sidewalk + Driveway: $125
-- Salting add-on: +$40
+- ⚠️ THE NUMBERS BELOW GO STALE. They are a snapshot of the live Yonkers row, NOT the
+  source of truth — an admin can change them in the Areas tab at any time and nothing in
+  the repo updates. Before quoting a price to anyone (recruiting copy, marketing, support),
+  READ THE DB, don't read this file. Both prices AND storm bands drifted unnoticed once
+  (caught 2026-08-04, after the provider recruiting copy had been undercutting every tier
+  by ~25%). Quick check with the public anon key:
+  `curl -s "$SUPABASE_URL/rest/v1/service_areas?select=*" -H "apikey: <anon>"`
+- Yonkers zone as of 2026-08-04: sidewalk $80 · driveway $120 · both $160 · salting +$45
 - Storm pricing (labeled "Storm pricing" in customer UI; internal var still surge_multiplier):
-  base_price × multiplier (live — driven by snow depth via Open-Meteo API)
-  - 0–3": 1.0x, 3–6": 1.3x, 6–10": 1.7x, 10"+: 2.3x
+  base_price × multiplier (live — driven by snow depth via Open-Meteo API).
+  Bands are ADMIN-EDITABLE in app_settings.storm_bands (JSON), no longer hardcoded.
+  As of 2026-08-04: 0–3": 1.0x, 3–6": 1.2x, 6–10": 1.5x, 10"+: 2.0x
 - PER-ADDRESS custom pricing (addresses.price_multiplier numeric, default 1.0): the
   admin's "this property is underpriced" lever. Admin taps a job's address in the admin
   panel (gold "Nx price" chip / blue "Set price") → dialog sets a multiplier (presets

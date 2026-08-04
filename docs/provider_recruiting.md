@@ -29,18 +29,24 @@ The honest pitch is genuinely good: **we're new, you get first pick, and you kee
 
 ## The pay math (use real numbers, they will)
 
-Yonkers launch pricing. Provider keeps **75%**:
+Yonkers zone pricing, **verified against the live `service_areas` row 2026-08-04**. Provider
+keeps **75%** (`app_settings.commission_pct` = 25).
 
 | Job | Customer pays | **Provider gets** |
 |---|---|---|
-| Sidewalk only | $50 | **$37.50** |
-| Driveway only | $100 | **$75** |
-| Sidewalk + driveway | $125 | **$93.75** |
-| Both + deicer | $165 | **$123.75** |
+| Sidewalk only | $80 | **$60** |
+| Driveway only | $120 | **$90** |
+| Sidewalk + driveway | $160 | **$120** |
+| Both + deicer | $205 | **$153.75** |
 
-Storm pricing multiplies the whole job when snow is deep (up to 2.3× at 10"+). A
-sidewalk+driveway at 1.7× is **$212.50 to the customer, $159.38 to the provider** — same
-work, deeper snow.
+Storm pricing multiplies the whole job when snow is deep (up to 2× at 10"+). A
+sidewalk+driveway at 1.5× is **$240 to the customer, $180 to the provider** — same work,
+deeper snow.
+
+⚠️ **Re-check these before every posting run.** Zone prices are admin-editable and live in
+the database, not in code — this table was wrong by ~25% for a day because prices were
+raised in the admin panel and the copy wasn't. Quoting a contractor a number and paying him
+a different one is the fastest way to lose him and everyone he talks to.
 
 Say "you keep 75%, we take 25%" plainly. Every contractor asks; answering before they do
 buys more credibility than any adjective.
@@ -69,9 +75,9 @@ category gets flagged.
 > You keep **75%** of every job. We keep 25%. That's the whole arrangement — no signup fee,
 > no monthly fee, no lead fee, no charge for the app.
 >
-> - Driveway: **$75** to you
-> - Sidewalk + driveway: **$93.75** to you
-> - Add deicer: **$123.75** to you
+> - Driveway: **$90** to you
+> - Sidewalk + driveway: **$120** to you
+> - Add deicer: **$153.75** to you
 > - Deep snow pays more — pricing scales with snow depth
 >
 > Paid by direct deposit, weekly. The customer's card is authorized before the job is sent
@@ -111,7 +117,7 @@ specific day or admin approval, and getting banned costs you the whole group.
 > contractors to work it.
 >
 > Simple setup: customer orders from their phone, the job goes to the closest available
-> contractor, you keep 75%. Driveway pays you $75, driveway + sidewalk $93.75, more when
+> contractor, you keep 75%. Driveway pays you $90, driveway + sidewalk $120, more when
 > the snow's deep. Direct deposit weekly, card authorized before the job's sent out so
 > you're never chasing payment.
 >
@@ -129,7 +135,7 @@ specific day or admin approval, and getting banned costs you the whole group.
 Keep it short. The goal is one link, not a pitch.
 
 > Thanks for reaching out. Quick version: you keep 75% of each job, paid weekly by direct
-> deposit. Driveway is $75 to you, driveway + sidewalk $93.75, more in deep snow. You need
+> deposit. Driveway is $90 to you, driveway + sidewalk $120, more in deep snow. You need
 > your own equipment, insurance, and a smartphone. No fees to join.
 >
 > Sign-up is here: https://app.snowserv.app (tap "Plow with us"). Takes a few minutes.
