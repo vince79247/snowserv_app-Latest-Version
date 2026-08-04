@@ -288,7 +288,7 @@ List<_FaqSection> get _customerSections => [
     // through residential pricing would be wrong in both directions.
     _FaqItem(
       'Do you handle commercial properties?',
-      'The app is built for homes — driveways, walkways and sidewalks — and its pricing works that way.\n\nCommercial properties (parking lots, apartment and condo complexes, retail plazas, office buildings) are quoted individually, because the price depends on the size and layout of the lot, how often it needs clearing during a storm, and the insurance the property requires. That can\'t be priced from a tap in the app.\n\nWe do take that work. Email support@snowserv.app with the property address and roughly what needs clearing, and we\'ll come back with a quote.',
+      'No — SnowServ is residential only. We clear driveways, walkways and sidewalks at homes.\n\nWe don\'t take parking lots, apartment or condo complexes, retail plazas or office buildings. Commercial snow removal runs on seasonal contracts and carries insurance requirements that are a different business from what we do, and we\'d rather say so plainly than take your details and disappoint you later.\n\nFor a commercial property, look for a contractor who specialises in it.',
     ),
   ]),
 ];
@@ -360,7 +360,7 @@ List<_FaqSection> get _providerSections {
     // genuinely better fit for them than a $120 driveway.
     _FaqItem(
       'Do you send out commercial work — parking lots, complexes?',
-      'Jobs that come through the app are residential: driveways, walkways and sidewalks at homes. If you\'re expecting parking lots through the app, we\'d rather tell you now.\n\nCommercial work is handled separately. It\'s quoted per property and usually runs on a seasonal contract, and properties normally require commercial insurance naming them on the policy — so it isn\'t dispatched like a driveway.\n\nIf you run a plow truck, loader or dump, get on our operator list at snowserv.app/operators. When commercial or storm-response work comes up in your area, that\'s the list we call.',
+      'No. Every job on SnowServ is residential — driveways, walkways and sidewalks at homes.\n\nWe don\'t take commercial contracts, so none will come to you through the app. If commercial is the part of your business you\'re trying to fill, SnowServ isn\'t the right fit for it, and it\'s better you know that before you sign up than after.\n\nWhat we do send is steady residential work in your area, matched to the equipment you have.',
     ),
   ]),
   _FaqSection('Earnings & Payouts', [
