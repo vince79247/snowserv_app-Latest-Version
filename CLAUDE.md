@@ -355,10 +355,18 @@ Customer can toggle "Ordering for someone else" to enter a different service add
 - Real-time job updates via Supabase Realtime (requires Realtime enabled on jobs table in Supabase dashboard)
 
 ## What's NOT built yet
-- Apple Pay as a dedicated integration — NOTE: Stripe Checkout now surfaces Apple Pay
-  / Google Pay automatically on its hosted page where the device/browser supports it
-  (web Apple Pay needs a one-time Stripe domain registration). So the wallet buttons
-  largely come "for free" with the Checkout migration.
+- Apple Pay as a dedicated integration — NOTE: Stripe Checkout surfaces Apple Pay /
+  Google Pay automatically on its hosted page where the device/browser supports it,
+  so the wallet buttons come "for free" with the Checkout migration.
+  ✅ NO domain registration needed, verified against Stripe's docs 2026-08-04. Stripe
+  requires registering a payment-method domain only for **Elements** or **Checkout's
+  EMBEDDABLE** payment form — i.e. when the payment UI renders on OUR domain. We use
+  the HOSTED redirect to checkout.stripe.com, so the wallet sheet is on Stripe's own
+  (already-registered) domain. An earlier note here claimed registration was required
+  and caused a false alarm that app.snowserv.app had silently broken Apple Pay.
+  ⚠️ This flips the day we ever move to embedded Checkout or the Payment Element —
+  then EVERY domain showing the payment form must be registered, live mode included.
+  https://docs.stripe.com/payments/payment-methods/pmd-registration
 
 ## Deliberately NOT doing (decided, do not re-propose)
 - Modifying an order after it's placed (e.g. "add salting" later). Considered and
