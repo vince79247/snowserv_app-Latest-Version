@@ -281,6 +281,15 @@ List<_FaqSection> get _customerSections => [
       'Is my address information secure?',
       'Yes. Your address and payment information are stored securely. We never share your personal information with third parties beyond what is required to complete your service.',
     ),
+    // "Do you do commercial?" is one of the most common questions and the app
+    // had no answer anywhere. Answer it honestly rather than letting the order
+    // screen imply yes: the app prices per driveway/walkway, and a parking lot
+    // is priced by area and site plan under a seasonal contract. Quoting one
+    // through residential pricing would be wrong in both directions.
+    _FaqItem(
+      'Do you handle commercial properties?',
+      'The app is built for homes — driveways, walkways and sidewalks — and its pricing works that way.\n\nCommercial properties (parking lots, apartment and condo complexes, retail plazas, office buildings) are quoted individually, because the price depends on the size and layout of the lot, how often it needs clearing during a storm, and the insurance the property requires. That can\'t be priced from a tap in the app.\n\nWe do take that work. Email support@snowserv.app with the property address and roughly what needs clearing, and we\'ll come back with a quote.',
+    ),
   ]),
 ];
 
@@ -343,6 +352,15 @@ List<_FaqSection> get _providerSections {
     _FaqItem(
       'What if a customer cancels on me?',
       'You\'ll receive a push notification if a customer cancels. Cancellations that happen before you start the job will not affect your ratings or standing.',
+    ),
+    // Contractors with a plow truck ask this before anything else, because
+    // commercial is where their money is. Say plainly that app jobs are
+    // residential so nobody signs up expecting parking lots and feels misled —
+    // then point the ones with real equipment at the operator list, which is a
+    // genuinely better fit for them than a $120 driveway.
+    _FaqItem(
+      'Do you send out commercial work — parking lots, complexes?',
+      'Jobs that come through the app are residential: driveways, walkways and sidewalks at homes. If you\'re expecting parking lots through the app, we\'d rather tell you now.\n\nCommercial work is handled separately. It\'s quoted per property and usually runs on a seasonal contract, and properties normally require commercial insurance naming them on the policy — so it isn\'t dispatched like a driveway.\n\nIf you run a plow truck, loader or dump, get on our operator list at snowserv.app/operators. When commercial or storm-response work comes up in your area, that\'s the list we call.',
     ),
   ]),
   _FaqSection('Earnings & Payouts', [
