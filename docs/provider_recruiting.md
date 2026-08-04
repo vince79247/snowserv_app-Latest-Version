@@ -82,8 +82,12 @@ category gets flagged.
 > - Sidewalk + driveway: **$120**
 > - Sidewalk + driveway + deicer: **$187.50**
 >
-> Deicer is an add-on — it puts another **$67.50** in your pocket. Deep snow pays more too:
+> Deicer is an add-on — it pays you extra on top of any of these. Deep snow pays more too:
 > pricing scales with depth, up to double in a big storm.
+
+(Quoting the deicer add-on as a single figure was removed on purpose: once deicer is priced
+per surface, "another $67.50" is only true for the both-surfaces job. The tier list carries
+the concrete number a contractor actually needs, and stays correct through that change.)
 >
 > Paid by direct deposit, weekly. The customer's card is authorized before the job is sent
 > to you, so you're not chasing anyone for money.
