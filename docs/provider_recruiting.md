@@ -72,22 +72,35 @@ category gets flagged.
 > putting together our first crew now, before the season starts.
 >
 > **How it pays**
-> You keep **75%** of every job. We keep 25%. That's the whole arrangement — no signup fee,
-> no monthly fee, no lead fee, no charge for the app.
+> No signup fee, no monthly fee, no lead fee, no charge for the app. You're paid 75% of
+> every job — here's exactly what that looks like:
 >
-> What you take home, per job:
->
-> - Sidewalk only: **$60**
-> - Driveway only: **$90**
-> - Sidewalk + driveway: **$120**
-> - Sidewalk + driveway + deicer: **$187.50**
+> - Sidewalk: customer pays $80 &rarr; **you get $60**
+> - Driveway: customer pays $120 &rarr; **you get $90**
+> - Sidewalk + driveway: customer pays $160 &rarr; **you get $120**
+> - Sidewalk + driveway + deicer: customer pays $250 &rarr; **you get $187.50**
 >
 > Deicer is an add-on — it pays you extra on top of any of these. Deep snow pays more too:
 > pricing scales with depth, up to double in a big storm.
 
-(Quoting the deicer add-on as a single figure was removed on purpose: once deicer is priced
-per surface, "another $67.50" is only true for the both-surfaces job. The tier list carries
-the concrete number a contractor actually needs, and stays correct through that change.)
+**Show both numbers — customer price AND take-home.** Vince flagged that "75% of every job —
+$60 sidewalk, $90 driveway" is ambiguous: the reader can't tell whether $60 is the job price
+or his cut, and a contractor skimming a gig ad assumes the worse reading and scrolls on.
+Printing both sides also does something an assertion can't — he can check the 25% himself,
+which answers "what do you *actually* take?" before he thinks to ask it. That suspicion is
+the default posture toward any platform, and it's the objection most likely to lose him.
+
+Quoting the deicer add-on as a single figure was dropped for a different reason: once deicer
+is priced per surface, "another $67.50" is only true for the both-surfaces job. The tier list
+carries the concrete number a contractor needs and stays correct through that change.
+
+### Craigslist "compensation" field
+
+Separate short field on the posting form; renders near the top of the post. Keep it explicit
+for the same reason as above:
+
+> Your take-home: $60 sidewalk, $90 driveway, $120 both, $187.50 both + deicer. That's your
+> cut after our 25% — no other fees. Paid weekly by direct deposit.
 >
 > Paid by direct deposit, weekly. The customer's card is authorized before the job is sent
 > to you, so you're not chasing anyone for money.
