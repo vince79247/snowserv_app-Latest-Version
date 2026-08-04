@@ -71,6 +71,11 @@ h2.center { text-align: center; font-size: 34px; font-weight: 800; letter-spacin
 .panel li { padding: 8px 0 8px 28px; position: relative; }
 .panel li::before { content: "❄"; position: absolute; left: 0; color: var(--ice-light); }
 .panel.navy li::before { color: var(--glacier); }
+/* CTA inside a panel — the buttons that turned this page from a brochure into
+   a way in. Margin-top separates them from the feature list above. */
+.panel .btn { margin-top: 24px; }
+.panel-note { margin-top: 12px; font-size: 14px; color: var(--glacier); }
+.panel.frost .panel-note { color: var(--ink-soft); }
 .section-frost { background: var(--frost); }
 
 /* Footer */
