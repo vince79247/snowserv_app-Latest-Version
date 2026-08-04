@@ -75,10 +75,15 @@ category gets flagged.
 > You keep **75%** of every job. We keep 25%. That's the whole arrangement — no signup fee,
 > no monthly fee, no lead fee, no charge for the app.
 >
-> - Driveway: **$90** to you
-> - Sidewalk + driveway: **$120** to you
-> - Add deicer: **$153.75** to you
-> - Deep snow pays more — pricing scales with snow depth
+> What you take home, per job:
+>
+> - Sidewalk only: **$60**
+> - Driveway only: **$90**
+> - Sidewalk + driveway: **$120**
+> - Sidewalk + driveway + deicer: **$153.75**
+>
+> Deicer is an add-on — it puts another **$33.75** in your pocket on any of the above. Deep
+> snow pays more too: pricing scales with depth, up to double in a big storm.
 >
 > Paid by direct deposit, weekly. The customer's card is authorized before the job is sent
 > to you, so you're not chasing anyone for money.
@@ -97,8 +102,15 @@ category gets flagged.
 > promise you a certain number of jobs. What we can promise is that the early contractors
 > get first pick as customers come in, and that you'll be paid on time and in full.
 >
-> Interested? Apply here: **https://app.snowserv.app** — tap "Plow with us."
-> Or reply to this post.
+> Interested? **Reply to this post** and I'll send you the details.
+> You can also sign up directly at https://app.snowserv.app — tap "Plow with us."
+
+⚠️ **Reply-to-post goes FIRST, the URL second — deliberately.** Craigslist's spam filtering
+is hostile to gig posts whose main call to action is "apply on our website"; that's the
+signature of lead-gen spam and it's a ghosting trigger, especially from an unusual IP. You
+get the lead either way through CL's mail relay. Also: **CL strips HTML in gigs**, so there
+is no way to style the link or make it a button — a bare URL is the most you get, and it
+isn't reliably clickable.
 
 ---
 
