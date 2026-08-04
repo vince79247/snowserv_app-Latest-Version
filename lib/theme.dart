@@ -76,6 +76,21 @@ ThemeData buildSnowServTheme() {
       iconTheme: const IconThemeData(color: Colors.white),
     ),
 
+    // Tabs live in the navy AppBar, where Material 3's defaults resolve to dark
+    // on-surface colours and come out nearly unreadable — the FAQ's "For
+    // Customers / For Providers" tabs were the visible symptom. The admin panel
+    // had already worked around it with the same values inline; putting them in
+    // the theme fixes every TabBar at once and stops the next one repeating it.
+    tabBarTheme: TabBarThemeData(
+      labelColor: Colors.white,
+      unselectedLabelColor: SnowServColors.glacier,
+      indicatorColor: Colors.white,
+      dividerColor: Colors.transparent,
+      labelStyle: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700),
+      unselectedLabelStyle:
+          GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500),
+    ),
+
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: SnowServColors.iceBlue,
