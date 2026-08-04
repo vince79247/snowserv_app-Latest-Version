@@ -177,15 +177,32 @@ specific day or admin approval, and getting banned costs you the whole group.
 > Straight up: we launch in November and I'm building the crew now, so I can't tell you how
 > many jobs there'll be. Early guys get first pick.
 >
-> If that's worth a shot: app.snowserv.app — tap "Plow with us." Takes a minute, no account
-> needed. Or comment/DM me and I'll answer anything.
+> Details and sign-up: app.snowserv.app — tap "Plow with us." There's an FAQ there covering
+> pay, equipment, and how jobs get sent out. Questions welcome in the comments.
 
 **Link in the post, not "DM me for the link."** The original said the latter, which recreates
 exactly the inbox work the Craigslist CTA was rewritten to avoid — and every DM is a lead
 that only converts if Vince is awake and answering. Self-serve converts at 3am from Italy.
 
+**Invite COMMENTS, never DMs** (Vince's call, 2026-08-04 — he objected to the post soliciting
+DMs at all). They aren't equivalent: a comment is public, so one answer serves everyone
+reading the thread including the people who never asked, and the engagement keeps the post
+visible instead of sinking. A DM is one-to-one, invisible, and builds the inbox he's trying
+not to have. DMs can't be switched off anyway — not inviting them only reduces volume.
+
+The FAQ reference is load-bearing and now true: `provider_interest_screen` links straight to
+`FaqScreen(initialTab: 1)`. Don't point contractors at "the FAQ" via the login screen's link
+— that one opens the CUSTOMER tab.
+
 Some groups ban links outright. In those, drop the URL line and use "comment and I'll send
 it" — but only in the groups that actually require it, not as the default.
+
+**Rule-restricted groups:** e.g. *Westchester County NY Contractors* permits only three post
+types, one of which is "contractors looking for a subcontractor." That's exactly this post,
+so LEAD with the line that says so — `Looking for snow removal subcontractors — Yonkers, NY,
+this winter.` — so a moderator scanning the feed doesn't have to work out whether it's
+allowed. Strict groups are the best ones to be in: the admin actually removes junk, so the
+members are real contractors.
 
 ---
 
