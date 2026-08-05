@@ -156,10 +156,26 @@ which is the whole reason the custom domain was worth setting up.
 
 Post as a person, not a brand. Groups delete corporate ad copy and keep neighborly posts.
 
-**Where:** Yonkers/Westchester community groups, Westchester landscaper & contractor
-groups, regional snow-plowing groups ("Snow Plowing Northeast" and similar), local
-buy/sell/trade groups. **Read each group's self-promo rules first** — some require a
-specific day or admin approval, and getting banned costs you the whole group.
+⚠️ **THERE ARE NO SNOW-PLOWING GROUPS IN OR NEAR YONKERS** — checked by Vince 2026-08-05.
+Don't go looking again. It makes sense: in the Northeast, plowing isn't anyone's whole
+business, it's what landscapers and contractors do from December to March. They gather in
+LANDSCAPING and CONTRACTOR groups, not plow groups.
+
+**Where to actually look:**
+- `Westchester landscaping` · `Westchester lawn care` · `Hudson Valley landscapers`
+- `Westchester contractors` · `Westchester home improvement` · `Yonkers handyman`
+- Town-level community groups: `Yonkers`, `Bronxville`, `Eastchester`, `Mount Vernon`,
+  `Tuckahoe`, `Greenburgh`, `New Rochelle`. These don't reach contractors directly — they
+  reach HOMEOWNERS WHO KNOW ONE. "Anyone know someone with a plow looking for winter work?"
+  gets forwarded, and referral is how contractor crews actually form.
+
+**Read each group's self-promo rules first** — some require a specific day or admin
+approval, and getting banned costs you the whole group.
+
+**Weight the channels accordingly.** If the trade isn't organised on Facebook here, Facebook
+is a weaker channel than it looks, and the load shifts to Craigslist (live, working) and the
+in-person October push below. Everyone in a small-engine repair shop in October owns a plow
+or a blower; a flyer on that counter beats a post in a group that doesn't exist.
 
 **Post:**
 
