@@ -93,7 +93,9 @@ category gets flagged.
 > **What you need**
 > - Your own equipment (shovel, snowblower, or plow — plow/blower gets you the bigger jobs)
 > - A smartphone
-> - Insurance and a driver's license for the file
+> - A driver's license for the file
+> - Liability insurance IF you plow with a truck. Shoveling or running a snowblower?
+>   Recommended, but not required.
 > - To work as an independent contractor (1099)
 >
 > **Being straight with you:** we're brand new and haven't launched yet, so nobody can
@@ -187,8 +189,9 @@ or a blower; a flyer on that counter beats a post in a group that doesn't exist.
 > the snow's deep. Direct deposit weekly, card authorized before the job's sent out so
 > you're never chasing payment.
 >
-> You need your own equipment and insurance. Plow or blower is ideal — that's where the
-> bigger jobs go.
+> You need your own equipment. A shovel or snowblower is fine — that's the sidewalks and
+> smaller driveways, and there's plenty of it. A plow just gets you first crack at the big
+> ones. Insurance is only required if you're plowing with a truck.
 >
 > Straight up: we launch in November and I'm building the crew now, so I can't tell you how
 > many jobs there'll be. Early guys get first pick.
@@ -229,7 +232,8 @@ Keep it short. The goal is one link, not a pitch.
 
 > Thanks for reaching out. Quick version: you keep 75% of each job, paid weekly by direct
 > deposit. Driveway is $90 to you, driveway + sidewalk $120, more in deep snow. You need
-> your own equipment, insurance, and a smartphone. No fees to join.
+> your own equipment and a smartphone — a shovel or snowblower is fine, and insurance is
+> only required if you plow with a truck. No fees to join.
 >
 > Sign-up is here: https://app.snowserv.app (tap "Plow with us"). Takes a few minutes.
 > Any questions, just ask — happy to talk it through.
@@ -257,7 +261,15 @@ Stripe handles the tax form.
 No. Decline anything, any time, no penalty. The job goes to the next contractor.
 
 **"Do I need insurance?"**
-Yes — you upload it during signup, along with your license. That protects you as much as us.
+Only if you plow with a truck — then yes, and you upload it at signup. If you're shoveling
+or running a snowblower it's recommended but not required; you just acknowledge you don't
+carry it. Either way we need a driver's license on file.
+
+⚠️ **Don't overstate this.** The copy used to say "insurance and a license" flatly, which
+turns away the single easiest person to recruit — the guy with a snowblower and no
+commercial policy, who is also who covers the sidewalk jobs. The app has always been
+correct here (`provider_registration_screen`: required when `_hasVehicle`, optional
+otherwise); only the marketing was wrong. The low barrier is a SELLING POINT — lead with it.
 
 **"What if the customer says I damaged something?"**
 You take photos before and after, right in the app. Those settle almost every dispute.

@@ -305,7 +305,11 @@ List<_FaqSection> get _providerSections {
   _FaqSection('Getting Started', [
     _FaqItem(
       'How do I sign up as a provider?',
-      'Download SnowServ, select "I\'m a Provider" on the signup screen, and complete the registration form. You\'ll provide your driver\'s license, your equipment (a vehicle/plow is optional — snowblower and shovel providers are welcome), and insurance details. After you\'re approved, you set up payouts securely through Stripe — SnowServ never sees or stores your bank or Social Security number.',
+      // "and insurance details" read as a flat requirement. It isn't one, and
+      // stating it that way turns away the easiest provider to recruit — the
+      // snowblower owner with no commercial policy, who covers the sidewalk
+      // jobs. The form has always been correct; only the wording wasn't.
+      'Download SnowServ, select "I\'m a Provider" on the signup screen, and complete the registration form. You\'ll provide your driver\'s license and tell us your equipment — a vehicle or plow is optional, and snowblower and shovel providers are welcome.\n\nInsurance is required only if you plow with a vehicle. For hand-shovelling or a snowblower it\'s recommended but not required.\n\nAfter you\'re approved, you set up payouts securely through Stripe — SnowServ never sees or stores your bank or Social Security number.',
     ),
     _FaqItem(
       'How long does approval take?',
