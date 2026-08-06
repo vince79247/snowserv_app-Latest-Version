@@ -654,6 +654,26 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
   }
 
+  Map<String, dynamic>? _jobById(String? id) {
+    if (id == null) return null;
+    for (final j in jobs) {
+      if (j['id']?.toString() == id) return j;
+    }
+    return null;
+  }
+
+  /// Is there still money to give back on this job? A cancelled job has already
+  /// had its charge refunded or its hold released, so offering to refund it
+  /// again is a button that can only ever report "already refunded" — it costs
+  /// a confirmation dialog and a round-trip to learn nothing.
+  ///
+  /// A job we can't find is left refundable: absence of evidence isn't evidence
+  /// that the customer was paid back.
+  bool _isRefundable(String? jobId) {
+    final job = _jobById(jobId);
+    return job == null || job['status'] != 'cancelled';
+  }
+
   // Admin-issued refund for [jobId]. refund-job (which already authorizes admins)
   // RELEASES the hold if the charge was never captured, or issues a full Stripe
   // REFUND if it was — then we mark the job cancelled so it drops out of earnings
@@ -802,20 +822,41 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   Text('Resolution: ${d['resolution']}',
                       style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: SnowServColors.inkSoft)),
                 ],
+                // Only offer the refund while there is money to give back. The
+                // job cards already knew this; the dispute card didn't, so a
+                // dispute over an already-refunded job kept a live Refund
+                // button that could only ever answer "already refunded".
+                // Saying so up front is the answer he wanted.
                 if (d['job_id'] != null) ...[
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _refundJob(d['job_id']?.toString()),
-                      icon: const Icon(Icons.currency_exchange, size: 16),
-                      label: const Text('Refund customer'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red.shade700,
-                        side: BorderSide(color: Colors.red.shade300),
+                  if (_isRefundable(d['job_id']?.toString()))
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _refundJob(d['job_id']?.toString()),
+                        icon: const Icon(Icons.currency_exchange, size: 16),
+                        label: const Text('Refund customer'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red.shade700,
+                          side: BorderSide(color: Colors.red.shade300),
+                        ),
                       ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle_outline,
+                            size: 15, color: Colors.green.shade700),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Already refunded — the customer is not out any money.',
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.green.shade800),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
                 ],
                 if (isPending) ...[
                   const SizedBox(height: 10),
