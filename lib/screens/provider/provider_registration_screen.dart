@@ -459,7 +459,12 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           ),
           const Text('Provider Type', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
+          // isExpanded, like the equipment field below: without it the button
+          // sizes to its content and a long label runs past the border instead
+          // of ellipsising inside it. Shorter labels here so it hasn't bitten
+          // yet, but the defect is the same.
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _providerType,
             decoration: const InputDecoration(border: OutlineInputBorder()),
             items: const [
@@ -483,15 +488,16 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _equipment,
             decoration: const InputDecoration(border: OutlineInputBorder()),
             items: const [
               DropdownMenuItem(
                   value: 'shovel',
-                  child: Text('Shovel only (walkways & sidewalks)')),
+                  child: Text('Shovel only (walkways)')),
               DropdownMenuItem(
                   value: 'snowblower',
-                  child: Text('Snowblower (driveways & walkways)')),
+                  child: Text('Snowblower (driveways)')),
               DropdownMenuItem(
                   value: 'plow', child: Text('Plow truck (driveways & lots)')),
             ],

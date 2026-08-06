@@ -195,17 +195,18 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     value: _equipment,
                     decoration:
                         const InputDecoration(border: OutlineInputBorder()),
                     items: const [
                       DropdownMenuItem(
                           value: 'shovel',
-                          child: Text('Shovel only (walkways & sidewalks)')),
+                          child: Text('Shovel only (walkways)')),
                       DropdownMenuItem(
                           value: 'snowblower',
                           child:
-                              Text('Snowblower (driveways & walkways)')),
+                              Text('Snowblower (driveways)')),
                       DropdownMenuItem(
                           value: 'plow',
                           child: Text('Plow truck (driveways & lots)')),
