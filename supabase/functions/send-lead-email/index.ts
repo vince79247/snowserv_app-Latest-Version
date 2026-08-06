@@ -151,9 +151,18 @@ Deno.serve(async (req: Request) => {
     const first = esc(firstName)
     const pct = Math.round(providerPct * 100)
 
+    // A lead parked as out-of-area lives somewhere we have not priced. The pay
+    // table is built from the ACTIVE zone (Yonkers), so sending it to him would
+    // quote rates for a town he does not work — a promise we might not honour
+    // once his area is priced. Percentage is safe anywhere; commission is one
+    // global setting. Dollars are not.
+    const outOfArea = leadStatus === 'out_of_area'
+
     const heading = isStalledSignup
       ? (first ? `Hi ${first} — you're almost done` : 'You\'re almost done')
-      : (first ? `Hi ${first} — let's get you plowing` : 'Let\'s get you plowing')
+      : outOfArea
+        ? (first ? `Hi ${first} — not your area yet` : 'Not your area yet')
+        : (first ? `Hi ${first} — let's get you plowing` : 'Let\'s get you plowing')
 
     const opening = isStalledSignup
       ? p('You created a SnowServ provider account but did not get to finish ' +
@@ -166,17 +175,33 @@ Deno.serve(async (req: Request) => {
           'sidewalk from their phone, and the job goes to the nearest available ' +
           'provider.')
 
-    const html = shell(heading, [
-      opening,
-      p(`<b>You keep ${pct}% of every job.</b>`),
-      rows.length ? payTable(rows) : '',
-      p('Deicer pays extra on top of those. You choose which jobs you take and ' +
-        'you keep your own schedule.'),
-      p('No sign-up fees, no monthly fees, no contract.'),
-      p(BANK_NOTE),
-      button(SIGNUP_URL, isStalledSignup ? 'Finish your registration' : 'Create your account'),
-      p('Just reply to this email if you have any questions — a real person reads it.'),
-    ].join(''))
+    const html = outOfArea
+      ? shell(heading, [
+          p('Thanks for your interest in plowing with SnowServ. Straight answer: ' +
+            'we are not in your area yet. We are launching in Yonkers this winter ' +
+            'and expanding town by town, based on where contractors and customers ' +
+            'actually are.'),
+          p('I have put you on the contractor list for your area. When we get ' +
+            'there you get the first call, before the ad goes out.'),
+          p(`<b>You would keep ${pct}% of every job</b> — no sign-up fees, no ` +
+            'monthly fees, no contract, and you pick which jobs you take. I will ' +
+            'have exact rates for your area once we price it.'),
+          p(BANK_NOTE),
+          p('Just reply to this email with the towns you would cover and what you ' +
+            'run — truck and plow, snowblower, or shovel — and I will make sure ' +
+            'you are first on the list.'),
+        ].join(''))
+      : shell(heading, [
+          opening,
+          p(`<b>You keep ${pct}% of every job.</b>`),
+          rows.length ? payTable(rows) : '',
+          p('Deicer pays extra on top of those. You choose which jobs you take and ' +
+            'you keep your own schedule.'),
+          p('No sign-up fees, no monthly fees, no contract.'),
+          p(BANK_NOTE),
+          button(SIGNUP_URL, isStalledSignup ? 'Finish your registration' : 'Create your account'),
+          p('Just reply to this email if you have any questions — a real person reads it.'),
+        ].join(''))
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -187,7 +212,9 @@ Deno.serve(async (req: Request) => {
         reply_to: REPLY_TO,
         subject: isStalledSignup
           ? 'Finishing your SnowServ provider account'
-          : 'Plowing with SnowServ this winter',
+          : outOfArea
+            ? 'SnowServ — not your area yet, but you are on the list'
+            : 'Plowing with SnowServ this winter',
         html,
       }),
     })
