@@ -3726,6 +3726,24 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         _ => SnowServColors.navy,
       };
 
+  Future<void> _markProviderEmailed(Map<String, dynamic> p) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+    try {
+      await supabase
+          .from('providers')
+          .update({'recruit_emailed_at': now}).eq('id', p['id']);
+      if (!mounted) return;
+      setState(() => p['recruit_emailed_at'] = now);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Marked as emailed.')));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not update: $e')));
+      }
+    }
+  }
+
   // Same two-way choice as a lead, for someone who signed up and stalled. The
   // branded send is the one to prefer: it goes out as SnowServ rather than
   // whatever account the admin's mail app defaults to, and it records itself.
@@ -3748,14 +3766,34 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             subtitle: const Text('Opens a draft in your mail app'),
             onTap: () => Navigator.pop(ctx, 'draft'),
           ),
+          // A draft is fire-and-forget — we hand off to the mail app and never
+          // learn whether it was sent, saved or binned. This is how a send that
+          // happened outside the app gets recorded.
+          if (p['recruit_emailed_at'] == null)
+            ListTile(
+              leading: Icon(Icons.check_circle_outline, color: Colors.green.shade700),
+              title: const Text('Mark as emailed'),
+              subtitle: const Text('I already wrote to them another way'),
+              onTap: () => Navigator.pop(ctx, 'mark'),
+            ),
         ]),
       ),
     );
     if (choice == null || !mounted) return;
+    if (choice == 'mark') return _markProviderEmailed(p);
     if (choice == 'draft') {
-      return _email(email,
+      await _email(email,
           subject: 'Finishing your SnowServ provider account',
           body: _providerEmailBody(p));
+      if (!mounted || p['recruit_emailed_at'] != null) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Draft opened in your mail app.'),
+        action: SnackBarAction(
+          label: 'Mark as emailed',
+          onPressed: () => _markProviderEmailed(p),
+        ),
+      ));
+      return;
     }
 
     final already = p['recruit_emailed_at'] != null;
@@ -3807,10 +3845,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     final stalled = providers
         .where((p) => p['registration_status'] == 'incomplete')
         .toList();
-    final open = providerLeads
-            .where((l) => l['status'] != 'registered' && l['status'] != 'not_interested')
-            .length +
-        stalled.length;
+    // "Awaiting follow-up" means NOBODY HAS WRITTEN TO THEM YET. It used to
+    // count everything that wasn't 'registered' or 'not_interested', so a lead
+    // you had already emailed still read as waiting on you — the number never
+    // went down and stopped meaning anything.
+    final open = providerLeads.where((l) => (l['status'] ?? 'new') == 'new').length +
+        stalled.where((p) => p['recruit_emailed_at'] == null).length;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
       decoration: BoxDecoration(
