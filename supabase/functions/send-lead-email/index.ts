@@ -1,8 +1,9 @@
 import { shell } from '../_shared/email_shell.ts'
 
-// Sends recruiting mail as real HTML, with a real button, to either:
+// Sends provider mail as real HTML, with a real button, to either:
 //   { lead_id }     — a provider_leads row (came in via the website form), or
-//   { provider_id } — a signup stuck at registration_status='incomplete'
+//   { provider_id } — a signup stuck at 'incomplete', or one waiting at
+//                     'pending_review' (finished, awaiting our approval)
 //
 // Why this exists when the admin panel can already open a mailto: draft: a
 // mailto body is plain text by specification. It cannot carry a link, a button,
@@ -100,7 +101,7 @@ Deno.serve(async (req: Request) => {
     let to = ''
     let firstName = ''
     let leadStatus: string | null = null
-    const isStalledSignup = !lead_id
+    let regStatus: string | null = null
 
     if (lead_id) {
       const rows = await (await fetch(
@@ -119,8 +120,17 @@ Deno.serve(async (req: Request) => {
       if (!prov) return json({ error: 'Provider not found' }, 404)
       to = (prov.users?.email ?? '').toString().trim()
       firstName = (prov.users?.name ?? '').toString().trim().split(/\s+/)[0] ?? ''
+      regStatus = (prov.registration_status ?? '').toString()
     }
     if (!to) return json({ error: 'No email address on file' }, 400)
+
+    // A provider row is TWO different conversations, and sending the wrong one
+    // is worse than sending nothing: telling somebody who just submitted a
+    // complete application to "finish your registration" reads as though we
+    // lost it. Branch on the actual status, not on "did the caller pass a
+    // provider_id".
+    const isPendingReview = !lead_id && regStatus === 'pending_review'
+    const isStalledSignup = !lead_id && !isPendingReview
 
     // --- live pay figures --------------------------------------------------
     const zones = await (await fetch(
@@ -158,11 +168,13 @@ Deno.serve(async (req: Request) => {
     // global setting. Dollars are not.
     const outOfArea = leadStatus === 'out_of_area'
 
-    const heading = isStalledSignup
-      ? (first ? `Hi ${first} — you're almost done` : 'You\'re almost done')
-      : outOfArea
-        ? (first ? `Hi ${first} — not your area yet` : 'Not your area yet')
-        : (first ? `Hi ${first} — let's get you plowing` : 'Let\'s get you plowing')
+    const heading = isPendingReview
+      ? (first ? `Hi ${first} — we have your application` : 'We have your application')
+      : isStalledSignup
+        ? (first ? `Hi ${first} — you're almost done` : 'You\'re almost done')
+        : outOfArea
+          ? (first ? `Hi ${first} — not your area yet` : 'Not your area yet')
+          : (first ? `Hi ${first} — let's get you plowing` : 'Let\'s get you plowing')
 
     const opening = isStalledSignup
       ? p('You created a SnowServ provider account but did not get to finish ' +
@@ -181,7 +193,24 @@ Deno.serve(async (req: Request) => {
           'sidewalk from their phone, and the job goes to the nearest available ' +
           'provider.')
 
-    const html = outOfArea
+    // Already applied and waiting on us. No pay table and no recruiting pitch —
+    // they have seen the rates; what they want to know is that a human has it
+    // and what happens next. The one useful action left is payouts, which is
+    // the step that most often holds up a first payment.
+    const html = isPendingReview
+      ? shell(heading, [
+          p('Thanks for finishing your SnowServ registration. We have it, and ' +
+            'we are reviewing it now.'),
+          p('You will hear from us as soon as you are approved. After that you ' +
+            'can go online in the app and start taking jobs.'),
+          p('<b>One thing worth doing while you wait:</b> connect your bank ' +
+            'account for payouts, so nothing holds up your first payment.'),
+          p(BANK_NOTE),
+          button(SIGNUP_URL, 'Set up your payouts'),
+          p('Just reply to this email if you have any questions — a real person ' +
+            'reads it.'),
+        ].join(''))
+      : outOfArea
       ? shell(heading, [
           p('Thanks for your interest in plowing with SnowServ. Straight answer: ' +
             'we are not in your area yet. We are launching in Yonkers this winter ' +
@@ -221,11 +250,13 @@ Deno.serve(async (req: Request) => {
         // record anywhere Vince can read — he went looking in Zoho's Sent folder
         // for a message Zoho never touched, and reasonably concluded it failed.
         bcc: [REPLY_TO],
-        subject: isStalledSignup
-          ? 'Finishing your SnowServ provider account'
-          : outOfArea
-            ? 'SnowServ — not your area yet, but you are on the list'
-            : 'Plowing with SnowServ this winter',
+        subject: isPendingReview
+          ? 'We have your SnowServ application'
+          : isStalledSignup
+            ? 'Finishing your SnowServ provider account'
+            : outOfArea
+              ? 'SnowServ — not your area yet, but you are on the list'
+              : 'Plowing with SnowServ this winter',
         html,
       }),
     })
@@ -237,7 +268,11 @@ Deno.serve(async (req: Request) => {
 
     // Record the send only after Resend confirms, so a failure never leaves
     // someone looking like they've been contacted when nothing went out.
-    if (isStalledSignup) {
+    if (!lead_id) {
+      // Stamped for BOTH provider variants: it is "when did we last write to
+      // this person", and the admin card reads it back so a send is never
+      // invisible. Going looking in a Sent folder for mail that never touched
+      // it is exactly how this got confusing the first time.
       await fetch(`${supabaseUrl}/rest/v1/providers?id=eq.${provider_id}`, {
         method: 'PATCH',
         headers: { ...svc, 'Content-Type': 'application/json' },

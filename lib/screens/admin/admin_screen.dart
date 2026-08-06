@@ -1463,7 +1463,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   // Email quick action — its own row because addresses are long. Opens the
   // admin's mail client pre-addressed (optionally with a subject).
-  Widget _emailRow(String label, String? email, {String? subject, String? body}) {
+  /// [onSend] replaces the default mailto: draft. Prefer it wherever a written
+  /// template exists: a mailto composes from whatever account the admin's mail
+  /// app defaults to, which put Vince's personal Yahoo address in the From line
+  /// of a provider email. A server send is always from SnowServ.
+  Widget _emailRow(String label, String? email,
+      {String? subject, String? body, VoidCallback? onSend}) {
     if (email == null || email.trim().isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1477,7 +1482,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 style: const TextStyle(fontSize: 13, color: SnowServColors.navy)),
           ),
           TextButton.icon(
-            onPressed: () => _email(email, subject: subject, body: body),
+            onPressed:
+                onSend ?? () => _email(email, subject: subject, body: body),
             icon: const Icon(Icons.send_outlined, size: 16),
             label: const Text('Email'),
             style: TextButton.styleFrom(
@@ -3294,13 +3300,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     // ...and by email, which is how recruiting follow-up
                     // actually happens. An abandoned registration is a lead,
                     // and without this the address had to be copied by hand.
+                    // Where we have a template (stalled signup / awaiting
+                    // review) this SENDS as SnowServ rather than opening a
+                    // draft — the draft is still one tap away inside. Only a
+                    // free-form note to an already-approved driver falls back
+                    // to the mail app.
                     _emailRow('Driver', p['users']?['email'] as String?,
-                        subject: switch (p['registration_status']) {
-                          'incomplete' => 'Finishing your SnowServ provider account',
-                          'pending_review' => 'Your SnowServ registration',
-                          _ => 'SnowServ',
-                        },
-                        body: _providerEmailBody(p)),
+                        subject: 'SnowServ',
+                        onSend: _hasProviderTemplate(p)
+                            ? () => _emailStalledSignup(p)
+                            : null),
                     const SizedBox(height: 8),
                     // Earnings (this driver's 75% take of their completed jobs).
                     Container(
@@ -3780,27 +3789,41 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
   }
 
-  // Same two-way choice as a lead, for someone who signed up and stalled. The
-  // branded send is the one to prefer: it goes out as SnowServ rather than
-  // whatever account the admin's mail app defaults to, and it records itself.
+  /// True when the server has a written template for this provider's state, so
+  /// the Email button can send as SnowServ instead of opening a mail draft.
+  static bool _hasProviderTemplate(Map<String, dynamic> p) =>
+      p['registration_status'] == 'incomplete' ||
+      p['registration_status'] == 'pending_review';
+
+  // Same two-way choice as a lead, for a provider we owe a message: one who
+  // signed up and stalled, or one waiting on our review. The branded send is
+  // the one to prefer — it goes out as SnowServ rather than whatever account
+  // the admin's mail app defaults to, and it records itself.
   Future<void> _emailStalledSignup(Map<String, dynamic> p) async {
     final email = (p['users']?['email'] ?? '').toString().trim();
     if (email.isEmpty) return;
     final already = p['recruit_emailed_at'] != null;
+    final pending = p['registration_status'] == 'pending_review';
+    final describes = pending
+        ? 'confirms we have their application, tells them what happens next, '
+            'and points them at payout setup.'
+        : 'asks what stopped them, with current pay rates and a "Finish your '
+            'registration" button.';
     // One tap lands straight on the send confirmation. Sending is the thing
     // you came here to do; the alternatives are one button away rather than a
     // sheet you have to read and choose from first.
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(already ? 'Email them again?' : 'Email this signup?'),
+        title: Text(already
+            ? 'Email them again?'
+            : pending
+                ? 'Email this applicant?'
+                : 'Email this signup?'),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(already
-              ? 'You have already emailed $email once. Sending again asks what '
-                  'stopped them, with current pay rates and a "Finish your '
-                  'registration" button.'
-              : 'Sends from SnowServ to $email — asks what stopped them, with '
-                  'current pay rates and a "Finish your registration" button.'),
+              ? 'You have already emailed $email once. Sending again $describes'
+              : 'Sends from SnowServ to $email — $describes'),
           if (!already) ...[
             const SizedBox(height: 14),
             TextButton(
@@ -3822,7 +3845,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     if (choice == 'mark') return _markProviderEmailed(p);
     if (choice == 'draft') {
       await _email(email,
-          subject: 'Finishing your SnowServ provider account',
+          subject: pending
+              ? 'Your SnowServ registration'
+              : 'Finishing your SnowServ provider account',
           body: _providerEmailBody(p));
       if (!mounted || p['recruit_emailed_at'] != null) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
