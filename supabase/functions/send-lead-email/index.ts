@@ -216,6 +216,11 @@ Deno.serve(async (req: Request) => {
         from: FROM,
         to: [to],
         reply_to: REPLY_TO,
+        // Copy the support mailbox on every send. This goes out through Resend,
+        // not through the admin's mail client, so without this there is no
+        // record anywhere Vince can read — he went looking in Zoho's Sent folder
+        // for a message Zoho never touched, and reasonably concluded it failed.
+        bcc: [REPLY_TO],
         subject: isStalledSignup
           ? 'Finishing your SnowServ provider account'
           : outOfArea
