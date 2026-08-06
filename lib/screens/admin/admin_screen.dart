@@ -1283,22 +1283,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // text by specification and a bare URL makes the contractor copy and paste.
   Future<void> _sendLeadEmail(Map<String, dynamic> lead) async {
     final address = (lead['email'] ?? '').toString().trim();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Send recruiting email?'),
-        content: Text(
-            'A SnowServ-branded email goes to $address with the current pay '
-            'rates and a "Finish your registration" button.\n\n'
-            'It sends immediately — you will not get to edit it first.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
     try {
       final res = await supabase.functions
           .invoke('send-lead-email', body: {'lead_id': lead['id']});
@@ -1332,25 +1316,24 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           const SnackBar(content: Text('This lead has no email address.')));
       return;
     }
-    // Two ways to work a lead: the branded send (button, tracked) or a plain
-    // draft in the admin's own mail app when the reply needs a human touch.
-    final choice = await showModalBottomSheet<String>(
+    // One tap lands on the send confirmation — that's the thing you came here
+    // to do. "Write my own" is one button away for when a reply needs a human
+    // touch, and it's labelled so the tracking trade-off is visible.
+    final contacted = (lead['status'] ?? 'new') != 'new';
+    final choice = await showDialog<String>(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.send, color: SnowServColors.iceBlue),
-            title: const Text('Send recruiting email'),
-            subtitle: const Text('Branded, with a Finish registration button'),
-            onTap: () => Navigator.pop(ctx, 'send'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.edit_outlined),
-            title: const Text('Write my own'),
-            subtitle: const Text('Opens a plain-text draft in your mail app'),
-            onTap: () => Navigator.pop(ctx, 'draft'),
-          ),
-        ]),
+      builder: (ctx) => AlertDialog(
+        title: Text(contacted ? 'Email them again?' : 'Email this lead?'),
+        content: Text(contacted
+            ? 'You have already contacted $address. Sending again gives them the '
+                'current pay rates and a link to create their account.'
+            : 'Sends from SnowServ to $address — current pay rates and a button '
+                'to create their account.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'draft'), child: const Text('Write my own')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, 'send'), child: const Text('Send')),
+        ],
       ),
     );
     if (choice == null || !mounted) return;
@@ -3750,33 +3733,36 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Future<void> _emailStalledSignup(Map<String, dynamic> p) async {
     final email = (p['users']?['email'] ?? '').toString().trim();
     if (email.isEmpty) return;
-    final choice = await showModalBottomSheet<String>(
+    final already = p['recruit_emailed_at'] != null;
+    // One tap lands straight on the send confirmation. Sending is the thing
+    // you came here to do; the alternatives are one button away rather than a
+    // sheet you have to read and choose from first.
+    final choice = await showDialog<String>(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.send, color: SnowServColors.iceBlue),
-            title: const Text('Send from SnowServ'),
-            subtitle: const Text('Branded, with a Finish registration button'),
-            onTap: () => Navigator.pop(ctx, 'send'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.edit_outlined),
-            title: const Text('Write my own'),
-            subtitle: const Text('Opens a draft in your mail app'),
-            onTap: () => Navigator.pop(ctx, 'draft'),
-          ),
-          // A draft is fire-and-forget — we hand off to the mail app and never
-          // learn whether it was sent, saved or binned. This is how a send that
-          // happened outside the app gets recorded.
-          if (p['recruit_emailed_at'] == null)
-            ListTile(
-              leading: Icon(Icons.check_circle_outline, color: Colors.green.shade700),
-              title: const Text('Mark as emailed'),
-              subtitle: const Text('I already wrote to them another way'),
-              onTap: () => Navigator.pop(ctx, 'mark'),
+      builder: (ctx) => AlertDialog(
+        title: Text(already ? 'Email them again?' : 'Email this signup?'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(already
+              ? 'You have already emailed $email once. Sending again asks what '
+                  'stopped them, with current pay rates and a "Finish your '
+                  'registration" button.'
+              : 'Sends from SnowServ to $email — asks what stopped them, with '
+                  'current pay rates and a "Finish your registration" button.'),
+          if (!already) ...[
+            const SizedBox(height: 14),
+            TextButton(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 30)),
+              onPressed: () => Navigator.pop(ctx, 'mark'),
+              child: const Text('Already emailed them another way? Mark as emailed',
+                  style: TextStyle(fontSize: 12)),
             ),
+          ],
         ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'draft'), child: const Text('Write my own')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, 'send'), child: const Text('Send')),
+        ],
       ),
     );
     if (choice == null || !mounted) return;
@@ -3796,22 +3782,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       return;
     }
 
-    final already = p['recruit_emailed_at'] != null;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Send from SnowServ?'),
-        content: Text(already
-            ? 'You have already emailed $email once. Send it again?'
-            : 'A SnowServ-branded email goes to $email asking what stopped them, '
-                'with the current pay rates and a "Finish your registration" button.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
     try {
       final res = await supabase.functions
           .invoke('send-lead-email', body: {'provider_id': p['id']});
