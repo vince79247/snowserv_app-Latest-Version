@@ -37,6 +37,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Recruiting pipeline — people who might become providers but haven't
   // registered. Fed by the public "work with us" form and by admin cold-outreach.
   List<Map<String, dynamic>> providerLeads = [];
+  // Customers whose address fell outside every zone. Written by the order
+  // screen and the pre-signup quote; until now nothing READ it, so the
+  // demand signal that decides which town to open next was invisible.
+  List<Map<String, dynamic>> waitlist = [];
 
   int get _pendingDisputes =>
       disputes.where((d) => d['status'] == 'pending').length;
@@ -204,6 +208,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         leadsList = List<Map<String, dynamic>>.from(leadsData);
       } catch (_) {}
 
+      List<Map<String, dynamic>> waitlistRows = [];
+      try {
+        final waitData = await supabase
+            .from('waitlist')
+            .select()
+            .order('created_at', ascending: false);
+        waitlistRows = List<Map<String, dynamic>>.from(waitData);
+      } catch (_) {}
+
       if (mounted) {
         final providerList = _sortProviders(providersData);
         setState(() {
@@ -214,6 +227,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           serviceAreas = areasList;
           disputes = disputesList;
           providerLeads = leadsList;
+          waitlist = waitlistRows;
         });
       }
     } catch (e) {
@@ -3014,23 +3028,38 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         ),
         _searchField('Search customers by name, email, or phone',
             (v) => setState(() => _customerSearch = v)),
-        if (customers.isEmpty)
-          const Expanded(child: Center(child: Text('No customers yet.')))
-        else if (shown.isEmpty)
-          Expanded(
-            child: Center(
-              child: Text('No customers match “$_customerSearch”.',
-                  style: const TextStyle(color: Colors.grey)),
-            ),
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: shown.length,
-              itemBuilder: (_, i) => _userCard(shown[i]),
-            ),
+        // Inside the scroll view on purpose — an expandable panel above an
+        // Expanded list has nowhere to grow and gets clipped unreachably,
+        // which is exactly what happened on the Providers tab.
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              _waitlistPanel(),
+              if (customers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: Text('No customers yet.')),
+                )
+              else if (shown.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Text('No customers match “$_customerSearch”.',
+                        style: const TextStyle(color: Colors.grey)),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [for (final c in shown) _userCard(c)],
+                  ),
+                ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -3698,6 +3727,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     'contacted': 'Contacted',
     'interested': 'Interested',
     'registered': 'Registered',
+    // A willing contractor in a town we don't serve yet is not a dead lead —
+    // he's the reason to open that town. Parking him here keeps him out of
+    // "awaiting follow-up" without pretending he said no.
+    'out_of_area': 'Out of area — waiting',
     'not_interested': 'Not interested',
   };
 
@@ -3705,6 +3738,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         'interested' => SnowServColors.iceBlue,
         'registered' => SnowServColors.success,
         'contacted' => Colors.orange.shade700,
+        'out_of_area' => Colors.purple.shade400,
         'not_interested' => Colors.grey,
         _ => SnowServColors.navy,
       };
@@ -3802,6 +3836,143 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             .showSnackBar(SnackBar(content: Text('Could not send: $e')));
       }
     }
+  }
+
+  // Customers who wanted service somewhere we don't cover. This is the demand
+  // side of expansion — it answers "which town next?" with evidence instead of
+  // a hunch — and it had no UI at all, so the table filled up unread.
+  Widget _waitlistPanel() {
+    final byZip = <String, int>{};
+    for (final w in waitlist) {
+      final z = (w['zip'] ?? '').toString().trim();
+      if (z.isNotEmpty) byZip[z] = (byZip[z] ?? 0) + 1;
+    }
+    final ranked = byZip.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: SnowServColors.hairline),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          leading: const Icon(Icons.pin_drop_outlined,
+              color: SnowServColors.navy, size: 20),
+          title: Text('Waiting for us to arrive (${waitlist.length})',
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: SnowServColors.navy)),
+          subtitle: Text(
+            ranked.isEmpty
+                ? 'Nobody outside the zone has asked yet'
+                : 'Top ZIP: ${ranked.first.key} (${ranked.first.value})',
+            style: const TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
+          ),
+          children: [
+            if (waitlist.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'When someone enters an address outside every zone, they land '
+                  'here with their email and ZIP. Ranked by ZIP, this is the '
+                  'evidence for which town to open next.',
+                  style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
+                ),
+              )
+            else ...[
+              if (ranked.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final e in ranked.take(6))
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: SnowServColors.iceBlue.withOpacity(0.10),
+                            border: Border.all(
+                                color: SnowServColors.iceBlue.withOpacity(0.4)),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text('${e.key} · ${e.value}',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: SnowServColors.iceBlue)),
+                        ),
+                    ],
+                  ),
+                ),
+              ...waitlist.take(30).map((w) => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                      decoration: BoxDecoration(
+                        color: SnowServColors.surfaceSoft,
+                        borderRadius: BorderRadius.circular(8),
+                        border: const Border(
+                            left: BorderSide(
+                                color: SnowServColors.iceBlue, width: 3)),
+                      ),
+                      child: Row(children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${w['zip'] ?? '(no ZIP)'}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600, fontSize: 13.5)),
+                              if ((w['email'] ?? '').toString().trim().isNotEmpty)
+                                Text('${w['email']}',
+                                    style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: SnowServColors.inkSoft)),
+                              if ((w['address'] ?? '').toString().trim().isNotEmpty)
+                                Text('${w['address']}',
+                                    style: TextStyle(
+                                        fontSize: 10.5,
+                                        color: Colors.grey.shade600)),
+                            ],
+                          ),
+                        ),
+                        if ((w['email'] ?? '').toString().trim().isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.mail_outline, size: 18),
+                            color: SnowServColors.iceBlue,
+                            tooltip: 'Email — we have reached your area',
+                            onPressed: () => _email(
+                              w['email'].toString(),
+                              subject: 'SnowServ is now serving your area',
+                              body: 'Hi,\n\n'
+                                  'You asked us to let you know when SnowServ '
+                                  'reached your area — we are there now.\n\n'
+                                  'You can book a driveway or sidewalk here:\n'
+                                  'https://app.snowserv.app\n\n'
+                                  'You are not charged when you order. We place a '
+                                  'hold on your card, and it only becomes a real '
+                                  'charge once a provider actually starts the '
+                                  'work.\n\n'
+                                  'Vince\nSnowServ\nsupport@snowserv.app',
+                            ),
+                          ),
+                      ]),
+                    ),
+                  )),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   // Recruiting pipeline, collapsed by default so it never buries the roster.
