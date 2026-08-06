@@ -28,6 +28,13 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
+    # A Future that is started and never awaited swallows its own failure. The
+    # "Log Out" button on the provider pending screen was exactly this:
+    # `onPressed: () => auth.signOut()` threw when the refresh token was stale,
+    # the exception had nowhere to go, and the button silently did nothing.
+    # Found by hand on 2026-08-06; this makes the analyzer find the next one.
+    unawaited_futures: true
+
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
 

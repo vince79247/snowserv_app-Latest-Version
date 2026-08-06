@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../theme.dart';
 
 /// Admin-only "Draft Assistant": paste an inbound customer/provider message and
 /// get a reply DRAFT grounded in the SnowServ FAQ + policies (via the

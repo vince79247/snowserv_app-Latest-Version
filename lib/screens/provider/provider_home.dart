@@ -1154,8 +1154,18 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         captureErr = e.toString();
       }
       if (captureOk) {
-        // Clear any stale flag from a prior failed attempt.
-        supabase.from('jobs').update({'capture_failed': false, 'capture_error': null}).eq('id', jobId);
+        // Clear any stale flag from a prior failed attempt. Awaited, unlike
+        // before: the failure branch below already awaited its write, and a
+        // silently-dropped clear leaves a job marked capture_failed after a
+        // capture that actually succeeded — a false alarm in the admin panel.
+        try {
+          await supabase
+              .from('jobs')
+              .update({'capture_failed': false, 'capture_error': null})
+              .eq('id', jobId);
+        } catch (e) {
+          debugPrint('Could not clear capture_failed for $jobId: $e');
+        }
       } else {
         debugPrint('Capture failed for $jobId: $captureErr');
         try {
