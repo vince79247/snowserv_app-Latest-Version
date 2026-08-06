@@ -1211,6 +1211,53 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // One tap from a lead card to a pre-written recruiting email. Vince works
   // leads by email, not phone, so copy-pasting an address off the card was
   // the actual bottleneck in the pipeline.
+  // Sends the branded HTML recruiting email server-side (Resend), which is the
+  // only way the call to action can be a real BUTTON — a mailto: body is plain
+  // text by specification and a bare URL makes the contractor copy and paste.
+  Future<void> _sendLeadEmail(Map<String, dynamic> lead) async {
+    final address = (lead['email'] ?? '').toString().trim();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send recruiting email?'),
+        content: Text(
+            'A SnowServ-branded email goes to $address with the current pay '
+            'rates and a "Finish your registration" button.\n\n'
+            'It sends immediately — you will not get to edit it first.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final res = await supabase.functions
+          .invoke('send-lead-email', body: {'lead_id': lead['id']});
+      final sent = (res.data is Map) && (res.data['sent'] == 1);
+      if (!mounted) return;
+      if (sent) {
+        // The function advances the row itself; mirror it so the chip updates
+        // without a full reload.
+        setState(() {
+          if ((lead['status'] ?? 'new') == 'new') lead['status'] = 'contacted';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Sent to $address')));
+      } else {
+        final err = (res.data is Map) ? (res.data['error'] ?? '') : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not send${err == '' ? '' : ': $err'}')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not send: $e')));
+      }
+    }
+  }
+
   Future<void> _emailLead(Map<String, dynamic> lead) async {
     final address = (lead['email'] ?? '').toString().trim();
     if (address.isEmpty) {
@@ -1218,6 +1265,29 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           const SnackBar(content: Text('This lead has no email address.')));
       return;
     }
+    // Two ways to work a lead: the branded send (button, tracked) or a plain
+    // draft in the admin's own mail app when the reply needs a human touch.
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.send, color: SnowServColors.iceBlue),
+            title: const Text('Send recruiting email'),
+            subtitle: const Text('Branded, with a Finish registration button'),
+            onTap: () => Navigator.pop(ctx, 'send'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Write my own'),
+            subtitle: const Text('Opens a plain-text draft in your mail app'),
+            onTap: () => Navigator.pop(ctx, 'draft'),
+          ),
+        ]),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'send') return _sendLeadEmail(lead);
     final first = (lead['name'] ?? '').toString().trim().split(RegExp(r'\s+')).first;
     final pay = _payLines();
     final body = StringBuffer()
