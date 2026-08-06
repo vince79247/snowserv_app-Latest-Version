@@ -1168,14 +1168,101 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // customer — sends from support@snowserv.app if that's the default account.
   // No email backend needed; for branded/templated/logged sends we'd route
   // through the Resend edge function instead (see PRELAUNCH #5).
-  Future<void> _email(String address, {String? subject}) async {
-    final uri = Uri(
-      scheme: 'mailto',
-      path: address.trim(),
-      query: subject == null ? null : 'subject=${Uri.encodeComponent(subject)}',
-    );
+  Future<void> _email(String address, {String? subject, String? body}) async {
+    // Built as a string rather than Uri(query:) because mailto bodies contain
+    // newlines and '&', which the query-map form mangles.
+    final params = <String>[
+      if (subject != null) 'subject=${Uri.encodeComponent(subject)}',
+      if (body != null) 'body=${Uri.encodeComponent(body)}',
+    ];
+    final uri = Uri.parse(
+        'mailto:${address.trim()}${params.isEmpty ? '' : '?${params.join('&')}'}');
     if (!await launchUrl(uri) && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(address)));
+    }
+  }
+
+  // Provider take-home for each service, read from the LIVE zone row rather
+  // than typed into the template. Recruiting copy quoting stale prices has
+  // already cost us once (2026-08-04) — an admin can change zone prices any
+  // time, and a number baked into a string here would silently go wrong.
+  String _payLines() {
+    final zone = serviceAreas.firstWhere(
+      (z) => z['is_active'] == true,
+      orElse: () => serviceAreas.isEmpty ? <String, dynamic>{} : serviceAreas.first,
+    );
+    if (zone.isEmpty) return '';
+    String cut(dynamic price) {
+      final p = num.tryParse('${price ?? ''}');
+      if (p == null || p <= 0) return '';
+      return '\$${(p * AppConfig.providerFraction).round()}';
+    }
+    final walk = cut(zone['price_sidewalk']);
+    final drive = cut(zone['price_driveway']);
+    final both = cut(zone['price_both']);
+    final rows = <String>[
+      if (walk.isNotEmpty) '  Sidewalk .................. $walk',
+      if (drive.isNotEmpty) '  Driveway .................. $drive',
+      if (both.isNotEmpty) '  Sidewalk + driveway ....... $both',
+    ];
+    return rows.isEmpty ? '' : '${rows.join('\n')}\n';
+  }
+
+  // One tap from a lead card to a pre-written recruiting email. Vince works
+  // leads by email, not phone, so copy-pasting an address off the card was
+  // the actual bottleneck in the pipeline.
+  Future<void> _emailLead(Map<String, dynamic> lead) async {
+    final address = (lead['email'] ?? '').toString().trim();
+    if (address.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This lead has no email address.')));
+      return;
+    }
+    final first = (lead['name'] ?? '').toString().trim().split(RegExp(r'\s+')).first;
+    final pay = _payLines();
+    final body = StringBuffer()
+      ..writeln('Hi${first.isEmpty ? '' : ' $first'},')
+      ..writeln()
+      ..writeln('Thanks for signing up to plow with SnowServ.')
+      ..writeln()
+      ..writeln('We are a snow removal app launching in Yonkers this winter. '
+          'Customers order a driveway or sidewalk from their phone and the job '
+          'goes to the nearest available provider. You pick which jobs you take '
+          'and you keep your own schedule.')
+      ..writeln()
+      ..writeln('You keep '
+          '${(AppConfig.providerFraction * 100).round()}% of every job:')
+      ..writeln();
+    if (pay.isNotEmpty) body.write(pay);
+    body
+      ..writeln()
+      ..writeln('Deicer pays extra on top of those.')
+      ..writeln()
+      ..writeln('There are no sign-up fees, no monthly fees and no contract. '
+          'Payouts go straight to your bank.')
+      ..writeln()
+      ..writeln('To get started, create your provider account here:')
+      ..writeln('https://app.snowserv.app')
+      ..writeln()
+      ..writeln('Reply to this email if you have any questions and I will get '
+          'right back to you.')
+      ..writeln()
+      ..writeln('Vince')
+      ..writeln('SnowServ')
+      ..writeln('support@snowserv.app');
+
+    await _email(address,
+        subject: 'Plowing with SnowServ this winter', body: body.toString());
+
+    if (!mounted) return;
+    if ((lead['status'] ?? 'new') == 'new') {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Draft opened in your mail app.'),
+        action: SnackBarAction(
+          label: 'Mark contacted',
+          onPressed: () => _setLeadStatus(lead, 'contacted'),
+        ),
+      ));
     }
   }
 
@@ -3032,6 +3119,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     const Divider(height: 16),
                     // Contact the driver (call/text) — storm coordination.
                     _contactRow('Driver', p['users']?['phone'] as String?),
+                    // ...and by email, which is how recruiting follow-up
+                    // actually happens. An abandoned registration is a lead,
+                    // and without this the address had to be copied by hand.
+                    _emailRow('Driver', p['users']?['email'] as String?,
+                        subject: (p['registration_status'] == 'incomplete')
+                            ? 'Finishing your SnowServ provider account'
+                            : 'SnowServ'),
                     const SizedBox(height: 8),
                     // Earnings (this driver's 75% take of their completed jobs).
                     Container(
@@ -3579,6 +3673,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ],
               ),
             ),
+            // Working a lead is an email, so it gets a button rather than
+            // making the admin select the address off the card and paste it.
+            if ((lead['email'] ?? '').toString().trim().isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.mail_outline, size: 18),
+                color: SnowServColors.iceBlue,
+                tooltip: 'Email this lead',
+                onPressed: () => _emailLead(lead),
+              ),
             // Status is the whole point of the pipeline, so make it one tap.
             PopupMenuButton<String>(
               tooltip: 'Change status',
