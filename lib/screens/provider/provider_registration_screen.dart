@@ -393,15 +393,21 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   Widget _card({required String title, String? subtitle, required Widget child}) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      // Material, not a Container with a BoxDecoration. ListTile and
+      // SwitchListTile paint their ink splashes on the nearest Material
+      // ancestor, so a coloured DecoratedBox in between swallows every tap
+      // ripple on this screen — the toggles looked dead when touched. Flutter
+      // reports this, but only at runtime, which is why a widget test found it
+      // and `flutter analyze` never could.
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Text(title,
                 style: const TextStyle(
                     fontSize: 20,
@@ -412,9 +418,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
               Text(subtitle,
                   style: const TextStyle(color: SnowServColors.inkSoft, fontSize: 13)),
             ],
-            const SizedBox(height: 20),
-            child,
-          ],
+              const SizedBox(height: 20),
+              child,
+            ],
+          ),
         ),
       ),
     );
