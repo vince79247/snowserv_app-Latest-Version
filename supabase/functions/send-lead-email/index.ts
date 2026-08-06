@@ -128,7 +128,15 @@ Deno.serve(async (req: Request) => {
       p(`<b>You keep ${Math.round(providerPct * 100)}% of every job.</b>`),
       rows.length ? payTable(rows) : '',
       p('Deicer pays extra on top of those. You choose which jobs you take and you keep your own schedule.'),
-      p('No sign-up fees, no monthly fees, no contract. Payouts go straight to your bank.'),
+      p('No sign-up fees, no monthly fees, no contract.'),
+      // Answers the objection a contractor forms while reading, at the moment
+      // he forms it: handing bank details to an unknown company. Verified true
+      // against the schema — providers has no bank/routing/SSN/DOB column at
+      // all, only a Stripe account id.
+      p('<b>Your bank details go to Stripe, not to us.</b> You set up payouts on ' +
+        'Stripe\'s own secure page — SnowServ never sees or stores your bank ' +
+        'account or Social Security number. Stripe pays you directly and issues ' +
+        'your 1099 at the end of the year.'),
       button(SIGNUP_URL, 'Finish your registration'),
       p('It takes about five minutes. Just reply to this email if you have any questions — a real person reads it.'),
     ].join(''))

@@ -1248,6 +1248,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ..writeln('Deicer pays extra on top of those. No fees, no contract, and '
               'you choose which jobs you take.')
           ..writeln()
+          ..writeln('If the bank step is what gave you pause: your details go to '
+              'Stripe, not to us. SnowServ never sees or stores your bank account '
+              'or Social Security number. Stripe pays you directly and issues '
+              'your 1099.')
+          ..writeln()
           ..writeln('Just reply if you have any questions.')
           ..writeln()
           ..writeln('Vince')
@@ -1370,8 +1375,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       ..writeln()
       ..writeln('Deicer pays extra on top of those.')
       ..writeln()
-      ..writeln('There are no sign-up fees, no monthly fees and no contract. '
-          'Payouts go straight to your bank.')
+      ..writeln('There are no sign-up fees, no monthly fees and no contract.')
+      ..writeln()
+      ..writeln('Your bank details go to Stripe, not to us. You set up payouts '
+          'on Stripe\'s own secure page — SnowServ never sees or stores your '
+          'bank account or Social Security number. Stripe pays you directly and '
+          'issues your 1099 at the end of the year.')
       ..writeln()
       ..writeln('To get started, create your provider account here:')
       ..writeln('https://app.snowserv.app')
@@ -3531,39 +3540,55 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             ],
           ),
         ),
-        _stormReadinessPanel(),
-        _leadsPanel(),
         _searchField('Search providers by name, email, phone, or #',
             (v) => setState(() => _providerSearch = v)),
+        // The storm panel and the recruiting pipeline used to sit OUTSIDE this
+        // scroll view, in the fixed part of the Column. Both expand, and an
+        // expanded panel had nowhere to grow — the content was simply clipped
+        // and could not be scrolled to. They belong in the scrollable region.
         Expanded(
-          child: providers.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              _stormReadinessPanel(),
+              _leadsPanel(),
+              if (providers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(
                     child: Text('No providers registered yet.',
                         style: TextStyle(color: Colors.grey)),
                   ),
                 )
-              : noMatches
-              ? Center(
-                  child: Text('No providers match “$_providerSearch”.',
-                      style: const TextStyle(color: Colors.grey)),
+              else if (noMatches)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Text('No providers match “$_providerSearch”.',
+                        style: const TextStyle(color: Colors.grey)),
+                  ),
                 )
-              : ListView(
+              else
+                Padding(
                   padding: const EdgeInsets.all(12),
-                  children: [
-                    if (onDutyShown.isNotEmpty) ...[
-                      _sectionHeader('On Duty (${onDutyShown.length})',
-                          Colors.green.shade700),
-                      ...onDutyShown.map(buildProviderCard),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (onDutyShown.isNotEmpty) ...[
+                        _sectionHeader('On Duty (${onDutyShown.length})',
+                            Colors.green.shade700),
+                        ...onDutyShown.map(buildProviderCard),
+                      ],
+                      if (offDutyShown.isNotEmpty) ...[
+                        _sectionHeader('Off Duty (${offDutyShown.length})',
+                            Colors.grey.shade600),
+                        ...offDutyShown.map(buildProviderCard),
+                      ],
                     ],
-                    if (offDutyShown.isNotEmpty) ...[
-                      _sectionHeader('Off Duty (${offDutyShown.length})',
-                          Colors.grey.shade600),
-                      ...offDutyShown.map(buildProviderCard),
-                    ],
-                  ],
+                  ),
                 ),
+            ],
+          ),
         ),
       ],
     );
