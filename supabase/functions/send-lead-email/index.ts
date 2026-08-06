@@ -168,6 +168,12 @@ Deno.serve(async (req: Request) => {
       ? p('You created a SnowServ provider account but did not get to finish ' +
           'setting it up. If something got in the way — anything confusing or ' +
           'broken — just reply and tell me; I would genuinely like to know.') +
+        // The confirmation page used to dead-end on a plain page telling people
+        // to "head back to the app and log in", with no link. Saying plainly
+        // that they are already confirmed removes the exact step that lost them.
+        p('<b>You do not need to sign up again.</b> Your email is already ' +
+          'confirmed — just log in with the email address and password you ' +
+          'chose, and it picks up where you left off.') +
         p('There is not much left. You add your equipment, sign the agreement, ' +
           'and connect a bank account for payouts. About five minutes.')
       : p('Thanks for signing up to plow with SnowServ. We\'re a snow removal app ' +

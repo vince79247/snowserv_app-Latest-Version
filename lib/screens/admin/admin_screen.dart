@@ -1247,6 +1247,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               'the way — if any part of it was confusing or did not work, I would '
               'genuinely like to know.')
           ..writeln()
+          ..writeln('You do not need to sign up again — your email is already '
+              'confirmed. Just log in with the email address and password you '
+              'chose and it picks up where you left off.')
+          ..writeln()
           ..writeln('There is not much left to do. You add your equipment, sign '
               'the agreement, and connect a bank account for payouts. It takes '
               'about five minutes.')
