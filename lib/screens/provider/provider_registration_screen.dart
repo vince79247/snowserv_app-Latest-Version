@@ -31,11 +31,13 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   // pick snowblower/plow to be matched to driveway jobs.
   String _equipment = 'shovel';
   int _crewSize = 1;
-  bool _hasVehicle = false;
+  // Derived, never toggled. "Do you own a truck?" and "do you plow with one?"
+  // are different questions, and asking the first while enforcing the second is
+  // what dragged shovel providers into vehicle details and insurance uploads.
+  bool get _hasVehicle => _equipment == 'plow';
   final _vehicleMakeController = TextEditingController();
   final _vehicleModelController = TextEditingController();
   final _vehicleYearController = TextEditingController();
-  final _vehicleVinController = TextEditingController();
   final _vehiclePlateController = TextEditingController();
   bool _hasSalt = false;
 
@@ -75,7 +77,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     _vehicleMakeController.dispose();
     _vehicleModelController.dispose();
     _vehicleYearController.dispose();
-    _vehicleVinController.dispose();
     _vehiclePlateController.dispose();
     _dlNumberController.dispose();
     _dlStateController.dispose();
@@ -108,15 +109,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   bool _validateCurrentPage() {
     switch (_currentPage) {
       case 0:
-        if (_hasVehicle &&
-            (_vehicleMakeController.text.trim().isEmpty ||
-                _vehicleModelController.text.trim().isEmpty ||
-                _vehicleYearController.text.trim().isEmpty ||
-                _vehicleVinController.text.trim().isEmpty ||
-                _vehiclePlateController.text.trim().isEmpty)) {
-          _showError('Please fill in all vehicle details.');
-          return false;
-        }
+        // Nothing blocks here any more. Truck details are optional at signup —
+        // demanding them mid-registration means walking out to the driveway,
+        // which is where people put the phone down and never come back. What is
+        // missing is surfaced afterwards instead (see _outstandingItems).
         return true;
       case 1:
         if (_dlNumberController.text.trim().isEmpty ||
@@ -253,7 +249,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           'vehicle_make': _vehicleMakeController.text.trim(),
           'vehicle_model': _vehicleModelController.text.trim(),
           'vehicle_year': _vehicleYearController.text.trim(),
-          'vehicle_vin': _vehicleVinController.text.trim().toUpperCase(),
           'vehicle_plate': _vehiclePlateController.text.trim().toUpperCase(),
         },
         'dl_number': _dlNumberController.text.trim().toUpperCase(),
@@ -487,27 +482,15 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             style: TextStyle(fontSize: 12, color: Colors.black54),
           ),
           const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            value: _equipment,
-            decoration: const InputDecoration(border: OutlineInputBorder()),
-            items: const [
-              DropdownMenuItem(
-                  value: 'shovel',
-                  child: Text('Shovel only (walkways)')),
-              DropdownMenuItem(
-                  value: 'snowblower',
-                  child: Text('Snowblower (driveways)')),
-              DropdownMenuItem(
-                  value: 'plow', child: Text('Plow truck (driveways & lots)')),
-            ],
-            onChanged: (val) => setState(() {
-              _equipment = val!;
-              // A plow truck IS a vehicle → auto-enable the vehicle/insurance
-              // flow so they don't have to toggle it separately.
-              if (val == 'plow') _hasVehicle = true;
-            }),
-          ),
+          // Cards, not a dropdown. All three choices are visible at once, the
+          // tap targets are thumb-sized, and it sits consistently beside the
+          // toggles below instead of looking like a different kind of control.
+          _equipmentCard('shovel', Icons.cleaning_services, 'Shovel only',
+              'Walkways and sidewalks'),
+          _equipmentCard('snowblower', Icons.ac_unit, 'Snowblower',
+              'Driveways and walkways'),
+          _equipmentCard('plow', Icons.local_shipping, 'Plow truck',
+              'Driveways and larger jobs'),
           const SizedBox(height: 16),
           const Text('Crew Size', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
@@ -525,16 +508,22 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
               ),
             ],
           ),
-          const Divider(height: 24),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('I have a vehicle (truck / plow)',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            value: _hasVehicle,
-            activeColor: SnowServColors.iceBlue,
-            onChanged: (val) => setState(() => _hasVehicle = val),
-          ),
+          // The vehicle question used to be a separate toggle that answered
+          // itself — picking "Plow truck" silently switched it on. Worse, its
+          // label asked "do you own a truck?" while its requirements assumed
+          // "do you plow commercially?", so a shovel provider with a pickup got
+          // dragged into vehicle details and an insurance card he didn't need.
+          // It's now derived from the equipment choice above.
           if (_hasVehicle) ...[
+            const Divider(height: 24),
+            const Text('Your truck',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            const Text(
+              'Optional — you can add these later. We only use them to identify '
+              'your truck on site.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -571,16 +560,11 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
               ],
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: _vehicleVinController,
-              decoration: const InputDecoration(
-                  labelText: 'VIN',
-                  border: OutlineInputBorder(),
-                  counterText: ''),
-              textCapitalization: TextCapitalization.characters,
-              maxLength: 17,
-            ),
-            const SizedBox(height: 8),
+            // VIN removed deliberately. It was the heaviest field in the whole
+            // form — 17 characters you have to walk out to the truck to read —
+            // and it bought us nothing: we don't insure the vehicle, the
+            // contractor's own insurer does, and Stripe handles identity. Plate
+            // plus make/model/year identifies a truck on site perfectly well.
             TextField(
               controller: _vehiclePlateController,
               decoration: const InputDecoration(
@@ -600,6 +584,62 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             onChanged: (val) => setState(() => _hasSalt = val),
           ),
         ],
+      ),
+    );
+  }
+
+  // One tappable row per equipment type. Selecting "Plow truck" is also what
+  // reveals the truck fields, so the choice and its consequence sit together
+  // instead of being split across a dropdown and a switch that moved itself.
+  Widget _equipmentCard(
+      String value, IconData icon, String title, String subtitle) {
+    final selected = _equipment == value;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => setState(() => _equipment = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? SnowServColors.iceBlue.withValues(alpha: 0.08)
+                : Colors.transparent,
+            border: Border.all(
+              color: selected ? SnowServColors.iceBlue : SnowServColors.glacier,
+              width: selected ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(icon,
+                  size: 22,
+                  color: selected ? SnowServColors.iceBlue : Colors.black54),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                            fontWeight:
+                                selected ? FontWeight.bold : FontWeight.w600,
+                            fontSize: 15)),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.black54)),
+                  ],
+                ),
+              ),
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                size: 20,
+                color: selected ? SnowServColors.iceBlue : SnowServColors.glacier,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

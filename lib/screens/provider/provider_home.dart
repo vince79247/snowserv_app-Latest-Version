@@ -62,6 +62,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   bool _declining = false;
   bool _isAdmin = false;
   bool _autoAccept = false;
+  bool _missingTruckDetails = false;
 
   @override
   void initState() {
@@ -171,7 +172,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     try {
       final results = await supabase
           .from('providers')
-          .select('id, is_online, rating, total_jobs, auto_accept')
+          .select('id, is_online, rating, total_jobs, auto_accept, equipment, vehicle_make, vehicle_model, vehicle_year, vehicle_plate')
           .eq('user_id', supabase.auth.currentUser!.id)
           .limit(1);
       if (results.isEmpty) return;
@@ -185,6 +186,16 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           _rating = (data['rating'] as num?)?.toDouble();
           _totalJobs = data['total_jobs'] as int?;
           _autoAccept = data['auto_accept'] == true;
+          // Truck details are optional at registration — nobody should have to
+          // walk out to the driveway mid-signup. This is the other half of that
+          // bargain: a standing reminder until they're filled in.
+          _missingTruckDetails = data['equipment'] == 'plow' &&
+              [
+                data['vehicle_make'],
+                data['vehicle_model'],
+                data['vehicle_year'],
+                data['vehicle_plate'],
+              ].any((v) => v == null || v.toString().trim().isEmpty);
         });
         loadActiveJobs();
         if (wasOnline) {
@@ -1605,6 +1616,50 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     );
   }
 
+  // Registration lets a plow provider skip his truck details rather than lose
+  // him to a walk out to the driveway. This is the reminder that closes it out.
+  Widget _truckDetailsReminder() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        border: Border.all(color: Colors.orange.shade300),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.local_shipping_outlined,
+              size: 20, color: Colors.orange.shade800),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Finish your profile',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                        color: Colors.orange.shade900)),
+                const Text(
+                    'Add your truck details so customers can identify you on site.',
+                    style: TextStyle(fontSize: 12, color: Colors.black87)),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              await Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ProviderDetailsScreen()));
+              loadProviderRecord();
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1638,6 +1693,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_missingTruckDetails) _truckDetailsReminder(),
             // Online toggle
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),

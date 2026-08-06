@@ -26,7 +26,6 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
   final _modelCtrl = TextEditingController();
   final _yearCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
-  final _vinCtrl = TextEditingController();
   final _crewCtrl = TextEditingController();
   final _carrierCtrl = TextEditingController();
   final _policyCtrl = TextEditingController();
@@ -53,7 +52,7 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
   @override
   void dispose() {
     for (final c in [
-      _makeCtrl, _modelCtrl, _yearCtrl, _plateCtrl, _vinCtrl,
+      _makeCtrl, _modelCtrl, _yearCtrl, _plateCtrl,
       _crewCtrl, _carrierCtrl, _policyCtrl, _expiryCtrl,
     ]) {
       c.dispose();
@@ -67,7 +66,7 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
       final p = await _supabase
           .from('providers')
           .select(
-              'equipment, has_vehicle, vehicle_make, vehicle_model, vehicle_year, vehicle_plate, vehicle_vin, crew_size, has_salt, insurance_carrier, insurance_policy, insurance_expiry, insurance_photo_url')
+              'equipment, has_vehicle, vehicle_make, vehicle_model, vehicle_year, vehicle_plate, crew_size, has_salt, insurance_carrier, insurance_policy, insurance_expiry, insurance_photo_url')
           .eq('user_id', id)
           .maybeSingle();
       if (p != null && mounted) {
@@ -82,7 +81,6 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
         _modelCtrl.text = (p['vehicle_model'] as String?) ?? '';
         _yearCtrl.text = '${p['vehicle_year'] ?? ''}';
         _plateCtrl.text = (p['vehicle_plate'] as String?) ?? '';
-        _vinCtrl.text = (p['vehicle_vin'] as String?) ?? '';
         _crewCtrl.text = '${p['crew_size'] ?? 1}';
         _carrierCtrl.text = (p['insurance_carrier'] as String?) ?? '';
         _policyCtrl.text = (p['insurance_policy'] as String?) ?? '';
@@ -123,7 +121,6 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
           'vehicle_model': _modelCtrl.text.trim(),
           'vehicle_year': _yearCtrl.text.trim(),
           'vehicle_plate': _plateCtrl.text.trim().toUpperCase(),
-          'vehicle_vin': _vinCtrl.text.trim().toUpperCase(),
         });
       }
       // New insurance card → upload to the private bucket, store the PATH.
@@ -230,7 +227,6 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
                     _field(_makeCtrl, 'Make'),
                     _field(_modelCtrl, 'Model'),
                     _field(_plateCtrl, 'License plate'),
-                    _field(_vinCtrl, 'VIN'),
                   ],
                   _field(_crewCtrl, 'Crew size',
                       keyboard: TextInputType.number),
