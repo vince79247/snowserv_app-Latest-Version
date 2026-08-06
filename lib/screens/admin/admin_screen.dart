@@ -1208,6 +1208,68 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     return rows.isEmpty ? '' : '${rows.join('\n')}\n';
   }
 
+  // Pre-written body for the provider card's Email button. An account stuck at
+  // 'incomplete' is a recruiting lead that happens to live in the providers
+  // table, and it deserves the same one-tap treatment as the pipeline — a blank
+  // draft is the same friction as copy-pasting the address was.
+  //
+  // Returns null for states where there's nothing useful to say by default;
+  // the button then opens an empty draft as before.
+  String? _providerEmailBody(Map<String, dynamic> p) {
+    final status = p['registration_status']?.toString();
+    final first =
+        (p['users']?['name'] ?? '').toString().trim().split(RegExp(r'\s+')).first;
+    final hi = 'Hi${first.isEmpty ? '' : ' $first'},';
+    final pay = _payLines();
+    final pct = (AppConfig.providerFraction * 100).round();
+
+    switch (status) {
+      case 'incomplete':
+        final b = StringBuffer()
+          ..writeln(hi)
+          ..writeln()
+          ..writeln('You created a SnowServ provider account but did not get to '
+              'finish setting it up. I wanted to check whether something got in '
+              'the way — if any part of it was confusing or did not work, I would '
+              'genuinely like to know.')
+          ..writeln()
+          ..writeln('There is not much left to do. You add your equipment, sign '
+              'the agreement, and connect a bank account for payouts. It takes '
+              'about five minutes.')
+          ..writeln()
+          ..writeln('https://app.snowserv.app')
+          ..writeln()
+          ..writeln('We are launching in Yonkers this winter. You keep $pct% of '
+              'every job:')
+          ..writeln();
+        if (pay.isNotEmpty) b.write(pay);
+        b
+          ..writeln()
+          ..writeln('Deicer pays extra on top of those. No fees, no contract, and '
+              'you choose which jobs you take.')
+          ..writeln()
+          ..writeln('Just reply if you have any questions.')
+          ..writeln()
+          ..writeln('Vince')
+          ..writeln('SnowServ')
+          ..writeln('support@snowserv.app');
+        return b.toString();
+
+      case 'pending_review':
+        return '$hi\n\n'
+            'Thanks for finishing your SnowServ registration — we have it and we '
+            'are reviewing it now. You will hear from us as soon as you are '
+            'approved, and then you can go online and start taking jobs.\n\n'
+            'One thing worth doing in the meantime: connect your bank account for '
+            'payouts in the app, so nothing holds up your first payment.\n\n'
+            'Reply here with any questions.\n\n'
+            'Vince\nSnowServ\nsupport@snowserv.app';
+
+      default:
+        return null;
+    }
+  }
+
   // One tap from a lead card to a pre-written recruiting email. Vince works
   // leads by email, not phone, so copy-pasting an address off the card was
   // the actual bottleneck in the pipeline.
@@ -1377,7 +1439,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   // Email quick action — its own row because addresses are long. Opens the
   // admin's mail client pre-addressed (optionally with a subject).
-  Widget _emailRow(String label, String? email, {String? subject}) {
+  Widget _emailRow(String label, String? email, {String? subject, String? body}) {
     if (email == null || email.trim().isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1391,7 +1453,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 style: const TextStyle(fontSize: 13, color: SnowServColors.navy)),
           ),
           TextButton.icon(
-            onPressed: () => _email(email, subject: subject),
+            onPressed: () => _email(email, subject: subject, body: body),
             icon: const Icon(Icons.send_outlined, size: 16),
             label: const Text('Email'),
             style: TextButton.styleFrom(
@@ -3193,9 +3255,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     // actually happens. An abandoned registration is a lead,
                     // and without this the address had to be copied by hand.
                     _emailRow('Driver', p['users']?['email'] as String?,
-                        subject: (p['registration_status'] == 'incomplete')
-                            ? 'Finishing your SnowServ provider account'
-                            : 'SnowServ'),
+                        subject: switch (p['registration_status']) {
+                          'incomplete' => 'Finishing your SnowServ provider account',
+                          'pending_review' => 'Your SnowServ registration',
+                          _ => 'SnowServ',
+                        },
+                        body: _providerEmailBody(p)),
                     const SizedBox(height: 8),
                     // Earnings (this driver's 75% take of their completed jobs).
                     Container(
@@ -3640,9 +3705,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Lives in the Providers tab on purpose — recruiting feeds that list, and
   // during Sept/Oct outreach the funnel above is the reason to open this.
   Widget _leadsPanel() {
+    // Someone who created an account and never finished is a recruiting lead
+    // that happens to live in the providers table. Leaving them in the roster
+    // below meant they were invisible — no badge, nothing waiting on follow-up
+    // — so they surface here, where you go to work the funnel.
+    final stalled = providers
+        .where((p) => p['registration_status'] == 'incomplete')
+        .toList();
     final open = providerLeads
-        .where((l) => l['status'] != 'registered' && l['status'] != 'not_interested')
-        .length;
+            .where((l) => l['status'] != 'registered' && l['status'] != 'not_interested')
+            .length +
+        stalled.length;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
       decoration: BoxDecoration(
@@ -3656,7 +3729,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           tilePadding: const EdgeInsets.symmetric(horizontal: 14),
           childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
           leading: const Icon(Icons.groups_outlined, color: SnowServColors.navy, size: 20),
-          title: Text('Recruiting pipeline (${providerLeads.length})',
+          title: Text(
+              'Recruiting pipeline (${providerLeads.length + stalled.length})',
               style: const TextStyle(
                   fontWeight: FontWeight.bold, fontSize: 14, color: SnowServColors.navy)),
           subtitle: Text(
@@ -3675,7 +3749,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ),
             ),
             const SizedBox(height: 4),
-            if (providerLeads.isEmpty)
+            if (providerLeads.isEmpty && stalled.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 14),
                 child: Text(
@@ -3684,8 +3758,86 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
                 ),
               )
-            else
+            else ...[
               ...providerLeads.map(_leadRow),
+              if (stalled.isNotEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.only(top: 14, bottom: 2),
+                  child: Text('Signed up but never finished',
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: SnowServColors.inkSoft)),
+                ),
+                ...stalled.map(_stalledSignupRow),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // A stalled signup rendered as a pipeline row. Deliberately NOT a lead row:
+  // there's no provider_leads record to set a status on or delete, so it gets
+  // the one action that matters — email them the nudge — and nothing that
+  // would imply it can be worked like a lead.
+  Widget _stalledSignupRow(Map<String, dynamic> p) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    String when() {
+      final raw = p['created_at']?.toString();
+      final d = raw == null ? null : DateTime.tryParse(raw);
+      if (d == null) return 'signed up, never finished';
+      final days = DateTime.now().difference(d).inDays;
+      final stamp = '${months[d.month - 1]} ${d.day}';
+      return days <= 0
+          ? 'signed up today, never finished'
+          : 'signed up $stamp · $days day${days == 1 ? '' : 's'} with no follow-up';
+    }
+
+    final email = (p['users']?['email'] ?? '').toString().trim();
+    final name = (p['users']?['name'] ?? '').toString().trim();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+        decoration: BoxDecoration(
+          color: SnowServColors.surfaceSoft,
+          borderRadius: BorderRadius.circular(8),
+          border: const Border(left: BorderSide(color: Colors.grey, width: 3)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name.isEmpty ? '(no name)' : name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 13.5)),
+                  if (email.isNotEmpty)
+                    Text(email,
+                        style: const TextStyle(
+                            fontSize: 11.5, color: SnowServColors.inkSoft)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(when(),
+                        style: TextStyle(
+                            fontSize: 10.5, color: Colors.grey.shade600)),
+                  ),
+                ],
+              ),
+            ),
+            if (email.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.mail_outline, size: 18),
+                color: SnowServColors.iceBlue,
+                tooltip: 'Email — asks what stopped them',
+                onPressed: () => _email(email,
+                    subject: 'Finishing your SnowServ provider account',
+                    body: _providerEmailBody(p)),
+              ),
           ],
         ),
       ),
