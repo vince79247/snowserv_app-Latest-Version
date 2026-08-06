@@ -6,9 +6,9 @@ import 'dart:io';
 import '../../theme.dart';
 import '../../config/app_config.dart';
 import 'provider_agreement_screen.dart';
+import '../../utils/auth_actions.dart';
+import '../../utils/legal.dart';
 
-const _kPrivacyUrl = 'https://docs.google.com/document/d/e/2PACX-1vTs3QKh1Sh_d9RfCX4w1lgWhugWIld3VGiLSJnFHE5-Yd-qIj9v5rrrI8FMYTtYa85aY2aP2-aKFHRi/pub';
-const _kTermsUrl = 'https://docs.google.com/document/d/e/2PACX-1vTcXcBxj_5lSgLWeWzPpPFWxSmA1BOjMgNs1fdFg1NFqZnIEWtluIwCyXbJLpnttfc0vD2Mts6IZcxb/pub';
 
 final supabase = Supabase.instance.client;
 
@@ -302,7 +302,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
             : null,
         actions: [
           TextButton(
-            onPressed: () => supabase.auth.signOut(),
+            onPressed: () => signOutSafely(context),
             child: const Text('Log Out', style: TextStyle(color: Colors.white70)),
           ),
         ],
@@ -884,13 +884,13 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           _legalLinkTile(
             icon: Icons.description_outlined,
             label: 'Read Terms of Service',
-            url: _kTermsUrl,
+            url: termsOfServiceUrl,
           ),
           const SizedBox(height: 10),
           _legalLinkTile(
             icon: Icons.privacy_tip_outlined,
             label: 'Read Privacy Policy',
-            url: _kPrivacyUrl,
+            url: privacyPolicyUrl,
           ),
           const SizedBox(height: 16),
           const SizedBox(height: 16),
@@ -1084,7 +1084,7 @@ class ProviderPendingScreen extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () => Supabase.instance.client.auth.signOut(),
+                  onPressed: () => signOutSafely(context),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: const BorderSide(color: Colors.white30),

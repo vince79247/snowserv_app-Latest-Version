@@ -10,6 +10,7 @@ import 'zone_editor_screen.dart';
 import 'admin_map_screen.dart';
 import 'support_assistant_screen.dart';
 import '../../widgets/site_notes_panel.dart';
+import '../../utils/auth_actions.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -1098,7 +1099,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: loadAll),
           TextButton(
-            onPressed: () => Supabase.instance.client.auth.signOut(),
+            onPressed: () => signOutSafely(context),
             child: const Text('Log Out', style: TextStyle(color: Colors.white)),
           ),
         ],
