@@ -3726,6 +3726,76 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         _ => SnowServColors.navy,
       };
 
+  // Same two-way choice as a lead, for someone who signed up and stalled. The
+  // branded send is the one to prefer: it goes out as SnowServ rather than
+  // whatever account the admin's mail app defaults to, and it records itself.
+  Future<void> _emailStalledSignup(Map<String, dynamic> p) async {
+    final email = (p['users']?['email'] ?? '').toString().trim();
+    if (email.isEmpty) return;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.send, color: SnowServColors.iceBlue),
+            title: const Text('Send from SnowServ'),
+            subtitle: const Text('Branded, with a Finish registration button'),
+            onTap: () => Navigator.pop(ctx, 'send'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Write my own'),
+            subtitle: const Text('Opens a draft in your mail app'),
+            onTap: () => Navigator.pop(ctx, 'draft'),
+          ),
+        ]),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'draft') {
+      return _email(email,
+          subject: 'Finishing your SnowServ provider account',
+          body: _providerEmailBody(p));
+    }
+
+    final already = p['recruit_emailed_at'] != null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send from SnowServ?'),
+        content: Text(already
+            ? 'You have already emailed $email once. Send it again?'
+            : 'A SnowServ-branded email goes to $email asking what stopped them, '
+                'with the current pay rates and a "Finish your registration" button.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final res = await supabase.functions
+          .invoke('send-lead-email', body: {'provider_id': p['id']});
+      final sent = (res.data is Map) && (res.data['sent'] == 1);
+      if (!mounted) return;
+      if (sent) {
+        setState(() => p['recruit_emailed_at'] = DateTime.now().toIso8601String());
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Sent to $email')));
+      } else {
+        final err = (res.data is Map) ? (res.data['error'] ?? '') : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not send${err == '' ? '' : ': $err'}')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not send: $e')));
+      }
+    }
+  }
+
   // Recruiting pipeline, collapsed by default so it never buries the roster.
   // Lives in the Providers tab on purpose — recruiting feeds that list, and
   // during Sept/Oct outreach the funnel above is the reason to open this.
@@ -3823,6 +3893,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     final email = (p['users']?['email'] ?? '').toString().trim();
     final name = (p['users']?['name'] ?? '').toString().trim();
 
+    String? emailedOn;
+    final rawSent = p['recruit_emailed_at']?.toString();
+    final sentAt = rawSent == null ? null : DateTime.tryParse(rawSent)?.toLocal();
+    if (sentAt != null) emailedOn = '${months[sentAt.month - 1]} ${sentAt.day}';
+
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Container(
@@ -3851,6 +3926,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         style: TextStyle(
                             fontSize: 10.5, color: Colors.grey.shade600)),
                   ),
+                  // Without this there was nothing on screen saying whether
+                  // this person had been contacted — so the same stalled
+                  // signup got emailed twice.
+                  if (emailedOn != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.check_circle,
+                            size: 12, color: Colors.green.shade600),
+                        const SizedBox(width: 4),
+                        Text('Emailed $emailedOn',
+                            style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green.shade700)),
+                      ]),
+                    ),
                 ],
               ),
             ),
@@ -3859,9 +3951,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 icon: const Icon(Icons.mail_outline, size: 18),
                 color: SnowServColors.iceBlue,
                 tooltip: 'Email — asks what stopped them',
-                onPressed: () => _email(email,
-                    subject: 'Finishing your SnowServ provider account',
-                    body: _providerEmailBody(p)),
+                onPressed: () => _emailStalledSignup(p),
               ),
           ],
         ),
