@@ -24,6 +24,99 @@ ListTile deleteAccountTile(BuildContext context) => ListTile(
       },
     );
 
+const _leaveReasons = <String>[
+  'Too expensive',
+  'I only needed it once',
+  'Service quality',
+  'Moving / no longer need snow removal',
+  'Privacy concerns',
+  'Something did not work',
+];
+
+/// Optional exit survey. Stored with NO identifying data — see the migration.
+/// Every failure path here is swallowed: nothing about learning why someone
+/// left may ever prevent them from leaving.
+Future<void> _askWhyLeaving(BuildContext context) async {
+  String? reason;
+  final note = TextEditingController();
+  final submitted = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: const Text('Before you go'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Would you tell us why? It is optional and completely '
+                  'anonymous — it is not linked to you or kept with your details.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                for (final r in _leaveReasons)
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: r,
+                    groupValue: reason,
+                    title: Text(r, style: const TextStyle(fontSize: 13)),
+                    onChanged: (v) => setLocal(() => reason = v),
+                  ),
+                TextField(
+                  controller: note,
+                  maxLines: 2,
+                  maxLength: 200,
+                  decoration: const InputDecoration(
+                    labelText: 'Anything else? (optional)',
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Skip')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Send')),
+        ],
+      ),
+    ),
+  );
+
+  if (submitted == true && (reason != null || note.text.trim().isNotEmpty)) {
+    try {
+      String? role;
+      try {
+        final uid = _supabase.auth.currentUser?.id;
+        if (uid != null) {
+          final p = await _supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', uid)
+              .maybeSingle();
+          role = p?['role'] as String?;
+        }
+      } catch (_) {}
+      await _supabase.from('account_deletion_feedback').insert({
+        'role': role,
+        'reason': reason,
+        if (note.text.trim().isNotEmpty) 'note': note.text.trim(),
+      });
+    } catch (_) {
+      // Never block the deletion over feedback.
+    }
+  }
+  note.dispose();
+}
+
 Future<void> confirmAndDeleteAccount(BuildContext context) async {
   final confirmed = await showDialog<bool>(
     context: context,
@@ -78,6 +171,13 @@ Future<void> confirmAndDeleteAccount(BuildContext context) async {
     ),
   );
   if (confirmed != true) return;
+
+  // Ask why. Two reasons: it is the only chance we get to learn what drove
+  // someone away, and it puts one more deliberate step between a mis-tap and an
+  // irreversible deletion. Skippable — refusing to answer must never block a
+  // deletion the user is entitled to (App Store 5.1.1(v), and basic decency).
+  if (!context.mounted) return;
+  await _askWhyLeaving(context);
 
   // Block the UI while the server does the deletion — this must not be
   // interrupted halfway.

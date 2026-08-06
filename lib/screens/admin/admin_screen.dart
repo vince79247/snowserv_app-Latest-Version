@@ -42,6 +42,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // screen and the pre-signup quote; until now nothing READ it, so the
   // demand signal that decides which town to open next was invisible.
   List<Map<String, dynamic>> waitlist = [];
+  // Why people deleted their accounts. Anonymous by design — no user id, email
+  // or name — so this is a pattern to read, not a person to chase.
+  List<Map<String, dynamic>> deletionFeedback = [];
 
   int get _pendingDisputes =>
       disputes.where((d) => d['status'] == 'pending').length;
@@ -218,6 +221,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         waitlistRows = List<Map<String, dynamic>>.from(waitData);
       } catch (_) {}
 
+      List<Map<String, dynamic>> churnRows = [];
+      try {
+        final churnData = await supabase
+            .from('account_deletion_feedback')
+            .select()
+            .order('created_at', ascending: false);
+        churnRows = List<Map<String, dynamic>>.from(churnData);
+      } catch (_) {}
+
       if (mounted) {
         final providerList = _sortProviders(providersData);
         setState(() {
@@ -229,6 +241,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           disputes = disputesList;
           providerLeads = leadsList;
           waitlist = waitlistRows;
+          deletionFeedback = churnRows;
         });
       }
     } catch (e) {
@@ -3041,6 +3054,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             padding: EdgeInsets.zero,
             children: [
               _waitlistPanel(),
+              _churnPanel(),
               if (customers.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(24),
@@ -3973,6 +3987,80 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       ]),
                     ),
                   )),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Why people left. Written by the optional exit survey on Delete Account and
+  // read only here — a table with no reader is how the waitlist sat empty and
+  // invisible for weeks.
+  Widget _churnPanel() {
+    if (deletionFeedback.isEmpty) return const SizedBox.shrink();
+    final byReason = <String, int>{};
+    for (final f in deletionFeedback) {
+      final r = (f['reason'] ?? 'No reason given').toString();
+      byReason[r] = (byReason[r] ?? 0) + 1;
+    }
+    final ranked = byReason.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final notes = deletionFeedback
+        .where((f) => (f['note'] ?? '').toString().trim().isNotEmpty)
+        .toList();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: SnowServColors.hairline),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          leading: Icon(Icons.exit_to_app, color: Colors.red.shade400, size: 20),
+          title: Text('Why people left (${deletionFeedback.length})',
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: SnowServColors.navy)),
+          subtitle: Text(
+            ranked.isEmpty ? '' : 'Most common: ${ranked.first.key}',
+            style: const TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
+          ),
+          children: [
+            for (final e in ranked)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Expanded(
+                      child: Text(e.key,
+                          style: const TextStyle(fontSize: 13))),
+                  Text('${e.value}',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.bold)),
+                ]),
+              ),
+            if (notes.isNotEmpty) ...[
+              const Divider(height: 18),
+              const Text('What they said',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: SnowServColors.inkSoft)),
+              for (final n in notes.take(10))
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('\u201c${n['note']}\u201d',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.black87)),
+                ),
             ],
           ],
         ),

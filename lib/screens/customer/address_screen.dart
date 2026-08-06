@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme.dart';
+import '../../widgets/us_state_field.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -137,15 +138,8 @@ class _AddressScreenState extends State<AddressScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: stateController,
-                    decoration: const InputDecoration(
-                      labelText: 'State *',
-                      hintText: 'NY',
-                      prefixIcon: Icon(Icons.map_outlined),
-                    ),
-                    textCapitalization: TextCapitalization.characters,
-                  ),
+                  child: UsStateField(
+                      controller: stateController, label: 'State *'),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

@@ -19,6 +19,7 @@ import '../faq_screen.dart';
 import '../edit_profile_screen.dart';
 import '../admin/admin_screen.dart';
 import '../../utils/web_layout.dart';
+import '../../widgets/us_state_field.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -1667,15 +1668,8 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: TextField(
-                            controller: _otherStateController,
-                            decoration: const InputDecoration(
-                              labelText: 'State',
-                              filled: true,
-                              fillColor: Colors.white,
-                            ),
-                            textCapitalization: TextCapitalization.characters,
-                          ),
+                          child: UsStateField(
+                              controller: _otherStateController, filled: true),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -1831,6 +1825,17 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                       fontWeight: FontWeight.bold,
                       color: surgeMultiplier > 1.0 ? Colors.orange : SnowServColors.navy,
                     ),
+                  ),
+                  // create-checkout-session already runs Stripe automatic_tax
+                  // with tax_behavior=exclusive. Today that computes $0 because
+                  // there are no tax registrations, so this line is simply true.
+                  // The day the Certificate of Authority activates, Stripe starts
+                  // adding tax on ITS page while this screen still shows the
+                  // untaxed figure — so the warning has to already be here, not
+                  // be something we remember to add on the day.
+                  const Text(
+                    'Sales tax, if any, is calculated at checkout',
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                 ],
               ),

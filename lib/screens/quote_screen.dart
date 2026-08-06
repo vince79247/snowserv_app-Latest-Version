@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme.dart';
 import '../utils/geo.dart';
 import '../utils/geocode.dart';
+import '../widgets/us_state_field.dart';
 
 final _supabase = Supabase.instance.client;
 
@@ -159,11 +160,7 @@ class _QuoteScreenState extends State<QuoteScreen> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: TextField(
-                  controller: _stateCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(labelText: 'State', filled: true, fillColor: Colors.white),
-                ),
+                child: UsStateField(controller: _stateCtrl, filled: true),
               ),
               const SizedBox(width: 8),
               Expanded(

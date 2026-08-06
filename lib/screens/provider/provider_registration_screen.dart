@@ -8,6 +8,7 @@ import '../../config/app_config.dart';
 import 'provider_agreement_screen.dart';
 import '../../utils/auth_actions.dart';
 import '../../utils/legal.dart';
+import '../../widgets/us_state_field.dart';
 
 
 final supabase = Supabase.instance.client;
@@ -673,17 +674,8 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
               ),
               const SizedBox(width: 8),
               SizedBox(
-                width: 80,
-                child: TextField(
-                  controller: _dlStateController,
-                  decoration: const InputDecoration(
-                    labelText: 'State',
-                    border: OutlineInputBorder(),
-                    counterText: '',
-                  ),
-                  textCapitalization: TextCapitalization.characters,
-                  maxLength: 2,
-                ),
+                width: 110,
+                child: UsStateField(controller: _dlStateController),
               ),
             ],
           ),
