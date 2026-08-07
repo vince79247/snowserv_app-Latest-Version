@@ -22,7 +22,15 @@ SECURITY: provider_notes must NEVER be shown to customers — admin panel only.
 id (uuid, matches auth.users.id), name, email, phone, role, dispute_count, is_flagged, is_suspended, created_at, stripe_customer_id, card_pm_id, card_last4, card_brand, card_exp_month, card_exp_year
 
 ### providers
-id (uuid, auto-generated — NOT same as auth user id), user_id (fkey → users), provider_type, is_online, is_verified, registration_status (approved/pending/rejected), current_lat, current_lng, has_vehicle, crew_size, rating, total_jobs, created_at
+id (uuid, auto-generated — NOT same as auth user id), user_id (fkey → users), provider_type, is_online, is_verified, registration_status, current_lat, current_lng, has_vehicle, crew_size, rating, total_jobs, created_at, equipment (shovel/snowblower/plow), id_type, dl_number, dl_state, dl_photo_url, insurance_*, review_note, reviewed_at, recruit_emailed_at, stripe_connect_id, payouts_enabled, auto_accept, preferred_until, cancelled_after_start_count, provider_number
+
+registration_status values: incomplete · pending_review · approved · rejected · deleted
+
+PHOTO ID (2026-08-07): the dl_* columns hold ANY government photo ID, not just a
+driver's license — id_type is drivers_license | state_id | passport |
+permanent_resident | military_id, and dl_state is blank for a passport. The column
+NAMES are historical and deliberately not renamed: build 16 is in the field and
+would break on write. See "Deliberately NOT doing" for why a license isn't required.
 
 IMPORTANT: jobs.provider_id references providers.id (NOT auth user id). Must look up providers.id via user_id when accepting jobs.
 IMPORTANT: When querying jobs with provider join, use `providers!jobs_provider_id_fkey` to avoid ambiguous FK error.
@@ -56,7 +64,26 @@ REQUIRES: `ALTER TABLE service_areas ADD COLUMN IF NOT EXISTS polygon jsonb;`
 
 ### waitlist
 id, email, zip, address, created_at. Captured when someone's ZIP isn't served yet
-(from the order screen banner or the pre-signup quote screen).
+(from the order screen banner or the pre-signup quote screen). Read in the admin
+Customers tab ("Waiting for us to arrive"), ranked by ZIP — that's the evidence for
+which town to open next.
+
+### email_log
+id, to_email, subject, body, user_id, lead_id, provider_id, template, sent_by,
+created_at. ONE record of every email SnowServ sends a person, written by BOTH
+send-admin-email and send-lead-email AFTER the provider confirms delivery.
+Admin-read only (is_admin()); deliberately NO insert policy — only the service role
+writes, so a client can't fake a delivery record. Surfaces as the green "Emailed
+Aug 7" chip on customer/provider/job cards; tapping it lists the history.
+Replaces the pattern of bolting another one-off "did we contact them" boolean onto
+another table every time this came up (it came up four times). The body is kept on
+purpose: re-reading what you promised someone is most of the value, and it's the
+context an AI support agent will need.
+
+### account_deletion_feedback
+id, role, reason, note, created_at. The exit survey shown before an account is
+deleted. Holds NO identifying data — the person just asked to be erased. Read in
+the admin Customers tab.
 
 ### disputes
 id, job_id, customer_id, provider_id, reason, description, status
@@ -215,6 +242,23 @@ lib/
   login link. Drives the provider "Set up / manage payouts" tile + admin status chip.
 - connect-return: verify_jwt=false; plain-text landing page Stripe returns to after
   onboarding (return/refresh states). Same sandbox constraint as checkout-return.
+- send-lead-email: ALL provider-lifecycle mail, branded HTML via Resend, admin-gated.
+  Takes {lead_id} or {provider_id} (+ optional review_note) and picks the variant
+  from the row's actual state — NEVER from which id you passed:
+    lead_new · out_of_area (suppresses ALL dollar figures — a lead outside our
+    priced zone must not be quoted Yonkers rates) · stalled_signup · pending_review ·
+    approved · needs_attention (carries the fix) · declined.
+  Prices are computed SERVER-SIDE from the live zone × app_settings.commission_pct,
+  never typed into a template or passed by the client. The pay table shows BOTH
+  "customer pays" and "you take home" — one column alone reads as "is $60 the job or
+  my cut?" and a contractor who guesses low just doesn't reply.
+- send-admin-email: free-form subject+body from the admin panel, sent AS SnowServ.
+  Admin-gated. Takes a user_id and resolves the address server-side — there is
+  deliberately NO `to` parameter, so a stolen admin session can only mail people
+  already in our system. Replaces the mailto: drafts, which composed from whatever
+  account the admin's mail app defaulted to (Vince's personal Yahoo, twice).
+- notify-provider: takes job_id OR provider_id (the latter for messages about the
+  PERSON, not a job — approval, needs_attention).
 - admin-doc-url: verifies admin password (ADMIN_PASSWORD secret) → returns a 1h
   signed URL for a provider-documents file (service role). Only way to read that
   private bucket.
@@ -240,6 +284,26 @@ lib/
   writes, provider read = own-jobs+open-queue so provider_notes stays private, money/status
   column tamper guards) + client changes (dispatch.dart deleted; decline/cancel/rating call
   RPCs; signup passes metadata). APPLIED AT THE BUILD-5 CUTOVER — see PRELAUNCH.md.
+
+## Provider registration & review (reworked 2026-08-07)
+5 steps: Equipment · Photo ID · Insurance · Payouts · Agreement. Equipment drives
+everything downstream (has_vehicle is DERIVED from equipment=='plow', no toggle);
+truck details are optional at signup and chased afterwards, because demanding them
+mid-flow means walking out to the driveway, which is where people quit.
+
+An admin reviewing a pending_review application has THREE actions, not two:
+- **Approve** → sends a push AND a branded email (go online + connect your bank).
+  Before this, approving somebody told them NOTHING and they could sit approved for
+  weeks never knowing to go online.
+- **Needs attention** → the common case. Pick one of seven concrete reasons (or
+  write your own), which sets registration_status back to 'incomplete', stores it in
+  providers.review_note, emails it, and pushes it. They land back IN the registration
+  flow with an orange banner showing the note — their answers are kept, and
+  resubmitting clears it. This is NOT a rejection and must never be worded as one.
+- **Decline** → genuinely disqualified only (duplicate account, etc). Short, final
+  email with NO stated reason. It deliberately does NOT say "contact support for more
+  information" — the old rejection screen did, and that sentence exists only to
+  manufacture the support email it pretends to prevent.
 
 ## Provider flow
 1. Toggle online → loads available jobs (status=requested, dispatched_to=this provider)
@@ -374,6 +438,19 @@ Customer can toggle "Ordering for someone else" to enter a different service add
   (the hold can't be raised, so it needs a new hold / delta charge). If a customer
   forgets an add-on, they cancel and re-book — the instant hold-release makes that
   painless. Order-time selection is the only place to choose services + salting.
+- CRIMINAL BACKGROUND CHECKS on providers. Decided 2026-08-07 (Vince): "they're not
+  going inside people's houses, so we don't even have to worry about that." The work
+  is entirely outdoors — driveways, walkways, sidewalks — and vetting is already
+  photo ID + insurance + the signed Provider Service Agreement, with Stripe Connect
+  running real KYC before anyone gets paid. ⚠️ The one thing that would change: if we
+  EVER decline someone based on a consumer report / background check, the FCRA
+  legally requires an adverse-action notice with specific disclosures. That is a
+  legal duty, not a style choice — so don't add checks casually.
+- REQUIRING A DRIVER'S LICENSE specifically. Decided 2026-08-07 (Vince): "there are
+  so many people who drive without a valid license. It's not our problem." Any
+  government photo ID is accepted (see Provider registration) — we're confirming a
+  real identifiable adult, not driving privileges, and demanding a license shut out
+  shovel crews who don't drive for no gain.
 
 ## Recently built (previously on the NOT-built list)
 - Job completion UI (provider marks done, uploads photos to job-photos bucket)
