@@ -1270,10 +1270,41 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
+  /// Pull an approved driver off the platform for good. Confirms, because the
+  /// realistic reason to do this — lapsed insurance, a document to redo — is
+  /// better served by "Needs attention", which explains itself and lets them
+  /// come back. Revoke is the last resort.
   Future<void> revokeProvider(String providerId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Revoke this driver\'s approval?'),
+        content: const Text(
+          'They stop receiving jobs immediately and land on a "not approved" '
+          'screen with no explanation.\n\n'
+          'If the real problem is expired insurance or a document that needs '
+          'redoing, close this and use "Needs attention" instead — that tells '
+          'them what to fix and lets them come back once they have.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Revoke'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     await supabase.from('providers').update({
       'is_verified': false,
       'registration_status': 'rejected',
+      'reviewed_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('id', providerId);
     loadAll();
   }
@@ -4261,13 +4292,30 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
+                          onPressed: () => _requestChanges(p),
+                          icon: const Icon(Icons.edit_note, size: 16),
+                          label: const Text('Needs attention'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.orange.shade800,
+                            side: BorderSide(color: Colors.orange.shade400),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Revoke is the LAST resort, not the first tool. The
+                      // realistic reason to pull an approved driver is a lapsed
+                      // insurance card or a document that needs redoing — and
+                      // for that "Needs attention" above tells them what to fix
+                      // and lets them come back, where Revoke dumps them on a
+                      // red dead-end screen with no explanation and no email.
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
                           onPressed: () => revokeProvider(p['id']),
                           icon: const Icon(Icons.cancel_outlined, size: 14),
-                          label: const Text('Revoke Approval'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                            side: const BorderSide(color: Colors.red),
-                          ),
+                          label: const Text('Revoke approval'),
+                          style: TextButton.styleFrom(
+                              foregroundColor: Colors.red.shade700),
                         ),
                       ),
                     ],
