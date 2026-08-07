@@ -8,7 +8,6 @@ import '../../config/app_config.dart';
 import 'provider_agreement_screen.dart';
 import '../../utils/auth_actions.dart';
 import '../../utils/legal.dart';
-import '../../widgets/us_state_field.dart';
 
 
 final supabase = Supabase.instance.client;
@@ -43,10 +42,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   bool _hasSalt = false;
 
   // Step 2 - Identity
-  final _dlNumberController = TextEditingController();
-  final _dlStateController = TextEditingController();
-  String _idType = 'drivers_license';
-  File? _dlPhoto;
 
   // Step 3 - Insurance
   final _insuranceCarrierController = TextEditingController();
@@ -71,7 +66,17 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   final _signatureController = TextEditingController();
 
   final _picker = ImagePicker();
-  final _steps = ['Equipment', 'Photo ID', 'Insurance', 'Payouts', 'Agreement'];
+
+  // NO identity step. Stripe Connect Express verifies identity properly during
+  // payout onboarding — legal name, DOB, address, SSN, checked against
+  // government records before it will move a cent — and it asks for a photo ID
+  // itself if its automated check can't match. Collecting our own copy bought
+  // an admin squinting at a photo, which is not verification, while making us
+  // hold license numbers and ID images: the riskiest data we touch (NY SHIELD
+  // Act "private information") for the weakest possible check. Going online is
+  // gated on payouts_enabled instead, so Stripe's verification IS the gate.
+  // Decided with Vince 2026-08-07.
+  final _steps = ['Equipment', 'Insurance', 'Payouts', 'Agreement'];
 
   // What an admin asked them to fix, if they're back here after a review. The
   // email says it too, but the answer has to be waiting in the app as well —
@@ -107,8 +112,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     _vehicleModelController.dispose();
     _vehicleYearController.dispose();
     _vehiclePlateController.dispose();
-    _dlNumberController.dispose();
-    _dlStateController.dispose();
     _insuranceCarrierController.dispose();
     _insurancePolicyController.dispose();
     _insuranceExpiryController.dispose();
@@ -118,7 +121,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
 
   void _nextPage() {
     if (!_validateCurrentPage()) return;
-    if (_currentPage < 4) {
+    if (_currentPage < 3) {
       _pageController.nextPage(
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       setState(() => _currentPage++);
@@ -144,22 +147,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         // missing is surfaced afterwards instead (see _outstandingItems).
         return true;
       case 1:
-        if (_dlNumberController.text.trim().isEmpty) {
-          _showError('Please enter your ID number.');
-          return false;
-        }
-        // A passport has no issuing state, so requiring one would make the
-        // passport option impossible to complete.
-        if (_idType != 'passport' && _dlStateController.text.trim().isEmpty) {
-          _showError('Please choose the state that issued your ID.');
-          return false;
-        }
-        if (_dlPhoto == null) {
-          _showError('Please upload a photo of your ID.');
-          return false;
-        }
-        return true;
-      case 2:
         // Insurance is REQUIRED for vehicle/plow providers, and required-if-
         // claimed for hand-tool providers who say they carry it. Hand-tool
         // providers with no insurance must instead acknowledge responsibility.
@@ -186,10 +173,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           return false;
         }
         return true;
-      case 3:
+      case 2:
         // Payouts step is now an explainer — Stripe collects bank/SSN later.
         return true;
-      case 4:
+      case 3:
         if (!_termsAgreed) {
           _showError('Please agree to the Terms of Service to continue.');
           return false;
@@ -215,7 +202,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     );
   }
 
-  Future<void> _pickPhoto(bool isDL) async {
+  Future<void> _pickPhoto() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       builder: (_) => SafeArea(
@@ -239,13 +226,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     if (source == null) return;
     final photo = await _picker.pickImage(source: source, imageQuality: 80);
     if (photo != null && mounted) {
-      setState(() {
-        if (isDL) {
-          _dlPhoto = File(photo.path);
-        } else {
-          _insurancePhoto = File(photo.path);
-        }
-      });
+      setState(() => _insurancePhoto = File(photo.path));
     }
   }
 
@@ -263,12 +244,8 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       final userId = supabase.auth.currentUser!.id;
       final ts = DateTime.now().millisecondsSinceEpoch;
 
-      String? dlUrl;
       String? insuranceUrl;
 
-      if (_dlPhoto != null) {
-        dlUrl = await _uploadPhoto(_dlPhoto!, 'dl_${userId}_$ts.jpg');
-      }
       if (_insurancePhoto != null) {
         insuranceUrl = await _uploadPhoto(_insurancePhoto!, 'ins_${userId}_$ts.jpg');
       }
@@ -285,13 +262,9 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           'vehicle_year': _vehicleYearController.text.trim(),
           'vehicle_plate': _vehiclePlateController.text.trim().toUpperCase(),
         },
-        'id_type': _idType,
         // Resubmitting clears the "fix this" note — it's been acted on, and a
         // banner still showing after you've done what it asked is just noise.
         'review_note': null,
-        'dl_number': _dlNumberController.text.trim().toUpperCase(),
-        'dl_state': _dlStateController.text.trim().toUpperCase(),
-        if (dlUrl != null) 'dl_photo_url': dlUrl,
         // Insurance: vehicle providers always; hand-tool providers only if they
         // said they carry it. Otherwise record the no-insurance acknowledgment.
         'has_insurance': _hasVehicle || _carriesInsurance,
@@ -432,7 +405,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
               physics: const NeverScrollableScrollPhysics(),
               children: [
                 _buildEquipmentPage(),
-                _buildIdentityPage(),
                 _buildInsurancePage(),
                 _buildBankingPage(),
                 _buildAgreementPage(),
@@ -728,79 +700,6 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     );
   }
 
-  // ANY government photo ID. We are confirming that a real, identifiable adult
-  // is going to a stranger's house — a state ID card or passport proves that
-  // exactly as well as a driver's license, and demanding a license shuts out
-  // shovel crews who don't drive and anyone whose license has lapsed. Whether
-  // somebody may legally drive is between them and the state, not our gate.
-  Widget _buildIdentityPage() {
-    final needsState = _idType != 'passport';
-    return _card(
-      title: 'Photo ID',
-      subtitle: 'Any government-issued photo ID. This confirms who you are — '
-          'it is not a driving check.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          DropdownButtonFormField<String>(
-            // Keyed so a test can target it: the state picker on this same page
-            // is also a DropdownButtonFormField<String>.
-            key: const Key('idTypeDropdown'),
-            initialValue: _idType,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Type of ID',
-              border: OutlineInputBorder(),
-            ),
-            items: const [
-              DropdownMenuItem(
-                  value: 'drivers_license', child: Text("Driver's license")),
-              DropdownMenuItem(value: 'state_id', child: Text('State ID card')),
-              DropdownMenuItem(value: 'passport', child: Text('U.S. passport')),
-              DropdownMenuItem(
-                  value: 'permanent_resident',
-                  child: Text('Permanent resident card')),
-              DropdownMenuItem(
-                  value: 'military_id', child: Text('Military ID')),
-            ],
-            onChanged: (v) => setState(() => _idType = v ?? 'drivers_license'),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  controller: _dlNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'ID number',
-                    border: OutlineInputBorder(),
-                  ),
-                  textCapitalization: TextCapitalization.characters,
-                ),
-              ),
-              if (needsState) ...[
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 110,
-                  child: UsStateField(controller: _dlStateController),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 20),
-          const Text('Photo of your ID',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          _photoUpload(
-            photo: _dlPhoto,
-            label: 'Upload your photo ID',
-            onTap: () => _pickPhoto(true),
-          ),
-        ],
-      ),
-    );
-  }
 
   // Carrier / policy / expiry / card-photo fields — shared by the two paths
   // that actually collect insurance (vehicle providers, and hand-tool providers
@@ -843,7 +742,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         _photoUpload(
           photo: _insurancePhoto,
           label: 'Upload Insurance Card',
-          onTap: () => _pickPhoto(false),
+          onTap: () => _pickPhoto(),
         ),
       ],
     );

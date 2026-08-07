@@ -79,37 +79,39 @@ void main() {
     expect(find.text('VIN'), findsNothing,
         reason: 'VIN was removed from registration and should stay removed');
   });
-
-  // The photo ID step accepts ANY government ID, not just a driver's license
-  // (Vince, 2026-08-07: requiring a license shuts out everyone who doesn't
-  // drive, for no gain). A passport has no issuing state, so requiring one
-  // would make that option impossible to submit — pin both facts.
-  testWidgets('Photo ID step takes any government ID, and a passport needs no state',
-      (tester) async {
+  // Registration collects NO identity documents. Stripe Connect verifies
+  // identity properly during payout onboarding — legal name, DOB, address and
+  // SSN checked against government records before it will move money — so our
+  // own copy bought an admin squinting at a photo while making us hold the
+  // riskiest data we touch. Decided with Vince 2026-08-07.
+  //
+  // This test exists so the step cannot quietly come back: an ID field here
+  // means we are storing license numbers again.
+  testWidgets('Registration asks for no identity documents', (tester) async {
     await pumpRegistration(tester, const Size(390, 844));
 
-    // Advance past Equipment (which no longer blocks) to the ID step.
-    await tester.ensureVisible(find.text('Continue'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
+    const banned = [
+      'ID number',
+      'Photo ID',
+      "Driver's License #",
+      'Upload your photo ID',
+      'Type of ID',
+    ];
 
-    expect(find.text('Photo ID'), findsWidgets,
-        reason: 'The identity step should be titled for a photo ID');
-    expect(find.text('ID number'), findsOneWidget);
-    expect(find.text('State'), findsOneWidget,
-        reason: 'A license/state ID does have an issuing state');
-
-    // Tap the dropdown itself, not its floating label — the label sits inside
-    // the input decoration and a tap there does not reliably hit test.
-    await tester.tap(find.byKey(const Key('idTypeDropdown')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('U.S. passport').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('State'), findsNothing,
-        reason: 'A passport has no issuing state, so the field must disappear — '
-            'otherwise the step can never be completed');
+    // Walk every step, not just the first — the field could reappear anywhere.
+    for (var step = 0; step < 4; step++) {
+      for (final label in banned) {
+        expect(find.text(label), findsNothing,
+            reason: '"$label" is back on step $step. Identity verification '
+                'belongs to Stripe, not to us.');
+      }
+      final next = find.text('Continue');
+      if (next.evaluate().isEmpty) break;
+      await tester.ensureVisible(next);
+      await tester.pumpAndSettle();
+      await tester.tap(next);
+      await tester.pumpAndSettle();
+    }
     expect(tester.takeException(), isNull);
   });
 }

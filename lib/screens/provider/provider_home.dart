@@ -63,6 +63,9 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   bool _isAdmin = false;
   bool _autoAccept = false;
   bool _missingTruckDetails = false;
+  /// Stripe Connect has verified them and payouts are live. Required to go
+  /// online — see the comment where it's loaded.
+  bool _payoutsReady = false;
 
   @override
   void initState() {
@@ -172,7 +175,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     try {
       final results = await supabase
           .from('providers')
-          .select('id, is_online, rating, total_jobs, auto_accept, equipment, vehicle_make, vehicle_model, vehicle_year, vehicle_plate')
+          .select('id, is_online, rating, total_jobs, auto_accept, equipment, vehicle_make, vehicle_model, vehicle_year, vehicle_plate, payouts_enabled')
           .eq('user_id', supabase.auth.currentUser!.id)
           .limit(1);
       if (results.isEmpty) return;
@@ -186,6 +189,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           _rating = (data['rating'] as num?)?.toDouble();
           _totalJobs = data['total_jobs'] as int?;
           _autoAccept = data['auto_accept'] == true;
+          // Stripe's KYC is our identity check now, and it is also the only
+          // thing that makes a payout possible — batch-payouts skips anyone
+          // without it. Before this gate, a provider could go online, work a
+          // whole storm, and silently never be paid.
+          _payoutsReady = data['payouts_enabled'] == true;
           // Truck details are optional at registration — nobody should have to
           // walk out to the driveway mid-signup. This is the other half of that
           // bargain: a standing reminder until they're filled in.
@@ -230,6 +238,27 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
 
   Future<void> toggleOnline(bool value) async {
     if (providerId == null) return;
+
+    // Going online without payouts set up means working a storm for money we
+    // cannot send: batch-payouts skips anyone whose payouts_enabled isn't true,
+    // so the jobs just sit unpaid. Blocking it here is kinder than paying them
+    // in a lesson. Going OFFLINE is never blocked.
+    if (value && !_payoutsReady) {
+      // Re-check with Stripe before refusing — the cached flag can lag behind
+      // an onboarding they finished two minutes ago in a browser.
+      try {
+        final res = await supabase.functions.invoke('connect-status');
+        _payoutsReady = ((res.data as Map?) ?? const {})['payouts_enabled'] == true;
+      } catch (_) {}
+      if (!_payoutsReady) {
+        if (mounted) {
+          setState(() {});
+          _promptPayoutSetup();
+        }
+        return;
+      }
+      if (mounted) setState(() {});
+    }
 
     // Pick up any admin change to the dispatch-offer window at the start of each
     // shift, so the provider's countdown length matches the server's expiry.
@@ -434,6 +463,35 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   // bank/SSN details — Stripe does. This checks the provider's Connect status
   // and either opens hosted onboarding (not set up / needs more info) or their
   // Stripe payouts dashboard (already active).
+  /// Explains why the online switch didn't move, and offers the one action that
+  /// fixes it. A refusal with no route out is just a wall.
+  void _promptPayoutSetup() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set up payouts first'),
+        content: const Text(
+          'Before you can take jobs, you need to connect your bank so we can '
+          'pay you. It takes about two minutes on Stripe\'s secure page.\n\n'
+          'SnowServ never sees or stores your bank account or Social Security '
+          'number — Stripe handles all of it and pays you directly.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Not now')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _managePayouts();
+            },
+            child: const Text('Set up payouts'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _managePayouts() async {
     if (providerId == null) return;
     ScaffoldMessenger.of(context).showSnackBar(

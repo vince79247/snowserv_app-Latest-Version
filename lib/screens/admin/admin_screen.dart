@@ -4031,16 +4031,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                               color: SnowServColors.navy)),
                     ),
                     const SizedBox(height: 6),
-                    _infoRow(
-                        switch (p['id_type']) {
-                          'state_id' => 'State ID',
-                          'passport' => 'Passport',
-                          'permanent_resident' => 'Resident card',
-                          'military_id' => 'Military ID',
-                          _ => "Driver's license",
-                        },
-                        '${p['dl_number'] ?? ''}  ${p['dl_state'] ?? ''}'.trim()),
-                    _docViewButton('ID photo', p['dl_photo_url']),
+                    // No ID row. Identity is verified by Stripe Connect during
+                    // payout onboarding, to a standard we can't match by
+                    // looking at a photo — and the verified legal name, DOB and
+                    // address are readable in the Stripe Dashboard under
+                    // Connected accounts. The payouts chip below is that check.
                     const SizedBox(height: 10),
                     // Insurance section
                     const Align(

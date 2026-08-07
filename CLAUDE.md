@@ -26,11 +26,15 @@ id (uuid, auto-generated — NOT same as auth user id), user_id (fkey → users)
 
 registration_status values: incomplete · pending_review · approved · rejected · deleted
 
-PHOTO ID (2026-08-07): the dl_* columns hold ANY government photo ID, not just a
-driver's license — id_type is drivers_license | state_id | passport |
-permanent_resident | military_id, and dl_state is blank for a passport. The column
-NAMES are historical and deliberately not renamed: build 16 is in the field and
-would break on write. See "Deliberately NOT doing" for why a license isn't required.
+NO IDENTITY DOCUMENTS ARE COLLECTED (2026-08-07). dl_number / dl_state /
+dl_photo_url / id_type are DEPRECATED, nulled, and their storage objects purged.
+Stripe Connect Express verifies identity during payout onboarding — legal name,
+DOB, address, SSN, checked against government records — and asks for a photo ID
+itself if its automated check fails. Our copy bought an admin squinting at a photo
+while making us hold NY SHIELD Act "private information". The verified identity is
+readable any time from GET /v1/accounts/{id} or the Stripe Dashboard → Connected
+accounts; only the full SSN and any ID scan stay with Stripe. Columns are kept (not
+dropped) ONLY because build 16 still writes them — drop once 17+ is the floor.
 
 IMPORTANT: jobs.provider_id references providers.id (NOT auth user id). Must look up providers.id via user_id when accepting jobs.
 IMPORTANT: When querying jobs with provider join, use `providers!jobs_provider_id_fkey` to avoid ambiguous FK error.
@@ -286,7 +290,7 @@ lib/
   RPCs; signup passes metadata). APPLIED AT THE BUILD-5 CUTOVER — see PRELAUNCH.md.
 
 ## Provider registration & review (reworked 2026-08-07)
-5 steps: Equipment · Photo ID · Insurance · Payouts · Agreement. Equipment drives
+4 steps: Equipment · Insurance · Payouts · Agreement (no identity step — see below). Equipment drives
 everything downstream (has_vehicle is DERIVED from equipment=='plow', no toggle);
 truck details are optional at signup and chased afterwards, because demanding them
 mid-flow means walking out to the driveway, which is where people quit.
@@ -446,11 +450,13 @@ Customer can toggle "Ordering for someone else" to enter a different service add
   EVER decline someone based on a consumer report / background check, the FCRA
   legally requires an adverse-action notice with specific disclosures. That is a
   legal duty, not a style choice — so don't add checks casually.
-- REQUIRING A DRIVER'S LICENSE specifically. Decided 2026-08-07 (Vince): "there are
-  so many people who drive without a valid license. It's not our problem." Any
-  government photo ID is accepted (see Provider registration) — we're confirming a
-  real identifiable adult, not driving privileges, and demanding a license shut out
-  shovel crews who don't drive for no gain.
+- COLLECTING ANY IDENTITY DOCUMENT OURSELVES. Decided 2026-08-07 (Vince): "isn't
+  that something Stripe might ask for? At the end of the day it's Stripe that's
+  issuing the payment to them." Stripe Connect verifies identity properly and it is
+  their regulatory obligation; our copy was weaker AND a data liability. Registration
+  has no identity step at all now — going ONLINE is gated on payouts_enabled, so
+  Stripe's KYC IS the identity gate. Do not re-add an ID upload; there is a test
+  (test/registration_layout_test.dart) that fails if one comes back.
 
 ## Recently built (previously on the NOT-built list)
 - Job completion UI (provider marks done, uploads photos to job-photos bucket)
