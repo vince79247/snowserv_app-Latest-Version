@@ -62,6 +62,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Admin search filters for the Users / Providers tabs (name, email, phone, #).
   String _customerSearch = '';
   String _providerSearch = '';
+  String _jobSearch = '';
+  /// null = every status. The Jobs tab is the one that grows without limit —
+  /// every storm adds a season's worth — so it needs finding, not just scrolling.
+  String? _jobStatusFilter;
   // Fallback poll. Realtime (below) is the fast path; this only catches the case
   // where the socket dropped without us noticing — hence 60s, not 15s.
   Timer? _ticker;
@@ -2703,42 +2707,113 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
+  /// Free-text match over the things you'd actually have in front of you when
+  /// looking a job up: a job number off a receipt, a name from an email, or a
+  /// street from a complaint.
+  bool _matchesJob(Map<String, dynamic> j, String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    final addr = j['addresses'] as Map<String, dynamic>?;
+    final hay = [
+      j['job_number'],
+      _customerName(j['customer_id']),
+      _providerName(j['provider_id']),
+      addr?['address_line'],
+      addr?['city'],
+      addr?['zip'],
+      j['service_type'],
+      j['status'],
+    ].map((v) => (v ?? '').toString()).join(' ').toLowerCase();
+    // "#412" and "412" should both find job 412.
+    return hay.contains(q.startsWith('#') ? q.substring(1) : q);
+  }
+
+  static const _jobStatusLabels = {
+    'requested': 'Waiting',
+    'assigned': 'Assigned',
+    'in_progress': 'In progress',
+    'completed': 'Completed',
+    'cancelled': 'Cancelled',
+  };
+
   Widget _buildJobsTab({bool includeTicker = false}) {
     final cancelledCount =
         jobs.where((j) => j['status'] == 'cancelled').length;
-    final visible = _showCancelled
-        ? jobs
-        : jobs.where((j) => j['status'] != 'cancelled').toList();
+
+    // A chosen status wins outright — picking "Cancelled" and then being shown
+    // nothing because the show-cancelled switch is off would be nonsense.
+    final byStatus = _jobStatusFilter != null
+        ? jobs.where((j) => j['status'] == _jobStatusFilter).toList()
+        : (_showCancelled
+            ? jobs
+            : jobs.where((j) => j['status'] != 'cancelled').toList());
+    final visible = byStatus.where((j) => _matchesJob(j, _jobSearch)).toList();
+    final filtering = _jobSearch.trim().isNotEmpty || _jobStatusFilter != null;
 
     return Column(
       children: [
         if (includeTicker) _buildLiveTicker(),
         _dispatchTimerBar(),
         _stormPricingBar(),
-        if (cancelledCount > 0)
-          Padding(
+        _searchField('Search jobs by #, name, address, or ZIP',
+            (v) => setState(() => _jobSearch = v)),
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: Row(
-              children: [
-                const Spacer(),
-                FilterChip(
-                  label: Text('Show cancelled ($cancelledCount)'),
-                  selected: _showCancelled,
-                  onSelected: (v) => setState(() => _showCancelled = v),
-                  avatar: Icon(
-                    _showCancelled ? Icons.visibility : Icons.visibility_off,
-                    size: 16,
+            children: [
+              ChoiceChip(
+                label: Text('All (${jobs.length})'),
+                selected: _jobStatusFilter == null,
+                onSelected: (_) => setState(() => _jobStatusFilter = null),
+              ),
+              for (final e in _jobStatusLabels.entries)
+                if (jobs.any((j) => j['status'] == e.key))
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: ChoiceChip(
+                      label: Text('${e.value} '
+                          '(${jobs.where((j) => j['status'] == e.key).length})'),
+                      selected: _jobStatusFilter == e.key,
+                      onSelected: (v) => setState(
+                          () => _jobStatusFilter = v ? e.key : null),
+                    ),
+                  ),
+              // Only meaningful while no status is chosen; a status filter
+              // already decides whether cancelled jobs are in scope.
+              if (cancelledCount > 0 && _jobStatusFilter == null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: FilterChip(
+                    label: Text('Show cancelled ($cancelledCount)'),
+                    selected: _showCancelled,
+                    onSelected: (v) => setState(() => _showCancelled = v),
+                    avatar: Icon(
+                      _showCancelled ? Icons.visibility : Icons.visibility_off,
+                      size: 16,
+                    ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
+        ),
         Expanded(
           child: visible.isEmpty
               ? Center(
-                  child: Text(jobs.isEmpty
-                      ? 'No jobs yet.'
-                      : 'No active jobs — cancelled ones are hidden.'))
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      jobs.isEmpty
+                          ? 'No jobs yet.'
+                          : filtering
+                              ? 'No jobs match that.'
+                              : 'No active jobs — cancelled ones are hidden.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
               : _jobsListView(visible),
         ),
       ],
