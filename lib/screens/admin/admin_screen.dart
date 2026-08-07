@@ -1037,11 +1037,40 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
+  // Approving somebody used to tell them NOTHING. They could sit approved for
+  // weeks and never know to go online, which throws away the entire recruiting
+  // effort that got them here. Both channels on purpose: push reaches them the
+  // moment it happens, email survives a missed notification and carries the
+  // "connect your bank" instruction that push is too small to hold.
+  //
+  // Both sends are best-effort — the approval itself has already been written,
+  // and a notification failure must never make it look like it did not stick.
   Future<void> approveProvider(String providerId) async {
     await supabase.from('providers').update({
       'is_verified': true,
       'registration_status': 'approved',
     }).eq('id', providerId);
+
+    var emailed = false;
+    try {
+      final res = await supabase.functions
+          .invoke('send-lead-email', body: {'provider_id': providerId});
+      emailed = (res.data is Map) && (res.data['sent'] == 1);
+    } catch (_) {}
+    try {
+      await supabase.functions.invoke('notify-provider',
+          body: {'provider_id': providerId, 'status': 'approved'});
+    } catch (_) {}
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(emailed
+            ? 'Approved — they have been emailed and notified.'
+            : 'Approved. The email did not go out; you can send it from '
+                'their card.'),
+        backgroundColor: emailed ? SnowServColors.success : Colors.orange,
+      ));
+    }
     loadAll();
   }
 
@@ -3731,10 +3760,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     // free-form note to an already-approved driver falls back
                     // to the mail app.
                     _emailRow('Driver', p['users']?['email'] as String?,
-                        subject: 'SnowServ',
                         onSend: _hasProviderTemplate(p)
                             ? () => _emailStalledSignup(p)
-                            : null),
+                            // Everyone else gets the free-form composer, which
+                            // also sends as SnowServ. No provider card opens a
+                            // mailto: any more.
+                            : () => _composeEmail({
+                                  'id': p['user_id'],
+                                  'email': p['users']?['email'],
+                                  'name': p['users']?['name'],
+                                })),
                     const SizedBox(height: 8),
                     // Earnings (this driver's 75% take of their completed jobs).
                     Container(

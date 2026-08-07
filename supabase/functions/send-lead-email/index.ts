@@ -142,7 +142,8 @@ Deno.serve(async (req: Request) => {
     // lost it. Branch on the actual status, not on "did the caller pass a
     // provider_id".
     const isPendingReview = !lead_id && regStatus === 'pending_review'
-    const isStalledSignup = !lead_id && !isPendingReview
+    const isApproved = !lead_id && regStatus === 'approved'
+    const isStalledSignup = !lead_id && !isPendingReview && !isApproved
 
     // --- live pay figures --------------------------------------------------
     const zones = await (await fetch(
@@ -182,7 +183,9 @@ Deno.serve(async (req: Request) => {
     // global setting. Dollars are not.
     const outOfArea = leadStatus === 'out_of_area'
 
-    const heading = isPendingReview
+    const heading = isApproved
+      ? (first ? `You're approved, ${first}` : "You're approved")
+      : isPendingReview
       ? (first ? `Hi ${first} — we have your application` : 'We have your application')
       : isStalledSignup
         ? (first ? `Hi ${first} — you're almost done` : 'You\'re almost done')
@@ -211,7 +214,30 @@ Deno.serve(async (req: Request) => {
     // they have seen the rates; what they want to know is that a human has it
     // and what happens next. The one useful action left is payouts, which is
     // the step that most often holds up a first payment.
-    const html = isPendingReview
+    // The one email in this file that goes to somebody who is DONE signing up.
+    // No recruiting pitch and no re-selling — they already said yes. It answers
+    // the only question they now have: what do I do to get a job? Payouts are
+    // named because an approved driver with no bank connected earns money the
+    // batch cannot pay out.
+    const html = isApproved
+      ? shell(heading, [
+          p('Your SnowServ application has been approved. You can start taking ' +
+            'jobs right away.'),
+          p('<b>Two things to do now:</b>'),
+          p('1. Open the app and flip yourself <b>Online</b>. You will only get ' +
+            'offers while you are online.<br>' +
+            '2. Connect your bank on the payouts screen, if you have not yet. ' +
+            'We cannot pay you until that is done.'),
+          rows.length ? payTable(rows) : '',
+          rows.length
+            ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
+                'column is your money. Deicer pays extra on top.</span>')
+            : '',
+          p(BANK_NOTE),
+          button(SIGNUP_URL, 'Open SnowServ and go online'),
+          p('Welcome aboard. Reply to this email any time — a real person reads it.'),
+        ].join(''))
+      : isPendingReview
       ? shell(heading, [
           p('Thanks for finishing your SnowServ registration. We have it, and ' +
             'we are reviewing it now.'),
@@ -258,21 +284,25 @@ Deno.serve(async (req: Request) => {
           p('Just reply to this email if you have any questions — a real person reads it.'),
         ].join(''))
 
-    const template = isPendingReview
-      ? 'pending_review'
-      : isStalledSignup
-        ? 'stalled_signup'
-        : outOfArea
-          ? 'out_of_area'
-          : 'lead_new'
+    const template = isApproved
+      ? 'approved'
+      : isPendingReview
+        ? 'pending_review'
+        : isStalledSignup
+          ? 'stalled_signup'
+          : outOfArea
+            ? 'out_of_area'
+            : 'lead_new'
 
-    const subject = isPendingReview
-      ? 'We have your SnowServ application'
-      : isStalledSignup
-        ? 'Finishing your SnowServ provider account'
-        : outOfArea
-          ? 'SnowServ — not your area yet, but you are on the list'
-          : 'Plowing with SnowServ this winter'
+    const subject = isApproved
+      ? "You're approved to plow with SnowServ"
+      : isPendingReview
+        ? 'We have your SnowServ application'
+        : isStalledSignup
+          ? 'Finishing your SnowServ provider account'
+          : outOfArea
+            ? 'SnowServ — not your area yet, but you are on the list'
+            : 'Plowing with SnowServ this winter'
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',

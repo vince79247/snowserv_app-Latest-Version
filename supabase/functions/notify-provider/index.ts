@@ -65,6 +65,15 @@ function getNotificationContent(status: string): { title: string; body: string; 
       return { title: 'New Job Assigned', body: 'Auto-accept picked up a job for you — open the app to view it.' }
     case 'admin_assigned':
       return { title: 'New Job Assigned', body: 'A job has been assigned to you — open the app to view it.' }
+    // Approved to work. Until this existed, approving somebody told them
+    // nothing at all — they could sit approved for weeks and never know to go
+    // online, which wastes the entire recruiting effort that got them here.
+    case 'approved':
+      return {
+        title: "You're approved to plow ❄️",
+        body: 'Your SnowServ application was approved. Open the app and go online to start getting jobs.',
+        urgent: true,
+      }
     // Outcome of a "Report a problem" the PROVIDER filed. Same wording rules as
     // notify-customer: no internal detail, point them at support to reply.
     case 'dispute_resolved':
@@ -96,24 +105,32 @@ const cors = {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
-    const { job_id, status } = await req.json()
+    // provider_id is an alternative to job_id, for messages about the PERSON
+    // rather than about a job — approval being the first of them. Every earlier
+    // status here was job-scoped, so the provider could only ever be reached by
+    // way of a job they were already on.
+    const { job_id, provider_id, status } = await req.json()
 
     const notification = getNotificationContent(status)
     if (!notification) return new Response(JSON.stringify({ skipped: true }), { status: 200, headers: cors })
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
-    const { data: job } = await supabase
-      .from('jobs')
-      .select('provider_id')
-      .eq('id', job_id)
-      .single()
-    if (!job?.provider_id) return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
+    let providerId: string | null = provider_id ?? null
+    if (!providerId) {
+      const { data: job } = await supabase
+        .from('jobs')
+        .select('provider_id')
+        .eq('id', job_id)
+        .single()
+      if (!job?.provider_id) return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
+      providerId = job.provider_id
+    }
 
     const { data: provider } = await supabase
       .from('providers')
       .select('user_id')
-      .eq('id', job.provider_id)
+      .eq('id', providerId)
       .single()
     if (!provider?.user_id) return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
 
