@@ -395,7 +395,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         _roleCard(
                           value: 'provider',
                           icon: Icons.ac_unit,
-                          title: 'I want to plow and get paid',
+                          title: 'I want to clear snow and get paid',
                           subtitle: 'Take jobs near you and keep 75%',
                         ),
                         const SizedBox(height: 20),
@@ -564,7 +564,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     MaterialPageRoute(builder: (_) => const ProviderInterestScreen()),
                   ),
                   icon: const Icon(Icons.ac_unit, size: 18, color: Colors.white),
-                  label: const Text('Plow with us — earn 75% per job',
+                  label: const Text('Clear snow with us — earn 75% per job',
                       style: TextStyle(color: Colors.white, fontSize: 13)),
                   style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white54)),
                 ),

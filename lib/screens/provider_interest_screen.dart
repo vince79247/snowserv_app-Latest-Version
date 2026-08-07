@@ -108,7 +108,7 @@ class _ProviderInterestScreenState extends State<ProviderInterestScreen> {
     return Scaffold(
       backgroundColor: SnowServColors.frost,
       appBar: AppBar(
-        title: const Text('Plow with SnowServ'),
+        title: const Text('Work with SnowServ'),
         backgroundColor: SnowServColors.navy,
         foregroundColor: Colors.white,
       ),

@@ -1780,7 +1780,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     final body = StringBuffer()
       ..writeln('Hi${first.isEmpty ? '' : ' $first'},')
       ..writeln()
-      ..writeln('Thanks for signing up to plow with SnowServ.')
+      ..writeln('Thanks for signing up to clear snow with SnowServ.')
       ..writeln()
       ..writeln('We are a snow removal app launching in Yonkers this winter. '
           'Customers order a driveway or sidewalk from their phone and the job '
@@ -1813,7 +1813,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       ..writeln('support@snowserv.app');
 
     await _email(address,
-        subject: 'Plowing with SnowServ this winter', body: body.toString());
+        subject: 'Clearing snow with SnowServ this winter', body: body.toString());
 
     if (!mounted) return;
     if ((lead['status'] ?? 'new') == 'new') {
@@ -3522,7 +3522,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         if (_looksLikeWrongSide(user))
           TextButton.icon(
             onPressed: () => _composeEmail(user,
-                subject: 'Did you mean to sign up to plow?',
+                subject: 'Did you mean to sign up to work?',
                 body: _wrongSideEmailBody(user)),
             icon: Icon(Icons.help_outline, size: 15, color: Colors.orange.shade800),
             label: Text('Wrong side?',

@@ -309,7 +309,7 @@ List<_FaqSection> get _providerSections {
       // stating it that way turns away the easiest provider to recruit — the
       // snowblower owner with no commercial policy, who covers the sidewalk
       // jobs. The form has always been correct; only the wording wasn't.
-      'Download SnowServ, select "I\'m a Provider" on the signup screen, and complete the registration form. You\'ll provide your driver\'s license and tell us your equipment — a vehicle or plow is optional, and snowblower and shovel providers are welcome.\n\nInsurance is required only if you plow with a vehicle. For hand-shovelling or a snowblower it\'s recommended but not required.\n\nAfter you\'re approved, you set up payouts securely through Stripe — SnowServ never sees or stores your bank or Social Security number.',
+      'Download SnowServ, choose "I want to clear snow and get paid" on the signup screen, and complete the short registration. You tell us your equipment — a truck or plow is optional, and snowblower and shovel-only providers are welcome and get plenty of work.\n\nWe don\'t ask you for any ID. Stripe verifies your identity when you set up payouts, and SnowServ never sees or stores your bank account or Social Security number.\n\nInsurance is required only if you clear snow with a vehicle. For hand-shovelling or a snowblower it\'s recommended but not required.',
     ),
     _FaqItem(
       'How long does approval take?',
@@ -317,7 +317,7 @@ List<_FaqSection> get _providerSections {
     ),
     _FaqItem(
       'What do I need to qualify?',
-      'A valid driver\'s license (for identity) and a bank account for payouts, set up through Stripe. A vehicle is optional — you can work with just a snowblower or shovel. Liability insurance is required if you plow with a vehicle, and optional (but recommended) if you use hand tools. Crew size and deicer availability are helpful but not required.',
+      'A bank account for payouts, set up through Stripe — that\'s it. No ID or license is collected by us; Stripe handles identity verification as part of payout setup. A vehicle is optional — you can work with just a snowblower or shovel. Liability insurance is required if you clear snow with a vehicle, and optional (but recommended) if you use hand tools. Crew size and deicer availability are helpful but not required.',
     ),
     _FaqItem(
       'How do I go online to receive jobs?',

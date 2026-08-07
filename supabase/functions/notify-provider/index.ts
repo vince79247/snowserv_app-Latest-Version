@@ -70,7 +70,7 @@ function getNotificationContent(status: string): { title: string; body: string; 
     // online, which wastes the entire recruiting effort that got them here.
     case 'approved':
       return {
-        title: "You're approved to plow ❄️",
+        title: "You're approved to work ❄️",
         body: 'Your SnowServ application was approved. Open the app and go online to start getting jobs.',
         urgent: true,
       }

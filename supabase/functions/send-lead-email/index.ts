@@ -202,7 +202,7 @@ Deno.serve(async (req: Request) => {
         ? (first ? `Hi ${first} — you're almost done` : 'You\'re almost done')
         : outOfArea
           ? (first ? `Hi ${first} — not your area yet` : 'Not your area yet')
-          : (first ? `Hi ${first} — let's get you plowing` : 'Let\'s get you plowing')
+          : (first ? `Hi ${first} — let's get you working` : 'Let\'s get you working')
 
     const opening = isStalledSignup
       ? p('You created a SnowServ provider account but did not get to finish ' +
@@ -216,7 +216,7 @@ Deno.serve(async (req: Request) => {
           'chose, and it picks up where you left off.') +
         p('There is not much left. You add your equipment, sign the agreement, ' +
           'and connect a bank account for payouts. About five minutes.')
-      : p('Thanks for signing up to plow with SnowServ. We\'re a snow removal app ' +
+      : p('Thanks for signing up to clear snow with SnowServ. We\'re a snow removal app ' +
           'launching in Yonkers this winter — customers order a driveway or ' +
           'sidewalk from their phone, and the job goes to the nearest available ' +
           'provider.')
@@ -236,7 +236,7 @@ Deno.serve(async (req: Request) => {
     // information", which only ever generated a reply we then had to answer.
     const html = needsFix
       ? shell(heading, [
-          p('Thanks for applying to plow with SnowServ. Your application is ' +
+          p('Thanks for applying to clear snow with SnowServ. Your application is ' +
             'nearly there — there is one thing we need you to sort out:'),
           `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;width:100%;">
              <tr><td style="padding:14px 16px;background:#FFF8E1;border-left:4px solid #F5A623;border-radius:4px;font-size:15px;line-height:1.55;color:#15242F;">${esc(fixNote)}</td></tr>
@@ -293,7 +293,7 @@ Deno.serve(async (req: Request) => {
         ].join(''))
       : outOfArea
       ? shell(heading, [
-          p('Thanks for your interest in plowing with SnowServ. Straight answer: ' +
+          p('Thanks for your interest in working with SnowServ. Straight answer: ' +
             'we are not in your area yet. We are launching in Yonkers this winter ' +
             'and expanding town by town, based on where contractors and customers ' +
             'actually are.'),
@@ -344,14 +344,14 @@ Deno.serve(async (req: Request) => {
       : isDeclined
       ? 'About your SnowServ application'
       : isApproved
-      ? "You're approved to plow with SnowServ"
+      ? "You're approved to work with SnowServ"
       : isPendingReview
         ? 'We have your SnowServ application'
         : isStalledSignup
           ? 'Finishing your SnowServ provider account'
           : outOfArea
             ? 'SnowServ — not your area yet, but you are on the list'
-            : 'Plowing with SnowServ this winter'
+            : 'Clearing snow with SnowServ this winter'
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
