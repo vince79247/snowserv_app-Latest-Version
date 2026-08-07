@@ -41,6 +41,50 @@ Tester: tpiazza@precisionmarblegranite.com (registered; build 12 distributed 202
    any future expiry, any CVC.
 6. Order should appear as active on the home screen.
 
+## PART 4 — Set up a PROVIDER test account (Tony, Android)
+
+Not needed until we actually test the provider side — none of this expires, and the
+Stripe account isn't created until he taps "Set up payouts". Requires build 17+.
+
+**Use fake data throughout.** Tony is not going to be a real provider (decided with
+Vince 2026-08-07), so real personal details would only be data we'd have to remember
+to scrub later. Name it obviously so it's still identifiable as a test row in
+November, when the provider list has real people in it.
+
+Registration is 4 steps — Equipment · Insurance · Payouts · Agreement. There is NO
+identity step and no ID upload; Stripe verifies identity during payout onboarding.
+
+| Field | Value |
+|---|---|
+| Name | `Test Provider (Tony)` |
+| Phone | `555-555-0101` (555-01xx is reserved for fiction, can't reach anyone) |
+| Equipment | **Plow truck** — exercises the truck fields and driveway dispatch |
+| Truck | any make/model/year, plate `TEST123` |
+| Insurance carrier | `Test Insurance Co` |
+| Policy | `TEST-0001`, any future expiry, photo of any piece of paper |
+
+**Stripe payout onboarding — TEST MODE values** (no real bank, no real SSN):
+
+| Field | Value |
+|---|---|
+| Date of birth | `01/01/1901` — Stripe's always-passes value |
+| SSN | `000-00-0000` (or `0000` if only the last four is asked) |
+| Routing number | `110000000` |
+| Account number | `000123456789` |
+| Address / phone | anything plausible; test mode doesn't check |
+
+Stripe usually also offers a test-mode shortcut to auto-fill the form.
+
+**Why he must do this at all:** going online is gated on `payouts_enabled` (2026-08-07).
+batch-payouts already skipped anyone without it, so before that gate a provider could
+work a whole storm and silently never be paid. Tony can't accept a job until Stripe
+says payouts are live.
+
+**None of this survives go-live.** Stripe keeps test and live accounts completely
+separate, so Tony's connected account simply won't exist once we swap in live keys —
+nothing to clean up on that side. ⚠️ But our SUPABASE rows are NOT test/live split:
+every test provider and customer is still there on launch day. See PRELAUNCH.
+
 ## What to report back
 - Did the Stripe payment page load and complete? (the emulator couldn't)
 - Screenshot of the order screen showing the Small/Large choice

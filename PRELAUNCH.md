@@ -240,6 +240,16 @@ blockers" above.
   Launch scale (one town) is tiny — scale the plan up as usage grows.
 
 ## Ops / admin
+- ⏳ **Purge the test accounts before launch.** Stripe cleanly separates test and live,
+  so every test *connected account* disappears the moment we swap in live keys — but
+  our SUPABASE rows do NOT split that way. As of 2026-08-07 that is 6 providers
+  (John Doe, Alfonso Citarella, Tony Palma, scott mosby, rosa ramirez, Vinny c) and
+  5 customers (Sarah M., Antonio Piazza, joe blow, Jose Toribio, Walter Nichols) —
+  some of which are REAL people we are recruiting, so this is not a blind DELETE.
+  Do it while we can still tell which is which; that gets harder every week.
+  Name new test accounts obviously (`Test Provider (Tony)`) to keep it easy.
+  ⚠️ Their JOBS carry the money history — check what a delete cascades into before
+  running it, and prefer scrubbing to deleting anywhere a job row is attached.
 - ⏳ **Web admin** — `flutter build web` reuses the existing admin screen in a laptop
   browser (lowest effort). Prerequisite: real admin auth (a browser URL is exposed).
   Later option: purpose-built dashboard or a low-code tool (Retool) on Supabase.
