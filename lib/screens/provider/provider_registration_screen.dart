@@ -45,6 +45,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   // Step 2 - Identity
   final _dlNumberController = TextEditingController();
   final _dlStateController = TextEditingController();
+  String _idType = 'drivers_license';
   File? _dlPhoto;
 
   // Step 3 - Insurance
@@ -70,7 +71,34 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
   final _signatureController = TextEditingController();
 
   final _picker = ImagePicker();
-  final _steps = ['Equipment', 'Identity', 'Insurance', 'Payouts', 'Agreement'];
+  final _steps = ['Equipment', 'Photo ID', 'Insurance', 'Payouts', 'Agreement'];
+
+  // What an admin asked them to fix, if they're back here after a review. The
+  // email says it too, but the answer has to be waiting in the app as well —
+  // people act where they are, and an email read three days ago is gone.
+  String? _reviewNote;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReviewNote();
+  }
+
+  Future<void> _loadReviewNote() async {
+    try {
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      if (uid == null) return;
+      final row = await Supabase.instance.client
+          .from('providers')
+          .select('review_note')
+          .eq('user_id', uid)
+          .maybeSingle();
+      final note = (row?['review_note'] ?? '').toString().trim();
+      if (mounted && note.isNotEmpty) setState(() => _reviewNote = note);
+    } catch (_) {
+      // A missing note must never block someone from registering.
+    }
+  }
 
   @override
   void dispose() {
@@ -116,13 +144,18 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
         // missing is surfaced afterwards instead (see _outstandingItems).
         return true;
       case 1:
-        if (_dlNumberController.text.trim().isEmpty ||
-            _dlStateController.text.trim().isEmpty) {
-          _showError('Please fill in all identity fields.');
+        if (_dlNumberController.text.trim().isEmpty) {
+          _showError('Please enter your ID number.');
+          return false;
+        }
+        // A passport has no issuing state, so requiring one would make the
+        // passport option impossible to complete.
+        if (_idType != 'passport' && _dlStateController.text.trim().isEmpty) {
+          _showError('Please choose the state that issued your ID.');
           return false;
         }
         if (_dlPhoto == null) {
-          _showError("Please upload a photo of your driver's license.");
+          _showError('Please upload a photo of your ID.');
           return false;
         }
         return true;
@@ -252,6 +285,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
           'vehicle_year': _vehicleYearController.text.trim(),
           'vehicle_plate': _vehiclePlateController.text.trim().toUpperCase(),
         },
+        'id_type': _idType,
+        // Resubmitting clears the "fix this" note — it's been acted on, and a
+        // banner still showing after you've done what it asked is just noise.
+        'review_note': null,
         'dl_number': _dlNumberController.text.trim().toUpperCase(),
         'dl_state': _dlStateController.text.trim().toUpperCase(),
         if (dlUrl != null) 'dl_photo_url': dlUrl,
@@ -310,6 +347,45 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       ),
       body: Column(
         children: [
+          if (_reviewNote != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 16, color: Colors.orange.shade900),
+                      const SizedBox(width: 6),
+                      Text('One thing to fix',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Colors.orange.shade900)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(_reviewNote!,
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.orange.shade900)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Update it below and submit again — you do not need to '
+                    'start over.',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.orange.shade800),
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: Row(
@@ -652,13 +728,44 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
     );
   }
 
+  // ANY government photo ID. We are confirming that a real, identifiable adult
+  // is going to a stranger's house — a state ID card or passport proves that
+  // exactly as well as a driver's license, and demanding a license shuts out
+  // shovel crews who don't drive and anyone whose license has lapsed. Whether
+  // somebody may legally drive is between them and the state, not our gate.
   Widget _buildIdentityPage() {
+    final needsState = _idType != 'passport';
     return _card(
-      title: 'Identity Verification',
-      subtitle: 'Required to confirm your identity before receiving jobs.',
+      title: 'Photo ID',
+      subtitle: 'Any government-issued photo ID. This confirms who you are — '
+          'it is not a driving check.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          DropdownButtonFormField<String>(
+            // Keyed so a test can target it: the state picker on this same page
+            // is also a DropdownButtonFormField<String>.
+            key: const Key('idTypeDropdown'),
+            initialValue: _idType,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Type of ID',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(
+                  value: 'drivers_license', child: Text("Driver's license")),
+              DropdownMenuItem(value: 'state_id', child: Text('State ID card')),
+              DropdownMenuItem(value: 'passport', child: Text('U.S. passport')),
+              DropdownMenuItem(
+                  value: 'permanent_resident',
+                  child: Text('Permanent resident card')),
+              DropdownMenuItem(
+                  value: 'military_id', child: Text('Military ID')),
+            ],
+            onChanged: (v) => setState(() => _idType = v ?? 'drivers_license'),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -666,26 +773,28 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
                 child: TextField(
                   controller: _dlNumberController,
                   decoration: const InputDecoration(
-                    labelText: "Driver's License #",
+                    labelText: 'ID number',
                     border: OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.characters,
                 ),
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 110,
-                child: UsStateField(controller: _dlStateController),
-              ),
+              if (needsState) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 110,
+                  child: UsStateField(controller: _dlStateController),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 20),
-          const Text("Driver's License Photo",
+          const Text('Photo of your ID',
               style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           _photoUpload(
             photo: _dlPhoto,
-            label: "Upload Driver's License",
+            label: 'Upload your photo ID',
             onTap: () => _pickPhoto(true),
           ),
         ],

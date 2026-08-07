@@ -1074,11 +1074,181 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
+  // Nearly every real "rejection" is administrative and fixable — a blurry ID
+  // photo, expired insurance. Those people should be told exactly what to redo
+  // and let back in to redo it, which costs one email and gains a provider.
+  // Treating them as rejections dead-ends them on a red screen whose only
+  // advice was "contact support", manufacturing the support mail it was meant
+  // to avoid. So "not approved" is two different actions now, and this list is
+  // the fixable one.
+  static const _fixableReasons = <String, String>{
+    'The photo of your ID came through blurry or cut off. Please retake it in '
+        'good light with all four corners visible.': 'ID photo unreadable',
+    'The ID you uploaded has expired. Please upload a current one — any '
+        'government photo ID works, it does not have to be a driver license.':
+        'ID expired',
+    'The photo of your insurance card came through blurry or cut off. Please '
+        'retake it with the whole card visible.': 'Insurance photo unreadable',
+    'Your insurance policy shows as expired. Please upload your current one.':
+        'Insurance expired',
+    'We could not find insurance on your application. Please add your policy '
+        'details and a photo of the card.': 'No insurance on file',
+    'The name on your ID does not match the name on your account. Please '
+        'update your name so the two match, or upload an ID that matches.':
+        'Name does not match ID',
+    'You selected a plow truck, but the vehicle details are missing or do not '
+        'match the plate. Please fill in the make, model, year and plate.':
+        'Truck details missing',
+  };
+
+  /// "Needs attention" — the common case. Says what to fix, puts them back in
+  /// the registration flow so they can fix it, and tells them both by email and
+  /// in the app. NOT a rejection: their work so far is kept.
+  Future<void> _requestChanges(Map<String, dynamic> p) async {
+    String? chosen;
+    final custom = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('What do they need to fix?'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'They get this in an email and at the top of the app, and '
+                    'go back into registration to fix it. Their answers are '
+                    'kept — they do not start over.',
+                    style: TextStyle(fontSize: 12.5, color: SnowServColors.inkSoft),
+                  ),
+                  const SizedBox(height: 10),
+                  for (final e in _fixableReasons.entries)
+                    RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: e.key,
+                      groupValue: chosen,
+                      title: Text(e.value,
+                          style: const TextStyle(fontSize: 13)),
+                      onChanged: (v) => setLocal(() => chosen = v),
+                    ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: custom,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Or write your own (overrides the choice above)',
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (_) => setLocal(() {}),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: (chosen == null && custom.text.trim().isEmpty)
+                  ? null
+                  : () => Navigator.pop(ctx, true),
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final note = custom.text.trim().isNotEmpty ? custom.text.trim() : chosen;
+    custom.dispose();
+    if (ok != true || note == null || !mounted) return;
+
+    // Back to 'incomplete' so RoleRouter drops them into the registration flow
+    // rather than the dead-end pending screen.
+    await supabase.from('providers').update({
+      'registration_status': 'incomplete',
+      'is_verified': false,
+      'review_note': note,
+      'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', p['id']);
+
+    var emailed = false;
+    try {
+      final res = await supabase.functions.invoke('send-lead-email',
+          body: {'provider_id': p['id'], 'review_note': note});
+      emailed = (res.data is Map) && (res.data['sent'] == 1);
+    } catch (_) {}
+    try {
+      await supabase.functions.invoke('notify-provider',
+          body: {'provider_id': p['id'], 'status': 'needs_attention'});
+    } catch (_) {}
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(emailed
+            ? 'Sent — they can fix it and resubmit.'
+            : 'Saved, but the email did not go out. Send it from their card.'),
+        backgroundColor: emailed ? SnowServColors.success : Colors.orange,
+      ));
+    }
+    loadAll();
+  }
+
+  /// A genuine decline — duplicate account, or something that disqualifies them
+  /// outright. Rare. Confirms first because it is the one provider action with
+  /// no path back for them.
   Future<void> rejectProvider(String providerId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Decline this application?'),
+        content: const Text(
+          'Use this only when they should not be on the platform at all — a '
+          'duplicate account, or something that disqualifies them.\n\n'
+          'If the problem is a bad photo, expired insurance, or missing '
+          'details, close this and use "Needs attention" instead. That tells '
+          'them what to fix and lets them resubmit.\n\n'
+          'They will be emailed a short, final note without a specific reason.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Decline'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     await supabase.from('providers').update({
       'is_verified': false,
       'registration_status': 'rejected',
+      'reviewed_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('id', providerId);
+
+    try {
+      await supabase.functions
+          .invoke('send-lead-email', body: {'provider_id': providerId});
+    } catch (_) {}
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Declined — they have been emailed.')));
+    }
     loadAll();
   }
 
@@ -3861,8 +4031,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                               color: SnowServColors.navy)),
                     ),
                     const SizedBox(height: 6),
-                    _infoRow("Driver's license", '${p['dl_number'] ?? ''}  ${p['dl_state'] ?? ''}'.trim()),
-                    _docViewButton('DL photo', p['dl_photo_url']),
+                    _infoRow(
+                        switch (p['id_type']) {
+                          'state_id' => 'State ID',
+                          'passport' => 'Passport',
+                          'permanent_resident' => 'Resident card',
+                          'military_id' => 'Military ID',
+                          _ => "Driver's license",
+                        },
+                        '${p['dl_number'] ?? ''}  ${p['dl_state'] ?? ''}'.trim()),
+                    _docViewButton('ID photo', p['dl_photo_url']),
                     const SizedBox(height: 10),
                     // Insurance section
                     const Align(
@@ -3907,30 +4085,42 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     const SizedBox(height: 14),
                     // Action buttons
                     if (isPending) ...[
+                      // THREE actions, not two. "Not approved" is nearly always
+                      // "one thing is wrong", which deserves a fix-and-resubmit
+                      // rather than a rejection — so that is the middle button,
+                      // and Decline is deliberately the quiet one.
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => approveProvider(p['id']),
+                          icon: const Icon(Icons.verified, size: 14),
+                          label: const Text('Approve'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => approveProvider(p['id']),
-                              icon: const Icon(Icons.verified, size: 14),
-                              label: const Text('Approve'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _requestChanges(p),
+                              icon: const Icon(Icons.edit_note, size: 16),
+                              label: const Text('Needs attention'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.orange.shade800,
+                                side: BorderSide(color: Colors.orange.shade400),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => rejectProvider(p['id']),
-                              icon: const Icon(Icons.cancel_outlined, size: 14),
-                              label: const Text('Reject'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                                side: const BorderSide(color: Colors.red),
-                              ),
-                            ),
+                          TextButton(
+                            onPressed: () => rejectProvider(p['id']),
+                            style: TextButton.styleFrom(
+                                foregroundColor: Colors.red.shade700),
+                            child: const Text('Decline'),
                           ),
                         ],
                       ),

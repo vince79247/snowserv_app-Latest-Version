@@ -174,7 +174,7 @@ LANDSCAPING and CONTRACTOR groups, not plow groups.
 **Read each group's self-promo rules first** — some require a specific day or admin
 approval, and getting banned costs you the whole group.
 
-**Weight the channels accordingly.** If the trade isn't organised on Facebook here, Facebook
+**Weight the channels accordingly.** If the trade isn't organized on Facebook here, Facebook
 is a weaker channel than it looks, and the load shifts to Craigslist (live, working) and the
 in-person October push below. Everyone in a small-engine repair shop in October owns a plow
 or a blower; a flyer on that counter beats a post in a group that doesn't exist.

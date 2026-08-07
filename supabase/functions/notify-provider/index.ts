@@ -74,6 +74,14 @@ function getNotificationContent(status: string): { title: string; body: string; 
         body: 'Your SnowServ application was approved. Open the app and go online to start getting jobs.',
         urgent: true,
       }
+    // Not a rejection, and the wording must not read like one — they are one
+    // small fix away and their answers are all still there.
+    case 'needs_attention':
+      return {
+        title: 'One thing to fix',
+        body: 'Your SnowServ application needs one small correction. Open the app to see what it is.',
+        urgent: false,
+      }
     // Outcome of a "Report a problem" the PROVIDER filed. Same wording rules as
     // notify-customer: no internal detail, point them at support to reply.
     case 'dispute_resolved':

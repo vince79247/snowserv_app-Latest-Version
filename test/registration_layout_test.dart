@@ -79,4 +79,37 @@ void main() {
     expect(find.text('VIN'), findsNothing,
         reason: 'VIN was removed from registration and should stay removed');
   });
+
+  // The photo ID step accepts ANY government ID, not just a driver's license
+  // (Vince, 2026-08-07: requiring a license shuts out everyone who doesn't
+  // drive, for no gain). A passport has no issuing state, so requiring one
+  // would make that option impossible to submit — pin both facts.
+  testWidgets('Photo ID step takes any government ID, and a passport needs no state',
+      (tester) async {
+    await pumpRegistration(tester, const Size(390, 844));
+
+    // Advance past Equipment (which no longer blocks) to the ID step.
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Photo ID'), findsWidgets,
+        reason: 'The identity step should be titled for a photo ID');
+    expect(find.text('ID number'), findsOneWidget);
+    expect(find.text('State'), findsOneWidget,
+        reason: 'A license/state ID does have an issuing state');
+
+    // Tap the dropdown itself, not its floating label — the label sits inside
+    // the input decoration and a tap there does not reliably hit test.
+    await tester.tap(find.byKey(const Key('idTypeDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('U.S. passport').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('State'), findsNothing,
+        reason: 'A passport has no issuing state, so the field must disappear — '
+            'otherwise the step can never be completed');
+    expect(tester.takeException(), isNull);
+  });
 }

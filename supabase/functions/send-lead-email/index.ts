@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- who are we writing to? --------------------------------------------
-    const { lead_id, provider_id } = await req.json()
+    const { lead_id, provider_id, review_note } = await req.json()
     if (!lead_id && !provider_id) {
       return json({ error: 'lead_id or provider_id required' }, 400)
     }
@@ -143,7 +143,14 @@ Deno.serve(async (req: Request) => {
     // provider_id".
     const isPendingReview = !lead_id && regStatus === 'pending_review'
     const isApproved = !lead_id && regStatus === 'approved'
-    const isStalledSignup = !lead_id && !isPendingReview && !isApproved
+    const isDeclined = !lead_id && regStatus === 'rejected'
+    // A review_note means an admin sent them back to fix something. It arrives
+    // in the request because the status write and this send race otherwise —
+    // reading it from the row could catch the value before it lands.
+    const fixNote = (review_note ?? '').toString().trim()
+    const needsFix = !lead_id && fixNote.length > 0
+    const isStalledSignup =
+      !lead_id && !isPendingReview && !isApproved && !isDeclined && !needsFix
 
     // --- live pay figures --------------------------------------------------
     const zones = await (await fetch(
@@ -183,7 +190,11 @@ Deno.serve(async (req: Request) => {
     // global setting. Dollars are not.
     const outOfArea = leadStatus === 'out_of_area'
 
-    const heading = isApproved
+    const heading = needsFix
+      ? (first ? `Hi ${first} — one thing to fix` : 'One thing to fix')
+      : isDeclined
+      ? (first ? `Hi ${first}` : 'About your application')
+      : isApproved
       ? (first ? `You're approved, ${first}` : "You're approved")
       : isPendingReview
       ? (first ? `Hi ${first} — we have your application` : 'We have your application')
@@ -219,7 +230,37 @@ Deno.serve(async (req: Request) => {
     // the only question they now have: what do I do to get a job? Payouts are
     // named because an approved driver with no bank connected earns money the
     // batch cannot pay out.
-    const html = isApproved
+    // Not a rejection, and worded so it cannot be mistaken for one. Their work
+    // is still there, the fix is named, and the button takes them straight back
+    // in. This is the message that replaces "contact support for more
+    // information", which only ever generated a reply we then had to answer.
+    const html = needsFix
+      ? shell(heading, [
+          p('Thanks for applying to plow with SnowServ. Your application is ' +
+            'nearly there — there is one thing we need you to sort out:'),
+          `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;width:100%;">
+             <tr><td style="padding:14px 16px;background:#FFF8E1;border-left:4px solid #F5A623;border-radius:4px;font-size:15px;line-height:1.55;color:#15242F;">${esc(fixNote)}</td></tr>
+           </table>`,
+          p('<b>Nothing you have already filled in is lost.</b> Log in, fix ' +
+            'that one item, and submit again — it takes a minute.'),
+          button(SIGNUP_URL, 'Log in and fix it'),
+          p('If something about this does not look right, just reply and tell ' +
+            'me — a real person reads it.'),
+        ].join(''))
+      // A genuine decline. Deliberately short and final: no specific reason,
+      // because a stated reason on a judgment call invites a negotiation we
+      // will not have, and nothing vague enough to be safe is honest enough to
+      // be useful. It does NOT say "contact support for more information" — the
+      // old screen did, and that sentence exists only to generate email.
+      : isDeclined
+      ? shell(heading, [
+          p('Thanks for taking the time to apply to SnowServ.'),
+          p('We are not able to approve your application to work as a provider, ' +
+            'and this decision is final.'),
+          p('I appreciate your interest, and I am sorry not to have better news.'),
+          p('Vince<br>SnowServ'),
+        ].join(''))
+      : isApproved
       ? shell(heading, [
           p('Your SnowServ application has been approved. You can start taking ' +
             'jobs right away.'),
@@ -284,7 +325,11 @@ Deno.serve(async (req: Request) => {
           p('Just reply to this email if you have any questions — a real person reads it.'),
         ].join(''))
 
-    const template = isApproved
+    const template = needsFix
+      ? 'needs_attention'
+      : isDeclined
+      ? 'declined'
+      : isApproved
       ? 'approved'
       : isPendingReview
         ? 'pending_review'
@@ -294,7 +339,11 @@ Deno.serve(async (req: Request) => {
             ? 'out_of_area'
             : 'lead_new'
 
-    const subject = isApproved
+    const subject = needsFix
+      ? 'One thing to fix on your SnowServ application'
+      : isDeclined
+      ? 'About your SnowServ application'
+      : isApproved
       ? "You're approved to plow with SnowServ"
       : isPendingReview
         ? 'We have your SnowServ application'
