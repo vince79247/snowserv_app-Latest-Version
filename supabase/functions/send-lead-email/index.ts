@@ -48,12 +48,24 @@ const button = (href: string, label: string) =>
      </td></tr>
    </table>`
 
-const payTable = (rows: Array<[string, number]>) =>
-  `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;width:100%;max-width:340px;">
-     ${rows.map(([label, amt], i) => `
+// Two columns on purpose. A single "$60" next to "you keep 75%" is genuinely
+// ambiguous — is the job worth $60, or is $60 my share of it? A contractor
+// deciding whether to drive out in a storm cannot be left doing that arithmetic,
+// and getting it wrong in the pessimistic direction costs us the recruit.
+// Showing what the customer pays alongside what he takes home makes the split
+// self-evident and does not need a sentence to explain it.
+const payTable = (rows: Array<[string, number, number]>) =>
+  `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;width:100%;max-width:420px;">
+     <tr>
+       <td style="padding:0 12px 6px;font-size:12px;color:#5A7184;">&nbsp;</td>
+       <td align="right" style="padding:0 12px 6px;font-size:12px;color:#5A7184;">Customer pays</td>
+       <td align="right" style="padding:0 12px 6px;font-size:12px;color:#5A7184;font-weight:bold;">You take home</td>
+     </tr>
+     ${rows.map(([label, price, cut], i) => `
      <tr>
        <td style="padding:9px 12px;font-size:15px;color:#15242F;background:${i % 2 ? '#FFFFFF' : '#F0F6FF'};border-radius:4px 0 0 4px;">${label}</td>
-       <td align="right" style="padding:9px 12px;font-size:15px;font-weight:bold;color:#15242F;background:${i % 2 ? '#FFFFFF' : '#F0F6FF'};border-radius:0 4px 4px 0;">$${amt}</td>
+       <td align="right" style="padding:9px 12px;font-size:15px;color:#5A7184;background:${i % 2 ? '#FFFFFF' : '#F0F6FF'};">$${price}</td>
+       <td align="right" style="padding:9px 12px;font-size:16px;font-weight:bold;color:#15242F;background:${i % 2 ? '#FFFFFF' : '#F0F6FF'};border-radius:0 4px 4px 0;">$${cut}</td>
      </tr>`).join('')}
    </table>`
 
@@ -146,10 +158,12 @@ Deno.serve(async (req: Request) => {
       ? (100 - commission) / 100
       : 0.75
 
-    const rows: Array<[string, number]> = []
+    const rows: Array<[string, number, number]> = []
     const add = (label: string, raw: unknown) => {
       const v = Number(raw)
-      if (Number.isFinite(v) && v > 0) rows.push([label, Math.round(v * providerPct)])
+      if (Number.isFinite(v) && v > 0) {
+        rows.push([label, Math.round(v), Math.round(v * providerPct)])
+      }
     }
     if (zone) {
       add('Sidewalk', zone.price_sidewalk)
@@ -228,8 +242,14 @@ Deno.serve(async (req: Request) => {
         ].join(''))
       : shell(heading, [
           opening,
-          p(`<b>You keep ${pct}% of every job.</b>`),
+          p(`<b>You keep ${pct}% of every job.</b> Here is what that works out to ` +
+            'per job in Yonkers:'),
           rows.length ? payTable(rows) : '',
+          rows.length
+            ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
+                'column is your money — that is what lands in your bank, not a ' +
+                'figure you take a cut out of.</span>')
+            : '',
           p('Deicer pays extra on top of those. You choose which jobs you take and ' +
             'you keep your own schedule.'),
           p('No sign-up fees, no monthly fees, no contract.'),

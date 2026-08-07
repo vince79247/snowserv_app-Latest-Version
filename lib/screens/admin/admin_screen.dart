@@ -1407,19 +1407,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       orElse: () => serviceAreas.isEmpty ? <String, dynamic>{} : serviceAreas.first,
     );
     if (zone.isEmpty) return '';
-    String cut(dynamic price) {
+    // Both halves of the split on every line. A bare "$60" under "you keep 75%"
+    // reads two ways — is the job $60, or is $60 my share? — and a contractor
+    // who guesses low walks away. Plain text, so no table: spell it out.
+    String line(String label, dynamic price) {
       final p = num.tryParse('${price ?? ''}');
       if (p == null || p <= 0) return '';
-      return '\$${(p * AppConfig.providerFraction).round()}';
+      final cut = (p * AppConfig.providerFraction).round();
+      return '  $label: customer pays \$${p.round()}, you take home \$$cut';
     }
-    final walk = cut(zone['price_sidewalk']);
-    final drive = cut(zone['price_driveway']);
-    final both = cut(zone['price_both']);
-    final rows = <String>[
-      if (walk.isNotEmpty) '  Sidewalk .................. $walk',
-      if (drive.isNotEmpty) '  Driveway .................. $drive',
-      if (both.isNotEmpty) '  Sidewalk + driveway ....... $both',
-    ];
+    final rows = [
+      line('Sidewalk', zone['price_sidewalk']),
+      line('Driveway', zone['price_driveway']),
+      line('Sidewalk + driveway', zone['price_both']),
+    ].where((r) => r.isNotEmpty).toList();
     return rows.isEmpty ? '' : '${rows.join('\n')}\n';
   }
 
@@ -1459,7 +1460,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           ..writeln('https://app.snowserv.app')
           ..writeln()
           ..writeln('We are launching in Yonkers this winter. You keep $pct% of '
-              'every job:')
+              'every job — here is what that works out to:')
           ..writeln();
         if (pay.isNotEmpty) b.write(pay);
         b
