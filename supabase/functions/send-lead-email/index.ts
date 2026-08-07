@@ -238,6 +238,22 @@ Deno.serve(async (req: Request) => {
           p('Just reply to this email if you have any questions — a real person reads it.'),
         ].join(''))
 
+    const template = isPendingReview
+      ? 'pending_review'
+      : isStalledSignup
+        ? 'stalled_signup'
+        : outOfArea
+          ? 'out_of_area'
+          : 'lead_new'
+
+    const subject = isPendingReview
+      ? 'We have your SnowServ application'
+      : isStalledSignup
+        ? 'Finishing your SnowServ provider account'
+        : outOfArea
+          ? 'SnowServ — not your area yet, but you are on the list'
+          : 'Plowing with SnowServ this winter'
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -250,13 +266,7 @@ Deno.serve(async (req: Request) => {
         // record anywhere Vince can read — he went looking in Zoho's Sent folder
         // for a message Zoho never touched, and reasonably concluded it failed.
         bcc: [REPLY_TO],
-        subject: isPendingReview
-          ? 'We have your SnowServ application'
-          : isStalledSignup
-            ? 'Finishing your SnowServ provider account'
-            : outOfArea
-              ? 'SnowServ — not your area yet, but you are on the list'
-              : 'Plowing with SnowServ this winter',
+        subject,
         html,
       }),
     })
@@ -265,6 +275,26 @@ Deno.serve(async (req: Request) => {
       console.error('Resend send failed', res.status, detail)
       return json({ error: 'Send failed', status: res.status }, 502)
     }
+
+    // Shared history across every sender — see the email_log migration. Written
+    // after Resend confirms and best-effort, for the same reason as the status
+    // stamps below: the mail is already gone, and failing here must not make a
+    // delivered message look undelivered.
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/email_log`, {
+        method: 'POST',
+        headers: { ...svc, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to_email: to,
+          subject,
+          body: html,
+          lead_id: lead_id ?? null,
+          provider_id: provider_id ?? null,
+          template,
+          sent_by: userId,
+        }),
+      })
+    } catch (_) { /* the mail is already sent; nothing to undo */ }
 
     // Record the send only after Resend confirms, so a failure never leaves
     // someone looking like they've been contacted when nothing went out.

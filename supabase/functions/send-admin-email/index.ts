@@ -119,6 +119,24 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Send failed', status: res.status }, 502)
     }
 
+    // Logged only AFTER Resend confirms, so the history can never show a
+    // message that never went out. Best-effort: a logging failure must not
+    // report a delivered email as failed and invite a duplicate send.
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/email_log`, {
+        method: 'POST',
+        headers: { ...svc, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to_email: to,
+          subject: subj,
+          body: text,
+          user_id,
+          template: 'admin_freeform',
+          sent_by: callerId,
+        }),
+      })
+    } catch (_) { /* the mail is already sent; nothing to undo */ }
+
     return json({ sent: 1, to })
   } catch (e: unknown) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500)

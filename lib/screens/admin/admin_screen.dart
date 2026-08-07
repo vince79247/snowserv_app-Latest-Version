@@ -48,6 +48,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   List<Map<String, dynamic>> deletionFeedback = [];
   /// user_ids that have at least one saved service address.
   Set<String> usersWithAddress = {};
+  /// Everything we've emailed anyone, newest first. Bodies are NOT loaded here
+  /// (they're the bulk of the table); the history dialog fetches one on demand.
+  List<Map<String, dynamic>> emailLog = [];
 
   int get _pendingDisputes =>
       disputes.where((d) => d['status'] == 'pending').length;
@@ -245,6 +248,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         };
       } catch (_) {}
 
+      // Deliberately WITHOUT the body column — it's the bulk of the row and
+      // isn't needed to answer "have I written to this person, and when".
+      // Reading one message back fetches it on demand.
+      List<Map<String, dynamic>> mailRows = [];
+      try {
+        final mailData = await supabase
+            .from('email_log')
+            .select('id, to_email, subject, user_id, lead_id, provider_id, '
+                'template, created_at')
+            .order('created_at', ascending: false)
+            .limit(500);
+        mailRows = List<Map<String, dynamic>>.from(mailData);
+      } catch (_) {}
+
       if (mounted) {
         final providerList = _sortProviders(providersData);
         setState(() {
@@ -258,6 +275,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           waitlist = waitlistRows;
           deletionFeedback = churnRows;
           usersWithAddress = withAddress;
+          emailLog = mailRows;
         });
       }
     } catch (e) {
@@ -753,6 +771,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         final sent = (res.data is Map) && (res.data['sent'] == 1);
         if (mounted) {
           final err = (res.data is Map) ? (res.data['error'] ?? '') : '';
+          // Mirror the row the server just logged so the "Emailed" chip appears
+          // immediately. The snackbar is the receipt; the chip is the memory.
+          if (sent) {
+            setState(() => emailLog.insert(0, {
+                  'to_email': email,
+                  'subject': subjectCtl.text.trim(),
+                  'user_id': userId,
+                  'template': 'admin_freeform',
+                  'created_at': DateTime.now().toUtc().toIso8601String(),
+                }));
+          }
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(sent
                 ? 'Sent to $email'
@@ -1628,6 +1657,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   Widget _emailRow(String label, String? email,
       {String? subject, String? body, VoidCallback? onSend}) {
     if (email == null || email.trim().isEmpty) return const SizedBox.shrink();
+    final mail = _mailFor(email: email);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1635,9 +1665,29 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           const Icon(Icons.email_outlined, size: 16, color: SnowServColors.navy),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(email,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: SnowServColors.navy)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SelectableText(email,
+                    maxLines: 1,
+                    style: const TextStyle(
+                        fontSize: 13, color: SnowServColors.navy)),
+                if (mail.isNotEmpty)
+                  InkWell(
+                    onTap: () => _showMailHistory(email, mail),
+                    child: Text(
+                      mail.length == 1
+                          ? 'Emailed ${_shortDate(mail.first['created_at'])}'
+                          : '${mail.length} emails · last '
+                              '${_shortDate(mail.first['created_at'])}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade800),
+                    ),
+                  ),
+              ],
+            ),
           ),
           TextButton.icon(
             onPressed:
@@ -2997,10 +3047,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // launched, and nobody orders snow removal in ninety-degree weather — so that
   // test flags every customer we have and tells us nothing. Saving an address
   // is the thing a real customer does the moment they arrive, in any season.
+  //
+  // Clears once we've written to them: this is a to-do, not a label, and a
+  // prompt that stays lit after you've acted on it trains you to ignore it.
   bool _looksLikeWrongSide(Map<String, dynamic> user) {
     final id = user['id']?.toString();
     if (id == null) return false;
     if (usersWithAddress.contains(id)) return false;
+    if (_mailFor(userId: id, email: user['email']?.toString()).isNotEmpty) {
+      return false;
+    }
     return !jobs.any((j) => j['customer_id']?.toString() == id);
   }
 
@@ -3029,12 +3085,128 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         'Vince\nSnowServ';
   }
 
+  // Every message we've sent this person, newest first, across all senders.
+  List<Map<String, dynamic>> _mailFor({String? userId, String? email}) {
+    final addr = email?.trim().toLowerCase();
+    return emailLog.where((m) {
+      if (userId != null && m['user_id']?.toString() == userId) return true;
+      if (addr != null && addr.isNotEmpty) {
+        return (m['to_email'] ?? '').toString().trim().toLowerCase() == addr;
+      }
+      return false;
+    }).toList();
+  }
+
+  static const _templateNames = {
+    'admin_freeform': 'Written by you',
+    'lead_new': 'Recruiting email',
+    'stalled_signup': 'Finish your registration',
+    'pending_review': 'Application received',
+    'out_of_area': 'Not your area yet',
+  };
+
+  /// "Aug 7" / "Aug 7, 2025" once it's not this year.
+  String _shortDate(dynamic ts) {
+    final d = DateTime.tryParse(ts?.toString() ?? '')?.toLocal();
+    if (d == null) return '';
+    final now = DateTime.now();
+    final base = '${_months[d.month - 1]} ${d.day}';
+    return d.year == now.year ? base : '$base, ${d.year}';
+  }
+
+  // The durable answer to "did I already write to this person?". A snackbar
+  // says so for four seconds and then the record is gone — which is exactly
+  // how the same person got emailed twice.
+  Future<void> _showMailHistory(
+      String label, List<Map<String, dynamic>> mail) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Emails to $label'),
+        content: SizedBox(
+          width: 520,
+          child: mail.isEmpty
+              ? const Text('Nothing sent yet.')
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final m in mail)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_shortDate(m['created_at'])}  ·  '
+                                '${_templateNames[m['template']] ?? 'Email'}',
+                                style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: SnowServColors.inkSoft),
+                              ),
+                              Text((m['subject'] ?? '(no subject)').toString(),
+                                  style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: SnowServColors.navy)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
   Widget _userContactActions(Map<String, dynamic> user) {
     final email = (user['email'] ?? '').toString().trim();
+    final mail = _mailFor(userId: user['id']?.toString(), email: email);
     return Wrap(
       spacing: 4,
       runSpacing: 0,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        // Sits FIRST so the state of play reads before the actions do.
+        if (mail.isNotEmpty)
+          InkWell(
+            onTap: () => _showMailHistory(
+                (user['name'] ?? email).toString(), mail),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              margin: const EdgeInsets.only(right: 2),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.mark_email_read_outlined,
+                      size: 12, color: Colors.green.shade800),
+                  const SizedBox(width: 4),
+                  Text(
+                    mail.length == 1
+                        ? 'Emailed ${_shortDate(mail.first['created_at'])}'
+                        : '${mail.length} emails · last '
+                            '${_shortDate(mail.first['created_at'])}',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.green.shade800,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
         TextButton.icon(
           onPressed: () => _composeEmail(user),
           icon: const Icon(Icons.send_outlined, size: 15),
