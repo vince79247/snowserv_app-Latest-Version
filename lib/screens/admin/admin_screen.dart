@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme.dart';
@@ -652,6 +653,107 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             .showSnackBar(SnackBar(content: Text('Could not update: $e')));
       }
     }
+  }
+
+  // Compose and send a free-form email AS SnowServ, without leaving the admin
+  // panel. Everything else here was a mailto:, which composes from whatever
+  // account the admin's mail app defaults to and leaves no record — and which,
+  // on the web admin, meant copying an address by hand first.
+  //
+  // The recipient is passed to the server as an ID, never as an address: the
+  // function resolves the email itself so it can't be pointed at a stranger.
+  Future<void> _composeEmail(
+    Map<String, dynamic> user, {
+    String? subject,
+    String? body,
+  }) async {
+    final email = (user['email'] ?? '').toString().trim();
+    final userId = user['id']?.toString();
+    if (email.isEmpty || userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No email address on file.')));
+      return;
+    }
+    final subjectCtl = TextEditingController(text: subject ?? '');
+    final bodyCtl = TextEditingController(text: body ?? '');
+
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Email as SnowServ'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('To: $email',
+                    style: const TextStyle(
+                        fontSize: 12.5, color: SnowServColors.inkSoft)),
+                const Text(
+                  'Sends from SnowServ, not your own mail account. Replies come '
+                  'back to support@snowserv.app.',
+                  style: TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: subjectCtl,
+                  decoration: const InputDecoration(
+                      labelText: 'Subject', isDense: true),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: bodyCtl,
+                  minLines: 8,
+                  maxLines: 16,
+                  decoration: const InputDecoration(
+                    labelText: 'Message',
+                    alignLabelWithHint: true,
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Send')),
+        ],
+      ),
+    );
+
+    if (send == true) {
+      try {
+        final res = await supabase.functions.invoke('send-admin-email', body: {
+          'user_id': userId,
+          'subject': subjectCtl.text.trim(),
+          'body': bodyCtl.text.trim(),
+        });
+        final sent = (res.data is Map) && (res.data['sent'] == 1);
+        if (mounted) {
+          final err = (res.data is Map) ? (res.data['error'] ?? '') : '';
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(sent
+                ? 'Sent to $email'
+                : 'Could not send${err == '' ? '' : ': $err'}'),
+            backgroundColor: sent ? SnowServColors.success : Colors.red,
+          ));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not send: $e')));
+        }
+      }
+    }
+    subjectCtl.dispose();
+    bodyCtl.dispose();
   }
 
   Map<String, dynamic>? _jobById(String? id) {
@@ -2871,6 +2973,88 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
+  // A customer who has never ordered and never even saved an address is, more
+  // often than not, a contractor who signed up on the wrong side of the app.
+  // That happened to a real applicant (Jose, 2026-08-04) and nothing surfaced
+  // it — his account just sat there looking like an ordinary quiet customer.
+  bool _looksLikeWrongSide(Map<String, dynamic> user) {
+    final id = user['id']?.toString();
+    if (id == null) return false;
+    final hasOrders = jobs.any((j) => j['customer_id']?.toString() == id);
+    return !hasOrders;
+  }
+
+  String _wrongSideEmailBody(Map<String, dynamic> user) {
+    final first =
+        (user['name'] ?? '').toString().trim().split(RegExp(r'\s+')).first;
+    final pct = (AppConfig.providerFraction * 100).round();
+    return 'Hi${first.isEmpty ? '' : ' $first'},\n\n'
+        'You created a SnowServ account — thanks for that. I am reaching out to '
+        'make sure you ended up in the right place.\n\n'
+        'SnowServ has two sides: customers who order snow removal, and '
+        'contractors who do the work and get paid. Your account was created on '
+        'the customer side, and you have not ordered anything, so I wanted to '
+        'check whether you were actually looking to work.\n\n'
+        'If you were: just reply and say so. I will switch your account over '
+        'myself — you keep the same email and password, and there is nothing to '
+        'sign up for again. From there it is about five minutes to finish: your '
+        'equipment, the agreement, and a bank connection for payouts.\n\n'
+        'You keep $pct% of every job, there are no sign-up or monthly fees, no '
+        'contract, and you choose which jobs you take. Your bank details go to '
+        'Stripe, not to us — SnowServ never sees or stores your bank account or '
+        'Social Security number. Stripe pays you directly and issues your 1099.\n\n'
+        'And if you did mean to sign up as a customer, no problem at all — we '
+        'are launching in Yonkers this winter and you are all set.\n\n'
+        'Either way, just reply and let me know.\n\n'
+        'Vince\nSnowServ';
+  }
+
+  Widget _userContactActions(Map<String, dynamic> user) {
+    final email = (user['email'] ?? '').toString().trim();
+    return Wrap(
+      spacing: 4,
+      runSpacing: 0,
+      children: [
+        TextButton.icon(
+          onPressed: () => _composeEmail(user),
+          icon: const Icon(Icons.send_outlined, size: 15),
+          label: const Text('Email', style: TextStyle(fontSize: 12)),
+          style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 30),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+        ),
+        TextButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: email));
+            if (!mounted) return;
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Copied $email')));
+          },
+          icon: const Icon(Icons.copy_outlined, size: 15),
+          label: const Text('Copy', style: TextStyle(fontSize: 12)),
+          style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 30),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+        ),
+        if (_looksLikeWrongSide(user))
+          TextButton.icon(
+            onPressed: () => _composeEmail(user,
+                subject: 'Did you mean to sign up to plow?',
+                body: _wrongSideEmailBody(user)),
+            icon: Icon(Icons.help_outline, size: 15, color: Colors.orange.shade800),
+            label: Text('Wrong side?',
+                style: TextStyle(fontSize: 12, color: Colors.orange.shade800)),
+            style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 30),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          ),
+      ],
+    );
+  }
+
   Widget _userCard(Map<String, dynamic> user) {
     final isFlagged = user['is_flagged'] == true;
     final isSuspended = user['is_suspended'] == true;
@@ -2902,11 +3086,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
                               color: SnowServColors.navy)),
-                      Text(user['email'] ?? '',
+                      // Selectable so the address can always be dragged out by
+                      // hand. Plain Text can't be selected on web, so the only
+                      // way to get someone's email out of here was to retype it.
+                      SelectableText(user['email'] ?? '',
                           style: const TextStyle(color: Colors.grey, fontSize: 13)),
                       if (user['phone'] != null) ...[
                         const SizedBox(height: 2),
-                        Text(user['phone'],
+                        SelectableText(user['phone'],
                             style: const TextStyle(color: Colors.grey, fontSize: 13)),
                       ],
                     ],
@@ -2955,6 +3142,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ),
               ],
             ),
+            if ((user['email'] ?? '').toString().trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _userContactActions(user),
+            ],
             if (isSuspended) ...[
               const SizedBox(height: 8),
               Container(

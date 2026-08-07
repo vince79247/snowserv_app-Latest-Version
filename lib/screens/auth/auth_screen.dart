@@ -20,7 +20,13 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   bool isLogin = true;
-  String selectedRole = 'customer';
+  // NULL until the person actually picks. Signing up is the ONE irreversible
+  // fork in this app — a customer account can't order work done for them and a
+  // provider account can't take jobs — and a pre-selected default meant the
+  // whole choice could be skipped by simply not noticing it. A contractor did
+  // exactly that (Jose, 2026-08-04): he signed up, landed on the customer side,
+  // and neither of us knew until his account sat at zero orders.
+  String? selectedRole;
   // Opt-in for non-operational email only (season opening, new service areas,
   // re-engagement). Defaults false — the Terms promise marketing is opt-in.
   bool marketingOptIn = false;
@@ -61,8 +67,79 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
+  // Material (not a plain Container) so the tap ripple actually paints — a
+  // coloured box in between swallows it, which is what made the provider
+  // registration cards feel dead under the finger.
+  Widget _roleCard({
+    required String value,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final selected = selectedRole == value;
+    return Material(
+      color: selected ? SnowServColors.navy.withValues(alpha: 0.06) : Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => setState(() => selectedRole = value),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected ? SnowServColors.navy : Colors.grey.shade300,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon,
+                  size: 22,
+                  color: selected ? SnowServColors.navy : Colors.grey.shade600),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight:
+                              selected ? FontWeight.bold : FontWeight.w600,
+                          color: SnowServColors.navy,
+                        )),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: TextStyle(
+                            fontSize: 11.5, color: Colors.grey.shade700)),
+                  ],
+                ),
+              ),
+              Icon(
+                selected ? Icons.check_circle : Icons.circle_outlined,
+                size: 20,
+                color: selected ? SnowServColors.navy : Colors.grey.shade400,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> handleAuth() async {
     if (!isLogin) {
+      if (selectedRole == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please choose whether you are hiring someone or '
+                'looking to work.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
       if (nameController.text.trim().isEmpty ||
           phoneController.text.trim().isEmpty ||
           emailController.text.trim().isEmpty ||
@@ -137,7 +214,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           email: emailController.text.trim(),
           password: passwordController.text.trim(),
           data: {
-            'role': selectedRole,
+            // Non-null by the guard at the top of this method. Asserted rather
+            // than defaulted on purpose: silently falling back to 'customer' is
+            // the exact failure we are closing.
+            'role': selectedRole!,
             'full_name': nameController.text.trim(),
             'phone': phoneController.text.trim(),
             // Read by handle_new_user, which treats anything but the string
@@ -291,20 +371,32 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       // also what lets an ADMIN log in: there was never an Admin
                       // tab, and the old guard demanded the picked tab match.
                       if (!isLogin) ...[
-                        SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(
-                              value: 'customer',
-                              label: Text('Customer'),
-                            ),
-                            ButtonSegment(
-                              value: 'provider',
-                              label: Text('Provider'),
-                            ),
-                          ],
-                          selected: {selectedRole},
-                          onSelectionChanged: (val) =>
-                              setState(() => selectedRole = val.first),
+                        // Worded as what you WANT, not as what we call you.
+                        // "Customer" and "Provider" are our words; somebody
+                        // looking for plowing work does not necessarily read
+                        // "Provider" as themselves, and the old segmented
+                        // control started on Customer so getting it wrong took
+                        // no action at all.
+                        const Text(
+                          'Which one are you? *',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: SnowServColors.navy),
+                        ),
+                        const SizedBox(height: 8),
+                        _roleCard(
+                          value: 'customer',
+                          icon: Icons.home_outlined,
+                          title: 'I need snow removed',
+                          subtitle: 'Order plowing or shoveling at your home',
+                        ),
+                        const SizedBox(height: 8),
+                        _roleCard(
+                          value: 'provider',
+                          icon: Icons.ac_unit,
+                          title: 'I want to plow and get paid',
+                          subtitle: 'Take jobs near you and keep 75%',
                         ),
                         const SizedBox(height: 20),
                         const Text(
