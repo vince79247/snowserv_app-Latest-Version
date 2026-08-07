@@ -48,6 +48,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   List<Map<String, dynamic>> deletionFeedback = [];
   /// user_ids that have at least one saved service address.
   Set<String> usersWithAddress = {};
+  /// Active "book my next storm" standing orders — committed demand for the
+  /// next storm, which is the only forward-looking number in the panel.
+  List<Map<String, dynamic>> stormBookings = [];
   /// Everything we've emailed anyone, newest first. Bodies are NOT loaded here
   /// (they're the bulk of the table); the history dialog fetches one on demand.
   List<Map<String, dynamic>> emailLog = [];
@@ -255,6 +258,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       // Deliberately WITHOUT the body column — it's the bulk of the row and
       // isn't needed to answer "have I written to this person, and when".
       // Reading one message back fetches it on demand.
+      List<Map<String, dynamic>> bookingRows = [];
+      try {
+        final bookingData = await supabase
+            .from('storm_bookings')
+            .select('*, addresses(address_line, city, zip)')
+            .eq('status', 'active')
+            .order('created_at', ascending: false);
+        bookingRows = List<Map<String, dynamic>>.from(bookingData);
+      } catch (_) {}
+
       List<Map<String, dynamic>> mailRows = [];
       try {
         final mailData = await supabase
@@ -280,6 +293,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           deletionFeedback = churnRows;
           usersWithAddress = withAddress;
           emailLog = mailRows;
+          stormBookings = bookingRows;
         });
       }
     } catch (e) {
@@ -3758,6 +3772,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
+              _stormBookingsPanel(),
               _waitlistPanel(),
               _churnPanel(),
               if (customers.isEmpty)
@@ -4605,6 +4620,101 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Customers who wanted service somewhere we don't cover. This is the demand
   // side of expansion — it answers "which town next?" with evidence instead of
   // a hunch — and it had no UI at all, so the table filled up unread.
+  // Standing orders waiting for the next storm. This is the only number in the
+  // admin panel that looks FORWARD — every other figure is what already
+  // happened. Before a storm it tells you how many jobs will land the moment
+  // the snow stops, which is exactly what you need to decide whether to call
+  // more drivers in.
+  Widget _stormBookingsPanel() {
+    final withDeicer = stormBookings.where((b) => b['salting'] == true).length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: SnowServColors.hairline),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          leading: const Icon(Icons.snowing, color: SnowServColors.navy, size: 20),
+          title: Text('Booked for the next storm (${stormBookings.length})',
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: SnowServColors.navy)),
+          subtitle: Text(
+            stormBookings.isEmpty
+                ? 'Nobody has a standing order yet'
+                : 'These fire automatically once the snow stops'
+                    '${withDeicer > 0 ? ' · $withDeicer with deicer' : ''}',
+            style: const TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
+          ),
+          children: [
+            if (stormBookings.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'A standing order clears a property automatically once enough '
+                  'snow has fallen AND stopped. Customers set it from the order '
+                  'screen; nothing is charged until it fires.',
+                  style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
+                ),
+              )
+            else
+              for (final b in stormBookings)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${b['addresses']?['address_line'] ?? 'Address'}'
+                              '${b['addresses']?['city'] != null ? ', ${b['addresses']['city']}' : ''}',
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              '${_bookingService(b)} · fires after '
+                              '${_fmtTrigger(b['trigger_inches'])}"'
+                              '${(b['last_error'] ?? '').toString().isNotEmpty ? '  ·  ⚠️ ${b['last_error']}' : ''}',
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: (b['last_error'] ?? '').toString().isEmpty
+                                      ? SnowServColors.inkSoft
+                                      : Colors.orange.shade800),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(_customerName(b['customer_id']),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: SnowServColors.inkSoft)),
+                    ],
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fmtTrigger(dynamic v) =>
+      (double.tryParse('${v ?? ''}') ?? 2).toStringAsFixed(0);
+
+  static String _bookingService(Map<String, dynamic> b) =>
+      switch (b['service_type']) {
+        'sidewalk_driveway' => 'Sidewalk + driveway',
+        'driveway' => 'Driveway',
+        _ => 'Sidewalk',
+      } + ((b['salting'] == true) ? ' + deicer' : '');
+
   Widget _waitlistPanel() {
     final byZip = <String, int>{};
     for (final w in waitlist) {

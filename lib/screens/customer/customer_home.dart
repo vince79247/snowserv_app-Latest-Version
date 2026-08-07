@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../theme.dart';
+import '../../widgets/storm_booking_card.dart';
 import '../../config/app_config.dart';
 import '../../utils/job_helpers.dart';
 import '../../utils/legal.dart';
@@ -901,6 +902,43 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     }
   }
 
+  /// True to proceed. Returns true immediately when providers ARE available, or
+  /// when the check itself fails — a flaky count must never block a paying
+  /// customer, so this errs toward letting the order through.
+  Future<bool> _confirmDespiteNoProviders() async {
+    int available;
+    try {
+      final res = await supabase.rpc('available_provider_count');
+      available = (res as num?)?.toInt() ?? 1;
+    } catch (_) {
+      return true;
+    }
+    if (available > 0 || !mounted) return true;
+
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Nobody is online right now'),
+            content: const Text(
+              'No providers are available at the moment, so your job would go '
+              'into the queue until someone comes online.\n\n'
+              'You can still order — we place a hold, not a charge, and we\'ll '
+              'notify you the moment someone accepts. If nobody picks it up '
+              'we\'ll cancel it and release the hold automatically.',
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Not now')),
+              ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Order anyway')),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> createJob() async {
     // Block suspended accounts before any other processing
     final userData = await supabase
@@ -955,6 +993,13 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
         return;
       }
     }
+
+    // Supply check. There was none: you could pay at 3am with zero providers
+    // online and get no hint anything was wrong, then watch a spinner. We know
+    // our own supply; the customer doesn't, and finding out AFTER paying is the
+    // worst order of events. Not a block — a queued job is still legitimate and
+    // often gets picked up — but they should choose it knowingly.
+    if (!await _confirmDespiteNoProviders()) return;
 
     // Availability gate — a matching active service area is required to order.
     if (_serviceArea == null) {
@@ -1840,6 +1885,20 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                 ],
               ),
             ),
+
+            // "Book my next storm" — a standing order that fires when the snow
+            // STOPS. Deliberately BELOW the order total: on-demand is the pitch,
+            // this is the overnight case on-demand can't serve because nobody is
+            // awake at 4am to tap Order. Hidden for a one-off "someone else"
+            // address, which has no standing relationship to attach to.
+            if (!orderingForSomeoneElse)
+              StormBookingCard(
+                addressId: savedAddress?['id']?.toString(),
+                addressLabel: (savedAddress?['address_line'] ?? 'your address').toString(),
+                serviceType: selectedService,
+                salting: salting,
+                hasCard: _savedCard != null,
+              ),
 
             const SizedBox(height: 16),
             TextField(

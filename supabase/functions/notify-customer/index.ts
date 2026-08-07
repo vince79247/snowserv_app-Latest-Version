@@ -64,6 +64,29 @@ function getNotificationContent(status: string): { title: string; body: string }
     // Outcome of a "Report a problem" the CUSTOMER filed. Deliberately vague on
     // what we did — the admin's resolution note can contain internal detail and
     // is never pushed to a phone.
+    // A job nobody has picked up yet. Honest, not cheery: they have a hold on
+    // their card and a spinner on their screen, and the useful thing to tell
+    // them is that they are not trapped.
+    case 'still_searching':
+      return {
+        title: 'Still finding you a provider',
+        body: 'It\'s taking longer than usual — we\'re still looking. You can cancel any time for a full release of the hold.',
+      }
+    case 'no_provider_found':
+      return {
+        title: 'We couldn\'t find a provider',
+        body: 'Nobody was available for your job, so we\'ve cancelled it and released the hold on your card. You were not charged. Sorry about that.',
+      }
+    case 'storm_booking_triggered':
+      return {
+        title: 'Snow stopped — your job is booked ❄️',
+        body: 'Your storm booking just fired. We\'re sending a provider to clear your property.',
+      }
+    case 'storm_booking_failed':
+      return {
+        title: 'Storm booking needs attention',
+        body: 'We couldn\'t authorize your card for your storm booking. Open the app to update it.',
+      }
     case 'dispute_resolved':
       return {
         title: 'We resolved your report',
@@ -91,17 +114,24 @@ const cors = {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
-    const { job_id, status } = await req.json()
+    const { job_id, user_id, status } = await req.json()
 
     const notification = getNotificationContent(status)
     if (!notification) return new Response(JSON.stringify({ skipped: true }), { status: 200, headers: cors })
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
-    const { data: job, error: jobError } = await supabase.from('jobs').select('customer_id').eq('id', job_id).single()
-    if (!job) return new Response(JSON.stringify({ error: 'Job not found', details: jobError }), { status: 404, headers: cors })
+    // user_id is an alternative to job_id, for messages about the PERSON rather
+    // than a job — a storm booking whose card was declined has no job to point
+    // at, because failing to authorize is precisely why no job exists.
+    let customerId: string | null = user_id ?? null
+    if (!customerId) {
+      const { data: job, error: jobError } = await supabase.from('jobs').select('customer_id').eq('id', job_id).single()
+      if (!job) return new Response(JSON.stringify({ error: 'Job not found', details: jobError }), { status: 404, headers: cors })
+      customerId = job.customer_id
+    }
 
-    const { data: profile } = await supabase.from('profiles').select('fcm_token').eq('id', job.customer_id).single()
+    const { data: profile } = await supabase.from('profiles').select('fcm_token').eq('id', customerId).single()
     if (!profile?.fcm_token) return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })
 
     const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT')!)
@@ -111,7 +141,7 @@ Deno.serve(async (req: Request) => {
     // Only clear a genuinely dead token (UNREGISTERED); keep valid tokens on a
     // config error and report the real failure instead of a fake sent:1.
     if (!result.ok && result.code === 'UNREGISTERED') {
-      await supabase.from('profiles').update({ fcm_token: null }).eq('id', job.customer_id)
+      await supabase.from('profiles').update({ fcm_token: null }).eq('id', customerId)
     }
 
     return new Response(JSON.stringify(result.ok ? { sent: 1 } : { sent: 0, error: result.code }), { headers: { ...cors, 'Content-Type': 'application/json' } })
