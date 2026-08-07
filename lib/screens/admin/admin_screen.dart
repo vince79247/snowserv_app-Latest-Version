@@ -46,6 +46,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // Why people deleted their accounts. Anonymous by design — no user id, email
   // or name — so this is a pattern to read, not a person to chase.
   List<Map<String, dynamic>> deletionFeedback = [];
+  /// user_ids that have at least one saved service address.
+  Set<String> usersWithAddress = {};
 
   int get _pendingDisputes =>
       disputes.where((d) => d['status'] == 'pending').length;
@@ -231,6 +233,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         churnRows = List<Map<String, dynamic>>.from(churnData);
       } catch (_) {}
 
+      // Just the owner ids — who has bothered to save a service address. One
+      // column, so it stays cheap even when the table is large. See
+      // _looksLikeWrongSide for why an order count alone won't do.
+      Set<String> withAddress = {};
+      try {
+        final addrData = await supabase.from('addresses').select('user_id');
+        withAddress = {
+          for (final a in List<Map<String, dynamic>>.from(addrData))
+            if (a['user_id'] != null) a['user_id'].toString()
+        };
+      } catch (_) {}
+
       if (mounted) {
         final providerList = _sortProviders(providersData);
         setState(() {
@@ -243,6 +257,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           providerLeads = leadsList;
           waitlist = waitlistRows;
           deletionFeedback = churnRows;
+          usersWithAddress = withAddress;
         });
       }
     } catch (e) {
@@ -2973,15 +2988,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  // A customer who has never ordered and never even saved an address is, more
-  // often than not, a contractor who signed up on the wrong side of the app.
-  // That happened to a real applicant (Jose, 2026-08-04) and nothing surfaced
-  // it — his account just sat there looking like an ordinary quiet customer.
+  // A customer who never saved a service address is, more often than not, a
+  // contractor who signed up on the wrong side of the app. That happened to a
+  // real applicant (Jose, 2026-08-04) and nothing surfaced it — his account
+  // just sat there looking like an ordinary quiet customer.
+  //
+  // Deliberately NOT keyed on "has never ordered": it is August, we have not
+  // launched, and nobody orders snow removal in ninety-degree weather — so that
+  // test flags every customer we have and tells us nothing. Saving an address
+  // is the thing a real customer does the moment they arrive, in any season.
   bool _looksLikeWrongSide(Map<String, dynamic> user) {
     final id = user['id']?.toString();
     if (id == null) return false;
-    final hasOrders = jobs.any((j) => j['customer_id']?.toString() == id);
-    return !hasOrders;
+    if (usersWithAddress.contains(id)) return false;
+    return !jobs.any((j) => j['customer_id']?.toString() == id);
   }
 
   String _wrongSideEmailBody(Map<String, dynamic> user) {
@@ -2992,9 +3012,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         'You created a SnowServ account — thanks for that. I am reaching out to '
         'make sure you ended up in the right place.\n\n'
         'SnowServ has two sides: customers who order snow removal, and '
-        'contractors who do the work and get paid. Your account was created on '
-        'the customer side, and you have not ordered anything, so I wanted to '
-        'check whether you were actually looking to work.\n\n'
+        'contractors who do the work and get paid. Your account was set up on '
+        'the customer side. That is an easy one to miss on the signup screen, '
+        'so I wanted to check which one you meant.\n\n'
         'If you were: just reply and say so. I will switch your account over '
         'myself — you keep the same email and password, and there is nothing to '
         'sign up for again. From there it is about five minutes to finish: your '
