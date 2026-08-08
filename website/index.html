@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SnowServ — On-demand snow removal</title>
 <meta name="description" content="SnowServ connects you with local snow-removal providers. Request driveway or sidewalk clearing in a tap, track it live, and only pay when a provider starts the job.">
+<!-- www.snowserv.app and snowserv.app both serve this page with a 200, so without
+     this Google sees two full copies of the site and picks a winner itself. Points
+     at the extensionless path Cloudflare Pages actually serves — /index.html and
+     /privacy.html 308 to these, so a canonical with .html would name a URL that
+     redirects, which is the opposite of the point. -->
+<link rel="canonical" href="https://snowserv.app/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -122,8 +128,8 @@
       SnowServ
     </div>
     <div>
-      <a href="/privacy.html">Privacy Policy</a>
-      <a href="/terms.html">Terms of Service</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
       <a href="mailto:support@snowserv.app">Contact</a>
     </div>
     <div class="fine">© <span id="yr"></span> SnowServ. All rights reserved. &nbsp;·&nbsp; support@snowserv.app</div>
