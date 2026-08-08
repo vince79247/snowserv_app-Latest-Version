@@ -1099,24 +1099,32 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // advice was "contact support", manufacturing the support mail it was meant
   // to avoid. So "not approved" is two different actions now, and this list is
   // the fixable one.
+  /// Every reason must name something the registration flow ACTUALLY ASKS FOR —
+  /// today that is Equipment, Insurance, Payouts, Agreement. Three ID-based
+  /// reasons lived here after the identity step was deleted in build 17, which
+  /// meant an admin could tell somebody to "retake your ID photo" and send them
+  /// into a flow with no ID step in it. That is worse than the old red dead-end
+  /// screen: it reads as actionable, so they hunt for it, fail, and email us.
+  /// If a registration step is ever removed again, prune this map with it.
   static const _fixableReasons = <String, String>{
-    'The photo of your ID came through blurry or cut off. Please retake it in '
-        'good light with all four corners visible.': 'ID photo unreadable',
-    'The ID you uploaded has expired. Please upload a current one — any '
-        'government photo ID works, it does not have to be a driver license.':
-        'ID expired',
     'The photo of your insurance card came through blurry or cut off. Please '
         'retake it with the whole card visible.': 'Insurance photo unreadable',
     'Your insurance policy shows as expired. Please upload your current one.':
         'Insurance expired',
     'We could not find insurance on your application. Please add your policy '
         'details and a photo of the card.': 'No insurance on file',
-    'The name on your ID does not match the name on your account. Please '
-        'update your name so the two match, or upload an ID that matches.':
-        'Name does not match ID',
     'You selected a plow truck, but the vehicle details are missing or do not '
         'match the plate. Please fill in the make, model, year and plate.':
         'Truck details missing',
+    'You have not finished setting up payouts yet. Open the Payouts step and '
+        'follow the steps with Stripe so we can pay you for the work you do.':
+        'Payouts not set up',
+    'Please enter your full legal name on your account. It has to match the '
+        'name on your bank account, or Stripe cannot release your payments.':
+        'Name incomplete',
+    'The equipment you selected does not match what you described. Please open '
+        'the Equipment step and pick what you will actually be using.':
+        'Equipment needs confirming',
   };
 
   /// "Needs attention" — the common case. Says what to fix, puts them back in
