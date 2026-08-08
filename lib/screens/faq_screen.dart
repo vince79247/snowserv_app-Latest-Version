@@ -249,7 +249,7 @@ List<_FaqSection> get _customerSections => [
   _FaqSection('Cancellations & Refunds', [
     _FaqItem(
       'Can I cancel my order?',
-      'Yes, you can cancel from your home screen at any time before the job is marked In Progress.\n\nBecause we don\'t charge your card until a provider starts the job, cancelling means your card was never charged — we simply release the authorization hold, and the pending amount drops off.',
+      'Yes, you can cancel from your home screen at any time before the job is marked In Progress.\n\nBecause we don\'t charge your card until a provider starts the job, canceling means your card was never charged — we simply release the authorization hold, and the pending amount drops off.',
     ),
     _FaqItem(
       'How long does a refund take?',
@@ -309,7 +309,7 @@ List<_FaqSection> get _providerSections {
       // stating it that way turns away the easiest provider to recruit — the
       // snowblower owner with no commercial policy, who covers the sidewalk
       // jobs. The form has always been correct; only the wording wasn't.
-      'Download SnowServ, choose "I want to clear snow and get paid" on the signup screen, and complete the short registration. You tell us your equipment — a truck or plow is optional, and snowblower and shovel-only providers are welcome and get plenty of work.\n\nWe don\'t ask you for any ID. Stripe verifies your identity when you set up payouts, and SnowServ never sees or stores your bank account or Social Security number.\n\nInsurance is required only if you clear snow with a vehicle. For hand-shovelling or a snowblower it\'s recommended but not required.',
+      'Download SnowServ, choose "I want to clear snow and get paid" on the signup screen, and complete the short registration. You tell us your equipment — a truck or plow is optional, and snowblower and shovel-only providers are welcome and get plenty of work.\n\nWe don\'t ask you for any ID. Stripe verifies your identity when you set up payouts, and SnowServ never sees or stores your bank account or Social Security number.\n\nInsurance is required only if you clear snow with a vehicle. For hand-shoveling or a snowblower it\'s recommended but not required.',
     ),
     _FaqItem(
       'How long does approval take?',

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// SnowServ design system. One source of truth for colour + type so every
+/// SnowServ design system. One source of truth for color + type so every
 /// screen (iOS, Android, web) reads as one polished, professional product.
 class SnowServColors {
   // Brand

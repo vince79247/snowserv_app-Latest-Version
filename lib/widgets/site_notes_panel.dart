@@ -85,7 +85,7 @@ class _SiteNotesPanelState extends State<SiteNotesPanel> {
           icon: Icons.vpn_key_outlined
         );
       case 'pricing':
-        // Green rather than a warning colour: this is money information for the
+        // Green rather than a warning color: this is money information for the
         // admin, not a hazard, and it should read as useful rather than alarming
         // to the next provider who sees it on the card.
         return (

@@ -232,7 +232,7 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.snowserv.app',
                     ),
-                    // Zone boundaries, each a distinct colour.
+                    // Zone boundaries, each a distinct color.
                     PolygonLayer(polygons: [
                       for (var i = 0; i < zones.length; i++)
                         if (parsePolygon(zones[i]['polygon']).length >= 3)

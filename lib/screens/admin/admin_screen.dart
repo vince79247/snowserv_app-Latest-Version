@@ -1794,7 +1794,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
     // One tap lands on the send confirmation — that's the thing you came here
     // to do. "Write my own" is one button away for when a reply needs a human
-    // touch, and it's labelled so the tracking trade-off is visible.
+    // touch, and it's labeled so the tracking trade-off is visible.
     final contacted = (lead['status'] ?? 'new') != 'new';
     final choice = await showDialog<String>(
       context: context,
@@ -2124,7 +2124,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ? [
                     // Left: operations.
                     col([jobsPanel, zonesPanel]),
-                    // Middle: the money view, front and centre.
+                    // Middle: the money view, front and center.
                     col([earningsPanel, disputesPanel]),
                     // Right: people.
                     col([providersPanel, customersPanel]),

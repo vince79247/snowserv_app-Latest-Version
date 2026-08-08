@@ -764,7 +764,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         return;
       }
       // Payment stays on HOLD at accept — it's captured when the provider
-      // starts the job (see markInProgress). Cancelling before start releases
+      // starts the job (see markInProgress). Canceling before start releases
       // the hold, so the customer is never charged for a no-show.
       _notifyCustomer(jobId, 'assigned');
       loadActiveJobs();
@@ -838,7 +838,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
       }
 
       // Payment stays on HOLD at accept — captured when the provider starts the
-      // job (markInProgress), so cancelling before start never charges the card.
+      // job (markInProgress), so canceling before start never charges the card.
       _notifyCustomer(jobId, 'assigned');
       if (mounted) {
         setState(() => _waitingJobs
@@ -872,7 +872,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
             // captures the hold). The charge stays; the job re-dispatches paid.
             ? 'You have already STARTED this job, so the customer has been charged. '
               'The job will be reassigned to another provider to finish. '
-              'Cancelling after starting is recorded on your account — only do this '
+              'Canceling after starting is recorded on your account — only do this '
               'if you truly cannot finish (e.g. equipment failure).'
             : 'Are you sure you need to cancel? The customer will be notified and we will find another provider.'),
         actions: [
