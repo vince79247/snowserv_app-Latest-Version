@@ -499,6 +499,29 @@ snowserv.app registered at Cloudflare (registrar + DNS). support@snowserv.app is
 Zoho Mail (free plan) alias on mailbox snowserv.app@snowserv.app; MX/SPF/DKIM set in
 Cloudflare DNS. The app's "Contact Support" links point to support@snowserv.app.
 
+## Deploys — TWO different sites, two different hosts
+| Site | Host | Source | How to deploy |
+|---|---|---|---|
+| **snowserv.app** (marketing) | Cloudflare Pages, project `snowserv` | `website/` | **`git push`** — the branch IS the deploy |
+| **app.snowserv.app** (the Flutter web app) | Firebase Hosting | `build/web` (firebase.json) | `flutter build web && firebase deploy` |
+
+The Pages project is GIT-CONNECTED with production branch **`geofenced-pricing-zones`**
+(not `main` — `website/` has never existed on main). Pushing that branch rebuilds
+snowserv.app automatically in ~1 min. There is no dashboard step and no wrangler.toml,
+which is exactly why this was undiscoverable and had to be reverse-engineered once
+(2026-08-08) by probing `geofenced-pricing-zones.snowserv.pages.dev` — branch-preview
+subdomains only exist on git-connected projects.
+
+⚠️ ALSO: `origin` is the ONLY offsite backup of this repo. Push after committing.
+
+Cloudflare Pages gotchas:
+- **`.html` is stripped**: `/privacy.html` 308s to `/privacy`. Canonical tags and
+  internal links must use the extensionless path or they name a URL that redirects.
+- Cloudflare rewrites `mailto:` into `/cdn-cgi/l/email-protection` at serve time, so
+  live HTML always differs from the repo file there. That's a feature, not drift.
+- KNOWN BUG (found 2026-08-08, unfixed): every unknown URL returns the HOMEPAGE with
+  HTTP 200 instead of a 404 — a "soft 404" that Google Search Console flags.
+
 ## SQL to run (if not done yet)
 ```sql
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS payment_intent_id text;
