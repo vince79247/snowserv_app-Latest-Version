@@ -4,7 +4,11 @@ import '../../theme.dart';
 /// Bump this when the agreement text materially changes. Stored alongside a
 /// provider's signature so we know which version they accepted.
 /// 1.1 (2026-07-13): added §16 Communications & Notifications.
-const String kProviderAgreementVersion = '1.1';
+// 1.2 (2026-08-08): dropped "and background" from clause 2. Authorizing a check we
+// deliberately never run is a permission slip with no upside — and the FCRA duties
+// that attach the moment you ACT on a consumer report make it worse than useless.
+// Providers who signed 1.1 keep 1.1 on their row; that is the version they agreed to.
+const String kProviderAgreementVersion = '1.2';
 
 class _Clause {
   final String heading;
@@ -30,7 +34,8 @@ const List<_Clause> _clauses = [
         'and permits required to perform snow-removal services in your area; maintain valid '
         'liability insurance (and valid registration/auto insurance if you use a vehicle) the '
         'entire time you are on the Platform; and keep your provider profile accurate. You '
-        'authorize SnowServ to verify your identity, documents, and background.',
+        'authorize SnowServ to verify your documents and eligibility, and you complete '
+        'identity verification directly with our payment processor before you are paid.',
   ]),
   _Clause('3. Performing Jobs', [
     'You agree to perform accepted jobs promptly, safely, and professionally; complete the '

@@ -1,6 +1,11 @@
 # SnowServ Provider Service Agreement
 
-**Version 1.1**
+**Version 1.2**
+
+> **1.2 (2026-08-08)** — Clause 2 no longer has you authorize SnowServ to verify your
+> "background." SnowServ does not run background checks and does not collect identity
+> documents; Stripe verifies identity against government records during payout
+> onboarding. Providers who signed 1.1 have that version recorded on their row.
 
 > ⚠️ **DRAFT — not yet legal advice.** This is a founder-drafted starting point.
 > Before you rely on it (especially the Non-Circumvention and Independent-Contractor
@@ -29,7 +34,8 @@ You represent that you: (a) are at least 18 years old and legally authorized to 
 services in your area; (c) maintain valid liability insurance (and, if you use a
 vehicle, valid registration and auto insurance) throughout your time on the Platform;
 and (d) will keep the information in your provider profile accurate and current. You
-authorize SnowServ to verify your identity, documents, and background.
+authorize SnowServ to verify your documents and eligibility, and you complete identity
+verification directly with our payment processor before you are paid.
 
 ## 3. Performing Jobs
 You agree to: perform accepted jobs promptly, safely, and professionally; complete the
