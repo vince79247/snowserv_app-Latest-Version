@@ -396,7 +396,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           value: 'provider',
                           icon: Icons.ac_unit,
                           title: 'I want to clear snow and get paid',
-                          subtitle: 'Take jobs near you and keep 75%',
+                          // NO percentage here. This card is shown to EVERY person
+                          // who signs up, customers included — and stating the split
+                          // lets a customer compute the provider's take from their
+                          // own receipt ($160 job → "he gets $120, they took $40"),
+                          // which is an argument for paying him directly next time.
+                          // That is the exact behavior the Non-Circumvention clause
+                          // exists to prevent. 75% is a great RECRUITING line; it
+                          // belongs where only prospective providers go.
+                          subtitle: 'Take jobs near you, on your own schedule',
                         ),
                         const SizedBox(height: 20),
                         const Text(
@@ -564,7 +572,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     MaterialPageRoute(builder: (_) => const ProviderInterestScreen()),
                   ),
                   icon: const Icon(Icons.ac_unit, size: 18, color: Colors.white),
-                  label: const Text('Clear snow with us — earn 75% per job',
+                  // Same reason as the role card: no split on a screen customers
+                  // see. The pay detail lives one tap deeper, on the interest
+                  // screen, where only someone considering the work goes.
+                  label: const Text('Clear snow with us — see what it pays',
                       style: TextStyle(color: Colors.white, fontSize: 13)),
                   style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white54)),
                 ),
