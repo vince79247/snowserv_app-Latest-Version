@@ -505,12 +505,16 @@ Cloudflare DNS. The app's "Contact Support" links point to support@snowserv.app.
 | **snowserv.app** (marketing) | Cloudflare Pages, project `snowserv` | `website/` | **`git push`** — the branch IS the deploy |
 | **app.snowserv.app** (the Flutter web app) | Firebase Hosting | `build/web` (firebase.json) | `flutter build web && firebase deploy` |
 
-The Pages project is GIT-CONNECTED with production branch **`geofenced-pricing-zones`**
-(not `main` — `website/` has never existed on main). Pushing that branch rebuilds
-snowserv.app automatically in ~1 min. There is no dashboard step and no wrangler.toml,
-which is exactly why this was undiscoverable and had to be reverse-engineered once
-(2026-08-08) by probing `geofenced-pricing-zones.snowserv.pages.dev` — branch-preview
-subdomains only exist on git-connected projects.
+The Pages project is GIT-CONNECTED to `vince79247/snowserv_app-Latest-Version`,
+production branch **`geofenced-pricing-zones`** (not `main` — `origin/main` is stuck
+at 2026-07-05 and has no `website/` folder), build output directory **`website`**,
+no build command, framework preset None. Pushing that branch rebuilds snowserv.app
+automatically in ~1 min.
+
+⚠️ This connection was found **completely detached** on 2026-08-09 — Settings → Build
+showed an empty "Git repository: Connect" slot, and nothing had deployed for five
+days while pushes appeared to succeed. If the site stops updating on push, check
+that first; a dropped connection is invisible from outside.
 
 ⚠️ ALSO: `origin` is the ONLY offsite backup of this repo. Push after committing.
 
