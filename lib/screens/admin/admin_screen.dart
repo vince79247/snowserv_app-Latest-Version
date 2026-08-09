@@ -1241,7 +1241,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           'Use this only when they should not be on the platform at all — a '
           'duplicate account, or something that disqualifies them.\n\n'
           'If the problem is a bad photo, expired insurance, or missing '
-          'details, close this and use "Needs attention" instead. That tells '
+          'details, close this and use "Ask for a fix" instead. That tells '
           'them what to fix and lets them resubmit.\n\n'
           'They will be emailed a short, final note without a specific reason.',
         ),
@@ -1291,7 +1291,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           'They stop receiving jobs immediately and land on a "not approved" '
           'screen with no explanation.\n\n'
           'If the real problem is expired insurance or a document that needs '
-          'redoing, close this and use "Needs attention" instead — that tells '
+          'redoing, close this and use "Ask for a fix" instead — that tells '
           'them what to fix and lets them come back once they have.',
         ),
         actions: [
@@ -4262,7 +4262,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                             child: OutlinedButton.icon(
                               onPressed: () => _requestChanges(p),
                               icon: const Icon(Icons.edit_note, size: 16),
-                              label: const Text('Needs attention'),
+                              // A VERB, not a state. Labeled "Needs attention"
+                              // this read as a status badge — orange is what the
+                              // status chips use — so an approved provider looked
+                              // like something was wrong with them.
+                              label: const Text('Ask for a fix'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.orange.shade800,
                                 side: BorderSide(color: Colors.orange.shade400),
@@ -4332,10 +4336,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         child: OutlinedButton.icon(
                           onPressed: () => _requestChanges(p),
                           icon: const Icon(Icons.edit_note, size: 16),
-                          label: const Text('Needs attention'),
+                          // Neutral, not orange: this provider is in GOOD
+                          // STANDING. A big orange control on their card read as
+                          // an alarm about them — Vince saw it on Isaiah, who is
+                          // approved and has nothing wrong, and asked why it said
+                          // he needs attention. Orange here belongs to status
+                          // chips only.
+                          label: const Text('Ask for a fix'),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.orange.shade800,
-                            side: BorderSide(color: Colors.orange.shade400),
+                            foregroundColor: SnowServColors.navy,
+                            side: BorderSide(color: Colors.grey.shade400),
                           ),
                         ),
                       ),
