@@ -5,9 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme.dart';
 import '../../utils/geo.dart';
 
-// Admin "Live Map": shows where the online drivers are, laid over the service
+// Admin "Live Map": shows where the online providers are, laid over the service
 // zone boundaries — so the admin can eyeball coverage and decide to send a
-// driver into a neighbouring zone. Read-only view; data is whatever the admin
+// provider into a neighbouring zone. Read-only view; data is whatever the admin
 // panel already loaded (providers + service_areas + jobs), passed in so this
 // screen never re-queries.
 class AdminMapScreen extends StatefulWidget {
@@ -48,7 +48,7 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
         final lng = (p['current_lng'] as num?)?.toDouble();
         if (lat == null || lng == null) return false;
         if (p['is_online'] == true) return true;
-        return _showOffline; // offline drivers only when the toggle is on
+        return _showOffline; // offline providers only when the toggle is on
       }).toList();
 
   int _onlineCount() =>
@@ -93,7 +93,7 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
   }
 
   LatLng get _initialCenter {
-    // Prefer the average of located drivers; else the first zone; else default.
+    // Prefer the average of located providers; else the first zone; else default.
     final loc = _located;
     if (loc.isNotEmpty) {
       var lat = 0.0, lng = 0.0;
@@ -115,8 +115,8 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
-  void _openDriver(Map<String, dynamic> p) {
-    final name = p['users']?['name']?.toString() ?? 'Driver';
+  void _openProvider(Map<String, dynamic> p) {
+    final name = p['users']?['name']?.toString() ?? 'Provider';
     final phone = p['users']?['phone']?.toString();
     final online = p['is_online'] == true;
     final lat = (p['current_lat'] as num?)?.toDouble();
@@ -272,7 +272,7 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
                             ),
                           ),
                     ]),
-                    // Driver pins.
+                    // Provider pins.
                     MarkerLayer(markers: [
                       for (final p in located)
                         Marker(
@@ -283,8 +283,8 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
                           width: 44,
                           height: 54,
                           child: GestureDetector(
-                            onTap: () => _openDriver(p),
-                            child: _DriverPin(
+                            onTap: () => _openProvider(p),
+                            child: _ProviderPin(
                               online: p['is_online'] == true,
                               preferred: _isPreferred(p),
                               initial: _initialOf(p['users']?['name']?.toString()),
@@ -299,7 +299,7 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
                     child: Padding(
                       padding: EdgeInsets.all(24),
                       child: Text(
-                        'No zones drawn and no drivers located yet.',
+                        'No zones drawn and no providers located yet.',
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -338,13 +338,13 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
       );
 }
 
-// A teardrop map pin bearing the driver's initial. Green = online,
-// grey = offline; a gold ring marks a preferred driver.
-class _DriverPin extends StatelessWidget {
+// A teardrop map pin bearing the provider's initial. Green = online,
+// grey = offline; a gold ring marks a preferred provider.
+class _ProviderPin extends StatelessWidget {
   final bool online;
   final bool preferred;
   final String initial;
-  const _DriverPin({
+  const _ProviderPin({
     required this.online,
     required this.preferred,
     required this.initial,

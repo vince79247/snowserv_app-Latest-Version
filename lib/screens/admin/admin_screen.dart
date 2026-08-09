@@ -393,7 +393,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           children: [
             const Text(
                 'How long a provider has to accept an offered job before it '
-                'auto-declines and re-offers to the next driver. Applies to the '
+                'auto-declines and re-offers to the next provider. Applies to the '
                 'provider countdown and the server expiry together.',
                 style: TextStyle(fontSize: 13, color: SnowServColors.inkSoft)),
             const SizedBox(height: 16),
@@ -1278,7 +1278,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
-  /// Pull an approved driver off the platform for good. Confirms, because the
+  /// Pull an approved provider off the platform for good. Confirms, because the
   /// realistic reason to do this — lapsed insurance, a document to redo — is
   /// better served by "Needs attention", which explains itself and lets them
   /// come back. Revoke is the last resort.
@@ -1286,7 +1286,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Revoke this driver\'s approval?'),
+        title: const Text('Revoke this provider\'s approval?'),
         content: const Text(
           'They stop receiving jobs immediately and land on a "not approved" '
           'screen with no explanation.\n\n'
@@ -1317,9 +1317,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     loadAll();
   }
 
-  // Admin "preferred driver" override (providers.preferred_until). While live,
+  // Admin "preferred provider" override (providers.preferred_until). While live,
   // this provider wins a new job only when they're EQUAL-OR-CLOSER than the
-  // driver who'd otherwise get it (never sent a worse-distance job), and it
+  // provider who'd otherwise get it (never sent a worse-distance job), and it
   // auto-expires at preferred_until. Implemented in the dispatch_jobs() RPC (see
   // migration 20260707071500_preferred_driver_expiry_distance.sql) — the sole
   // dispatcher now that the client-side one is gone (RLS lockdown Stage 2).
@@ -1484,12 +1484,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  // Asks how long to prefer the driver; returns null if cancelled.
+  // Asks how long to prefer the provider; returns null if cancelled.
   Future<Duration?> _promptPreferredDuration() {
     return showDialog<Duration>(
       context: context,
       builder: (_) => SimpleDialog(
-        title: const Text('Prefer this driver for how long?'),
+        title: const Text('Prefer this provider for how long?'),
         children: [
           for (final opt in const [
             ['4 hours', 4],
@@ -1866,7 +1866,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
   }
 
-  // Phone + Call/Text quick actions. The simplest "message a driver/customer"
+  // Phone + Call/Text quick actions. The simplest "message a provider/customer"
   // path — opens the phone's native dialer / Messages, no chat backend needed.
   Widget _contactRow(String label, String? phone) {
     final has = phone != null && phone.trim().isNotEmpty;
@@ -2380,7 +2380,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
-  // Driver display name for a job's provider_id, resolved from the loaded
+  // Provider display name for a job's provider_id, resolved from the loaded
   // providers list (avoids an extra join on the jobs query).
   String _providerName(dynamic providerId) {
     if (providerId == null) return 'Unassigned';
@@ -2389,9 +2389,24 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         orElse: () => <String, dynamic>{});
     final n = p['users']?['name'];
     final base =
-        (n == null || n.toString().trim().isEmpty) ? 'Driver' : n.toString();
+        (n == null || n.toString().trim().isEmpty) ? 'Provider' : n.toString();
     final num = p['provider_number'];
     return num == null ? base : '$base #$num';
+  }
+
+  // Plain-English equipment. Most of the roster is on foot, so this label is the
+  // difference between "somebody" and "somebody who can actually do this job".
+  static String _equipLabel(String equipment) {
+    switch (equipment) {
+      case 'plow':
+        return 'Plow truck';
+      case 'snowblower':
+        return 'Snowblower';
+      case 'shovel':
+        return 'Shovel';
+      default:
+        return equipment;
+    }
   }
 
   String? _providerPhone(dynamic providerId) {
@@ -2403,12 +2418,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     return (ph == null || ph.toString().trim().isEmpty) ? null : ph.toString();
   }
 
-  // Manual dispatch override: an "Assign / Reassign driver" button on requested &
+  // Manual dispatch override: an "Assign / Reassign provider" button on requested &
   // assigned job cards. Auto-dispatch (dispatch.dart / dispatch_jobs) handles the
   // normal case; this is the admin's on-demand control for edge cases — coverage
-  // gaps, a driver who won't take a far job, or hand-placing a specific driver.
+  // gaps, a provider who won't take a far job, or hand-placing a specific provider.
   // Only shown pre-start: payment is still a HOLD until the provider STARTS, so
-  // switching drivers here moves no money (capture keys off whoever starts).
+  // switching providers here moves no money (capture keys off whoever starts).
   Widget _assignControl(Map<String, dynamic> job) {
     final assigned = job['provider_id'] != null;
     return Padding(
@@ -2426,7 +2441,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          label: Text(assigned ? 'Reassign driver' : 'Assign driver',
+          label: Text(assigned ? 'Reassign provider' : 'Assign provider',
               style:
                   const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         ),
@@ -2435,9 +2450,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   }
 
   Future<void> _showAssignDialog(Map<String, dynamic> job) async {
-    // Eligible = approved drivers. A manual override can pick anyone approved,
+    // Eligible = approved providers. A manual override can pick anyone approved,
     // even offline (admin may be coordinating by phone) — online is shown first,
-    // then least-busy, with each driver's live active-job count for judgment.
+    // then least-busy, with each provider's live active-job count for judgment.
     final approved = providers
         .where((p) => p['registration_status'] == 'approved')
         .toList();
@@ -2462,13 +2477,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     final chosen = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(currentId == null ? 'Assign driver' : 'Reassign driver',
+        title: Text(currentId == null ? 'Assign provider' : 'Reassign provider',
             style: const TextStyle(
                 color: SnowServColors.navy, fontWeight: FontWeight.bold)),
         content: SizedBox(
           width: 380,
           child: approved.isEmpty
-              ? const Text('No approved drivers yet.')
+              ? const Text('No approved providers yet.')
               : ListView.separated(
                   shrinkWrap: true,
                   itemCount: approved.length,
@@ -2479,6 +2494,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     final online = p['is_online'] == true;
                     final n = load[id] ?? 0;
                     final isCurrent = id == currentId;
+                    // Equipment, spelled out. The cron dispatcher already ranks
+                    // equipment fit, but a MANUAL assign bypasses it entirely —
+                    // and this list used to show only a name and a job count, so
+                    // there was nothing here to stop you handing a driveway to
+                    // somebody carrying a shovel. Most of the roster is not in a
+                    // truck; "provider" is not a synonym for "plow".
+                    final equip = (p['equipment'] ?? '').toString();
+                    final mismatch = job['driveway'] == true && equip == 'shovel';
                     return ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
@@ -2489,8 +2512,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                           style: const TextStyle(
                               fontWeight: FontWeight.w600, fontSize: 14)),
                       subtitle: Text(
-                          '${online ? 'Online' : 'Offline'} · $n active${isCurrent ? ' · current' : ''}',
-                          style: const TextStyle(fontSize: 12)),
+                          '${online ? 'Online' : 'Offline'} · $n active'
+                          '${equip.isEmpty ? '' : ' · ${_equipLabel(equip)}'}'
+                          '${isCurrent ? ' · current' : ''}'
+                          '${mismatch ? '  ⚠️ shovel only — this job has a driveway' : ''}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: mismatch ? Colors.orange.shade900 : null,
+                              fontWeight:
+                                  mismatch ? FontWeight.w600 : FontWeight.normal)),
                       trailing: isCurrent
                           ? const Text('current',
                               style:
@@ -2516,7 +2546,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
       Map<String, dynamic> job, Map<String, dynamic> provider) async {
     final providerId = provider['id'];
     try {
-      // Place the job straight into 'assigned' under the chosen driver and clear
+      // Place the job straight into 'assigned' under the chosen provider and clear
       // any pending auto-dispatch offer. The BEFORE UPDATE trigger stamps
       // accepted_at when status crosses into 'assigned' (server clock).
       await supabase.from('jobs').update({
@@ -2526,7 +2556,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         'dispatched_at': null,
       }).eq('id', job['id']);
 
-      // Tell the driver a job landed on them (fire-and-forget — a failed push
+      // Tell the provider a job landed on them (fire-and-forget — a failed push
       // must not undo the assignment).
       try {
         await supabase.functions.invoke('notify-provider',
@@ -4032,7 +4062,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                   color: Colors.red,
                                   fontWeight: FontWeight.w600)),
                         ],
-                        // Preferred-driver override active — visible at a glance
+                        // Preferred-provider override active — visible at a glance
                         // (with time left) so the admin remembers it's on.
                         if (_isPreferred(p)) ...[
                           const SizedBox(width: 6),
@@ -4048,17 +4078,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                   children: [
                     const Divider(height: 16),
-                    // Contact the driver (call/text) — storm coordination.
-                    _contactRow('Driver', p['users']?['phone'] as String?),
+                    // Contact the provider (call/text) — storm coordination.
+                    _contactRow('Provider', p['users']?['phone'] as String?),
                     // ...and by email, which is how recruiting follow-up
                     // actually happens. An abandoned registration is a lead,
                     // and without this the address had to be copied by hand.
                     // Where we have a template (stalled signup / awaiting
                     // review) this SENDS as SnowServ rather than opening a
                     // draft — the draft is still one tap away inside. Only a
-                    // free-form note to an already-approved driver falls back
+                    // free-form note to an already-approved provider falls back
                     // to the mail app.
-                    _emailRow('Driver', p['users']?['email'] as String?,
+                    _emailRow('Provider', p['users']?['email'] as String?,
                         onSend: _hasProviderTemplate(p)
                             ? () => _emailStalledSignup(p)
                             // Everyone else gets the free-form composer, which
@@ -4070,7 +4100,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                   'name': p['users']?['name'],
                                 })),
                     const SizedBox(height: 8),
-                    // Earnings (this driver's 75% take of their completed jobs).
+                    // Earnings (this provider's 75% take of their completed jobs).
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
@@ -4249,7 +4279,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         ],
                       ),
                     ] else if (isApproved) ...[
-                      // Preferred-driver override: while live, this driver wins a
+                      // Preferred-provider override: while live, this provider wins a
                       // new job only when they're equal-or-closer than whoever
                       // would otherwise get it (never sent a worse-distance job).
                       // Auto-expires; toggle off any time to end it early.
@@ -4274,14 +4304,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                             activeThumbColor: Colors.amber.shade700,
                             secondary: Icon(Icons.star,
                                 color: pref ? Colors.amber.shade700 : Colors.grey),
-                            title: const Text('Preferred driver',
+                            title: const Text('Preferred provider',
                                 style: TextStyle(
                                     fontWeight: FontWeight.w600, fontSize: 14)),
                             subtitle: Text(
                                 pref
                                     ? 'Wins nearby jobs when equal-or-closer than the '
-                                        'next driver · ${_preferredRemaining(p)}'
-                                    : 'Favor this driver for close jobs, for a set time. '
+                                        'next provider · ${_preferredRemaining(p)}'
+                                    : 'Favor this provider for close jobs, for a set time. '
                                         'Never sent a farther job than normal.',
                                 style: const TextStyle(fontSize: 11)),
                             value: pref,
@@ -4311,7 +4341,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       ),
                       const SizedBox(height: 8),
                       // Revoke is the LAST resort, not the first tool. The
-                      // realistic reason to pull an approved driver is a lapsed
+                      // realistic reason to pull an approved provider is a lapsed
                       // insurance card or a document that needs redoing — and
                       // for that "Needs attention" above tells them what to fix
                       // and lets them come back, where Revoke dumps them on a
@@ -4680,7 +4710,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // admin panel that looks FORWARD — every other figure is what already
   // happened. Before a storm it tells you how many jobs will land the moment
   // the snow stops, which is exactly what you need to decide whether to call
-  // more drivers in.
+  // more providers in.
   Widget _stormBookingsPanel() {
     final withDeicer = stormBookings.where((b) => b['salting'] == true).length;
     return Container(
