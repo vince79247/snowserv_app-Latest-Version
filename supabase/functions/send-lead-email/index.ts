@@ -78,6 +78,22 @@ const BANK_NOTE =
   'or Social Security number. Stripe pays you directly and issues your 1099 at ' +
   'the end of the year.'
 
+// SnowServ is seasonal and most of the calendar year has no snow in it. Telling a
+// contractor to "go online and start taking jobs right away" in August reads as
+// absurd and burns the credibility we spent the whole recruiting effort earning.
+// A single static reword just moves the problem to winter, where "go online" IS
+// the correct call to action — so branch on the actual month instead.
+// Yonkers snow season: roughly November through March.
+function inSnowSeason(now = new Date()): boolean {
+  // Month resolved in America/New_York so a UTC edge near midnight on the 1st or
+  // 31st cannot flip the season by a day.
+  const m = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    month: 'numeric',
+  }).format(now))
+  return m >= 11 || m <= 3
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
@@ -261,29 +277,51 @@ Deno.serve(async (req: Request) => {
           p('Vince<br>SnowServ'),
         ].join(''))
       : isApproved
-      ? shell(heading, [
-          p('Your SnowServ application has been approved. You can start taking ' +
-            'jobs right away.'),
-          p('<b>Two things to do now:</b>'),
-          p('1. Open the app and flip yourself <b>Online</b>. You will only get ' +
-            'offers while you are online.<br>' +
-            '2. Connect your bank on the payouts screen, if you have not yet. ' +
-            'We cannot pay you until that is done.'),
+      ? shell(heading, (inSnowSeason()
+        ? [
+          p('Your SnowServ application has been approved — you are cleared to ' +
+            'take jobs.'),
+          p('<b>The last thing to do is add your bank information</b>, so we can ' +
+            'actually pay you. It takes about five minutes on Stripe\'s page. ' +
+            'Until it is done we can hand you work but not money.'),
+          p('After that, open the app and flip yourself <b>Online</b>. You only ' +
+            'get job offers while you are online.'),
           rows.length ? payTable(rows) : '',
           rows.length
             ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
                 'column is your money. Deicer pays extra on top.</span>')
             : '',
           p(BANK_NOTE),
-          button(SIGNUP_URL, 'Open SnowServ and go online'),
+          button(SIGNUP_URL, 'Set up your payouts'),
           p('Welcome aboard. Reply to this email any time — a real person reads it.'),
-        ].join(''))
+        ]
+        : [
+          p('Your SnowServ application has been approved — you are on the roster ' +
+            'for this winter.'),
+          p('There is nothing you need to do in the app today. It does not snow ' +
+            'in the summer, and we will not send you job offers until it does.'),
+          p('<b>The last thing to set up is your bank information</b>, so you get ' +
+            'paid without a delay once the work starts. It takes about five ' +
+            'minutes on Stripe\'s page, and you can do it whenever you are ready ' +
+            '— now, or the week before the first storm. Your call.'),
+          rows.length ? payTable(rows) : '',
+          rows.length
+            ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
+                'column is your money. Deicer pays extra on top. These are this ' +
+                'season\'s rates.</span>')
+            : '',
+          p(BANK_NOTE),
+          button(SIGNUP_URL, 'Set up your payouts'),
+          p('When the first storm is on the way we will email you and send a ' +
+            'notification. That is when you go online.'),
+          p('Welcome aboard. Reply to this email any time — a real person reads it.'),
+        ]).join(''))
       : isPendingReview
       ? shell(heading, [
           p('Thanks for finishing your SnowServ registration. We have it, and ' +
             'we are reviewing it now.'),
-          p('You will hear from us as soon as you are approved. After that you ' +
-            'can go online in the app and start taking jobs.'),
+          p('You will hear from us as soon as you are approved, and we will let ' +
+            'you know when the season starts and jobs begin coming in.'),
           p('<b>One thing worth doing while you wait:</b> connect your bank ' +
             'account for payouts, so nothing holds up your first payment.'),
           p(BANK_NOTE),

@@ -68,12 +68,23 @@ function getNotificationContent(status: string): { title: string; body: string; 
     // Approved to work. Until this existed, approving somebody told them
     // nothing at all — they could sit approved for weeks and never know to go
     // online, which wastes the entire recruiting effort that got them here.
-    case 'approved':
+    // Seasonal: most of the year there is no snow, and "go online to start
+    // getting jobs" in August reads as absurd to the contractor we just spent
+    // the whole recruiting effort landing. Off season the honest and useful next
+    // step is payouts — the one thing that can hold up their first payment.
+    case 'approved': {
+      const m = Number(new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', month: 'numeric',
+      }).format(new Date()))
+      const inSeason = m >= 11 || m <= 3
       return {
-        title: "You're approved to work ❄️",
-        body: 'Your SnowServ application was approved. Open the app and go online to start getting jobs.',
-        urgent: true,
+        title: "You're approved ❄️",
+        body: inSeason
+          ? 'Your SnowServ application was approved. Add your bank info to get paid, then go online for jobs.'
+          : "You're on the roster for this winter. Nothing to do in the app yet — check your email for the last step.",
+        urgent: inSeason,
       }
+    }
     // Not a rejection, and the wording must not read like one — they are one
     // small fix away and their answers are all still there.
     case 'needs_attention':
