@@ -10,10 +10,12 @@ I can do in the repo · ✅ done.
 ## 1. Identity & signing
 - [x] **[claude]** Package name set to `com.snowserv.app` (was `com.example.snowserv_app`).
       namespace + applicationId + MainActivity moved. — done, commit `<pending>`.
-- [ ] **[you]** Generate a **release keystore** (one-time) and keep the passwords safe:
-      `keytool -genkey -v -keystore ~/snowserv-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias snowserv`
-      Then copy `android/key.properties.example` → `android/key.properties` and fill in
-      the four values. That's the ONLY remaining step to get signed release bundles.
+- [x] **[you]** **Release keystore DONE** (verified 2026-08-09). `android/key.properties`
+      exists with all four values, the keystore file it points to is present, and it is
+      correctly gitignored. Release bundles will be properly signed.
+      ⚠️ **Those passwords are unrecoverable.** Lose them and you can never publish an
+      update to this app — Play rejects a bundle signed with a different key, forever.
+      They should be in a password manager, not only on this Mac.
 - [x] **[claude]** Wired release `signingConfig` in Gradle to read from
       `android/key.properties` (gitignored) with a debug-key fallback so builds don't
       break pre-keystore; added `key.properties.example` template. — done 2026-07-17.
@@ -35,15 +37,25 @@ I can do in the repo · ✅ done.
 - [x] **[claude]** Debug APK **builds** with Firebase wired in. Required fixing a
       ~2021-stale `pubspec.lock` (transitive plugins used `jcenter()`, removed in
       Gradle 9) via `flutter pub upgrade` — 93 deps refreshed, no Dart errors.
-- [ ] **[you+claude]** `flutter run -d <android device/emulator>` — verify launch,
-      login, order, dispatch, and a **real push job offer** landing on Android.
-      (Needs a physical Android phone or an emulator — none connected yet.)
+- [ ] **[you+claude]** Smoke-test on Android. **Two emulators already exist on this
+      Mac** — `snowserv_pixel` and `snowserv_pixel2`, both Google Play images — so this
+      does NOT need a physical phone and does NOT need to wait for anything:
+      `flutter emulators --launch snowserv_pixel` then `flutter run -d emulator-5554`.
+      Covers: launch, signup + role choice, all 4 registration steps, payouts gate,
+      admin panel, push.
+      ⚠️ **Stripe Checkout will fail on an emulator** — ~50% packet loss to Stripe
+      produces "Something went wrong". That is the emulator, not a bug. Do not chase it.
+- [ ] **[you]** FINAL hardware verification on a real Android phone (Tony's) — the
+      only part that genuinely needs someone in the US with a handset: a real Checkout
+      payment and a real GPS dispatch.
 
 ## 5. Play Store prep
-- [ ] **[you]** Google Play Developer account ($25 one-time) — registering as the
-      **LLC/organization** (decided 2026-07-17: skips the 20-testers/14-day rule that
-      new *personal* accounts must do). Needs a **D-U-N-S number** (free from D&B, ~1–2
-      wks, only needs the EIN *number* not the 147C) — start that request now.
+- [x] **[you]** **Play Developer account DONE.** Organization account (Account ID
+      7712496467828841866), D-U-N-S obtained, and as of 2026-08-08 organization
+      verification, **website verification**, and **phone verification** all cleared.
+      ⚠️ The public developer profile still shows Vince's HOME address, his admin-login
+      email, and his personal cell. Decided 2026-08-09 to leave the address for now; the
+      email and phone swaps are queued for October (Google Voice is US-only at signup).
 - [x] **[claude]** `flutter build appbundle` VERIFIED — produces a release `.aab`
       (58 MB) cleanly. 2026-07-17. (Debug-signed until key.properties exists; §1.)
 - [ ] **[claude]** Store listing assets + data-safety form draft (can reuse the iOS
@@ -52,11 +64,12 @@ I can do in the repo · ✅ done.
 
 ---
 ## Known cross-platform issues found in the audit (not Android-specific)
-- [ ] Dispatch **countdown vs cron**: UI offer window 4 min, cron expires at 3 min
-      (1-min granularity softens it). Reconcile so a provider can't accept an
-      already-expired offer.
-- [ ] Delete legacy unused edge functions `create-payment-intent`,
-      `get-payment-methods` (Checkout migration made them dead — CLAUDE.md confirms).
+- [x] Dispatch **countdown vs cron** — RESOLVED. Both now read
+      `app_settings.dispatch_timeout_seconds` (default 240s), so the UI countdown and
+      the pg_cron expiry cannot drift. Admin-editable from the Jobs tab.
+- [x] Delete legacy unused edge functions — DONE 2026-07-29. `create-payment-intent`
+      and `get-payment-methods` are gone (the latter also leaked another customer's
+      card brand/last4 with no ownership check).
 - [ ] `dart:io` File usage in provider screens is mobile-only-safe; audit `kIsWeb`
       guards if those flows ever render on web.
 
