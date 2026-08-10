@@ -17,6 +17,28 @@ Tester: tpiazza@precisionmarblegranite.com (registered; build 12 distributed 202
    network is exactly why this test matters. See reference-emulator-stripe-checkout.
 
 ## PART 1 — Install (one time)
+
+### Preferred route since 2026-08-10: Play Internal testing
+The app is now on a real **Google Play internal testing track** (build 18 published
+2026-08-10, the first Android release build this project ever produced). This is
+better than Firebase App Distribution for testers — it installs from the Play Store
+like a normal app, with no "install unknown apps" prompt and no separate tester app.
+
+**Opt-in link:** https://play.google.com/apps/internaltest/4701390551575953453
+
+1. Open that link **on the Android phone**, signed into a Google account that is on
+   the tester email list (Play Console → Test and release → Testing → Internal
+   testing → Testers → list "Internal"). Currently on it:
+   `snowserv.app@snowserv.app` and `vcitarella2004@yahoo.com`.
+   ⚠️ **A tester whose account is not on that list gets a dead page.** Add Tony's
+   Gmail to the list before sending it to him.
+2. Tap **Become a tester**, then the **Download it on Google Play** link.
+3. Install from the Play Store page as normal.
+
+Until the Main store listing is filled in, testers see a **temporary app name** on
+that Play page. Expected, not a fault.
+
+### Legacy route: Firebase App Distribution
 1. On the Android phone, open the email from **Firebase App Distribution** /
    **"SnowServ"** (check spam; use the newest one).
 2. Tap **Get started** / **Accept invitation**.
