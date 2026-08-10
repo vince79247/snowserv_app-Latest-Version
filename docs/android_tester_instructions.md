@@ -29,9 +29,13 @@ like a normal app, with no "install unknown apps" prompt and no separate tester 
 1. Open that link **on the Android phone**, signed into a Google account that is on
    the tester email list (Play Console → Test and release → Testing → Internal
    testing → Testers → list "Internal"). Currently on it:
-   `snowserv.app@snowserv.app` and `vcitarella2004@yahoo.com`.
-   ⚠️ **A tester whose account is not on that list gets a dead page.** Add Tony's
-   Gmail to the list before sending it to him.
+   `snowserv.app@snowserv.app`, `vcitarella2004@yahoo.com`, and Tony's
+   `tpiazza@precisionmarblegranite.com` — that domain runs on Google Workspace
+   (MX = aspmx.l.google.com, verified 2026-08-10), so it is a real Google account
+   and is valid here despite not being an @gmail.com address.
+   ⚠️ **A tester whose account is not on that list gets a dead page**, and it must be
+   the account actually SIGNED INTO THE PHONE — reading that mailbox in an app is not
+   the same thing.
 2. Tap **Become a tester**, then the **Download it on Google Play** link.
 3. Install from the Play Store page as normal.
 
