@@ -142,6 +142,13 @@ appeared the moment build 18 was uploaded), asking us to justify broad photo-lib
 access as *core functionality*. A one-time insurance-document upload is a weak case for
 that, and we do not need the access anyway.
 
+✅ **Confirmed 2026-08-11:** build 19 (1.0.0+19) was uploaded to the internal track and
+the "Photo and video permissions" declaration disappeared from App content → Need
+attention on its own ("You're all caught up"). Play keys that declaration to the
+manifest of the uploaded bundle, not to the app, so removing the permission removes the
+requirement. Device support was unchanged by the removal — 12,363 phones before and
+after, 0 lost.
+
 ⚠️ Gallery upload after removal has NOT yet been exercised on a device — it needs a
 provider account (insurance step). Test it on the internal track before production.
 
