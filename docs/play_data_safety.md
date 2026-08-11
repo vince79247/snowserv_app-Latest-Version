@@ -119,8 +119,8 @@ only. Do not declare diagnostics you do not collect.
 
 Declared in `android/app/src/main/AndroidManifest.xml`:
 
-`INTERNET` · `CAMERA` · `READ_MEDIA_IMAGES` · `POST_NOTIFICATIONS` ·
-`ACCESS_FINE_LOCATION` · `ACCESS_COARSE_LOCATION`
+`INTERNET` · `CAMERA` · `POST_NOTIFICATIONS` · `ACCESS_FINE_LOCATION` ·
+`ACCESS_COARSE_LOCATION`  (as of 2026-08-11)
 
 ❌ **`READ_MEDIA_IMAGES` was REMOVED 2026-08-11 — do not re-add it.**
 
