@@ -125,6 +125,13 @@ Deno.serve(async (req: Request) => {
           city: m.addr_city,
           state: m.addr_state,
           zip: m.addr_zip,
+          // This address belongs to the ordering customer ONLY so the job can
+          // reference it — it is somebody else's property, not their home. The
+          // flag keeps it out of loadAddress(), which used to pick from the
+          // customer's addresses with LIMIT 1 and no ORDER BY and could hand
+          // back this row instead: order for your mother once, and weeks later
+          // the app offers to plow her driveway when you meant your own.
+          is_one_off: true,
         }),
       })
       const addr = await addrRes.json()

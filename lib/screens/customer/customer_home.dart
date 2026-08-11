@@ -161,7 +161,20 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
       final data = await supabase
           .from('addresses')
           .select()
+          // A customer only ever creates ONE address of their own — the address
+          // screen UPDATES it in place. Every other row on their user_id is a
+          // one-off service address the webhook saved for an "ordering for
+          // someone else" order, and is somebody else's property.
+          //
+          // This used to be `.limit(1)` with no filter and no ORDER BY, so it
+          // returned whichever row Postgres happened to hand back — and that
+          // moves as rows are updated. On live data it resolved to a Bronx
+          // address left over from a "someone else" order instead of the
+          // customer's actual Yonkers home, which would have priced the order
+          // by the wrong zone and sent a provider to the wrong house.
           .eq('user_id', supabase.auth.currentUser!.id)
+          .eq('is_one_off', false)
+          .order('created_at')
           .limit(1);
       if (mounted && data.isNotEmpty) {
         setState(() => savedAddress = data.first);
