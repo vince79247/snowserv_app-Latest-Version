@@ -5444,6 +5444,45 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       child: Text('via ${lead['source']}',
                           style: TextStyle(fontSize: 10.5, color: Colors.grey.shade500)),
                     ),
+                  // WHEN they were contacted, not just THAT they were. The
+                  // status chip alone said "contacted" with no date, so the
+                  // one thing you need before writing again — how long ago —
+                  // wasn't on the card. Prefer the real email record; fall back
+                  // to the contact stamp for anyone reached before email_log
+                  // existed (2026-08-07), which is most of the early pipeline.
+                  Builder(builder: (_) {
+                    final mail = _mailFor(email: lead['email']?.toString());
+                    if (mail.isNotEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: InkWell(
+                          onTap: () => _showMailHistory(
+                              (lead['name'] ?? lead['email']).toString(), mail),
+                          child: Text(
+                            mail.length == 1
+                                ? 'Emailed ${_shortDate(mail.first['created_at'])}'
+                                : '${mail.length} emails · last '
+                                    '${_shortDate(mail.first['created_at'])}',
+                            style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green.shade800),
+                          ),
+                        ),
+                      );
+                    }
+                    final at = DateTime.tryParse(
+                        lead['contacted_at']?.toString() ?? '');
+                    if (at == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text('Contacted ${_shortDate(at)}',
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green.shade800)),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -5490,8 +5529,26 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   Future<void> _setLeadStatus(Map<String, dynamic> lead, String status) async {
     try {
-      await supabase.from('provider_leads').update({'status': status}).eq('id', lead['id']);
-      if (mounted) setState(() => lead['status'] = status);
+      // Stamp WHEN they were first contacted. Without this the card could say
+      // "contacted" but never when — a status is not a record, and "have I
+      // already written to this person, and how long ago?" is the actual
+      // question being asked. First move off 'new' wins; later status changes
+      // must not overwrite it or the date drifts to whenever you last touched
+      // the row. (Leads' equivalent of providers.recruit_emailed_at.)
+      final firstContact =
+          status != 'new' && lead['contacted_at'] == null
+              ? DateTime.now().toIso8601String()
+              : null;
+      await supabase.from('provider_leads').update({
+        'status': status,
+        if (firstContact != null) 'contacted_at': firstContact,
+      }).eq('id', lead['id']);
+      if (mounted) {
+        setState(() {
+          lead['status'] = status;
+          if (firstContact != null) lead['contacted_at'] = firstContact;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
