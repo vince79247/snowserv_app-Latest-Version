@@ -340,7 +340,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     try {
       final data = await supabase
           .from('jobs')
-          // Join the customer so the provider can call them (gate, dog, etc.).
+          // Join the customer so the provider knows whose driveway this is.
           // NOTE: name only — the customer's phone is deliberately NOT fetched, so
           // it never reaches the provider's device even if some future UI asks for
           // it. See the customer-name block below for why.

@@ -1912,7 +1912,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   /// app defaults to, which put Vince's personal Yahoo address in the From line
   /// of a provider email. A server send is always from SnowServ.
   Widget _emailRow(String label, String? email,
-      {String? subject, String? body, VoidCallback? onSend}) {
+      {String? subject, String? body, VoidCallback? onSend, DateTime? alsoSentAt}) {
     if (email == null || email.trim().isEmpty) return const SizedBox.shrink();
     final mail = _mailFor(email: email);
     return Padding(
@@ -1942,7 +1942,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                           fontWeight: FontWeight.w600,
                           color: Colors.green.shade800),
                     ),
-                  ),
+                  )
+                // We keep TWO records of "have we written to this person":
+                // email_log (every send, with the body) and the older
+                // providers.recruit_emailed_at stamp. This row only ever read
+                // email_log, so anyone contacted before that table existed
+                // (Aug 7 2026) showed as never contacted here while the
+                // stalled-signup tile still said "Emailed Aug 6" — the same
+                // person, two screens, two different answers. There is no body
+                // to show for these, so it's a plain line, not a tappable one.
+                else if (alsoSentAt != null)
+                  Text('Emailed ${_shortDate(alsoSentAt)}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade800)),
               ],
             ),
           ),
@@ -3917,6 +3931,72 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
+  /// What a half-finished registration actually looks like.
+  ///
+  /// A provider who signed up and stopped has null in nearly every field on
+  /// the card, and _infoRow hides null rows — so their card rendered as a run
+  /// of bold section headings with nothing beneath them. That reads as broken
+  /// data rather than as "this person never came back", which is the single
+  /// most useful thing the card could say about them. Registration is four
+  /// steps (Equipment · Insurance · Payouts · Agreement); this says which
+  /// ones actually landed.
+  Widget _registrationProgress(Map<String, dynamic> p) {
+    final steps = <String, bool>{
+      'Equipment': (p['equipment']?.toString().trim().isNotEmpty ?? false),
+      'Insurance': p['has_insurance'] == true || p['insurance_ack_at'] != null,
+      'Payouts': p['payouts_enabled'] == true || p['stripe_connect_id'] != null,
+      'Agreement': p['service_agreement_signed_at'] != null,
+    };
+    final done = steps.values.where((v) => v).length;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            done == 0
+                ? 'Never started registration — nothing to review yet'
+                : 'Registration: $done of 4 steps done',
+            style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: Colors.orange.shade900),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              for (final e in steps.entries)
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(
+                      e.value
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      size: 13,
+                      color: e.value ? Colors.green.shade600 : Colors.grey),
+                  const SizedBox(width: 3),
+                  Text(e.key,
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          color: e.value
+                              ? Colors.green.shade800
+                              : Colors.grey.shade700)),
+                ]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _infoRow(String label, String? value) {
     if (value == null || value.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -4078,6 +4158,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                   children: [
                     const Divider(height: 16),
+                    // Sits FIRST: for a provider who never finished, this is
+                    // the whole story, and everything below it is empty.
+                    if (regStatus == 'incomplete') _registrationProgress(p),
                     // Contact the provider (call/text) — storm coordination.
                     _contactRow('Provider', p['users']?['phone'] as String?),
                     // ...and by email, which is how recruiting follow-up
@@ -4089,6 +4172,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     // free-form note to an already-approved provider falls back
                     // to the mail app.
                     _emailRow('Provider', p['users']?['email'] as String?,
+                        alsoSentAt: DateTime.tryParse(
+                            p['recruit_emailed_at']?.toString() ?? ''),
                         onSend: _hasProviderTemplate(p)
                             ? () => _emailStalledSignup(p)
                             // Everyone else gets the free-form composer, which
@@ -4179,22 +4264,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                       _infoRow('Plate', p['vehicle_plate']),
                     ],
                     _infoRow('Has deicer', hasSalt ? 'Yes' : 'No'),
-                    const SizedBox(height: 10),
-                    // Identity section
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Identity',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: SnowServColors.navy)),
-                    ),
-                    const SizedBox(height: 6),
-                    // No ID row. Identity is verified by Stripe Connect during
-                    // payout onboarding, to a standard we can't match by
-                    // looking at a photo — and the verified legal name, DOB and
-                    // address are readable in the Stripe Dashboard under
-                    // Connected accounts. The payouts chip below is that check.
+                    // NO "Identity" section. Identity is verified by Stripe
+                    // Connect during payout onboarding, to a standard we can't
+                    // match by looking at a photo — the verified legal name,
+                    // DOB and address are readable in the Stripe Dashboard
+                    // under Connected accounts, and the Payouts row below IS
+                    // that check. The ID row was removed on 2026-08-07 but its
+                    // heading was left behind, so every provider card carried a
+                    // bold "Identity" title with permanently nothing under it.
                     const SizedBox(height: 10),
                     // Insurance section
                     const Align(

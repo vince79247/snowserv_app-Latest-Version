@@ -275,7 +275,17 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // Android's system Back used to QUIT THE APP from the sign-up form. Login
+    // and sign-up are one screen toggled by `isLogin`, not two routes, so there
+    // was no route to pop and Back fell straight through to the OS — tapping
+    // "Sign Up" by accident and pressing Back closed SnowServ instead of going
+    // back. Here Back means "back to the login form", so that is what it does.
+    return PopScope(
+      canPop: isLogin,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && mounted) setState(() => isLogin = true);
+      },
+      child: Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -353,6 +363,27 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // A visible way back. The "Already have an account? Log
+                      // In" toggle does exist, but it sits below the Sign Up
+                      // button, below the marketing opt-in, and below the fold
+                      // — on a phone the sign-up form opens with it off-screen,
+                      // so for anyone who doesn't think to scroll it may as
+                      // well not be there. This one is above everything.
+                      if (!isLogin)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () => setState(() => isLogin = true),
+                            icon: const Icon(Icons.arrow_back, size: 18),
+                            label: const Text('Back to login'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: SnowServColors.navy,
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, 32),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ),
                       Text(
                         isLogin ? 'Welcome back' : 'Create your account',
                         style: const TextStyle(
@@ -615,6 +646,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         ),
           ],
         ),
+      ),
     );
   }
 }
