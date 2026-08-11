@@ -318,7 +318,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           .select('*, addresses(*)')
           .eq('dispatched_to', providerId!)
           .eq('status', 'requested')
-          .order('created_at')
+          // ascending EXPLICITLY — postgrest-dart's .order() defaults to
+          // DESCENDING. A provider holds one live offer at a time, so this
+          // rarely bites, but "the offer you were sent" should be the oldest
+          // outstanding one, not the newest.
+          .order('created_at', ascending: true)
           .limit(1);
       final data = results.isEmpty ? null : results.first;
       if (mounted) {
@@ -446,7 +450,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           .select('id, job_lat, job_lng, rejected_providers')
           .eq('status', 'requested')
           .isFilter('dispatched_to', null)
-          .order('created_at')
+          // ascending EXPLICITLY. .order() defaults to DESCENDING in
+          // postgrest-dart, so this surfaced the NEWEST unclaimed job and the
+          // one that had been waiting longest stayed buried — the exact
+          // opposite of the intent, since the stranded job is the urgent one.
+          .order('created_at', ascending: true)
           .limit(1);
       if (waiting.isEmpty) return;
       final job = (waiting as List).first;

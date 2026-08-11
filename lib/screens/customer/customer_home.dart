@@ -53,7 +53,8 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
   List<Map<String, dynamic>> myJobs = [];
   // jobId -> number of the assigned provider's jobs queued ahead of this one.
   final Map<String, int> _jobsAhead = {};
-  Map<String, dynamic>? savedAddress;
+  Map<String, dynamic>? savedAddress;          // the property this order is for
+  List<Map<String, dynamic>> savedAddresses = []; // every property they've saved
   RealtimeChannel? _jobsChannel;
   double surgeMultiplier = 1.0;
   double? snowDepthInches;
@@ -87,7 +88,7 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     loadMyJobs();
-    loadAddress();
+    loadAddresses();
     loadSurge();
     subscribeToJobs();
     _loadSavedCard();
@@ -156,32 +157,144 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     super.dispose();
   }
 
-  Future<void> loadAddress() async {
+  /// All of the customer's own saved properties, newest selection preserved.
+  ///
+  /// A customer can now keep several — their home, a parent's, a rental — and
+  /// pick one per order. Before this there was exactly one, and a second
+  /// property could only be reached through "ordering for someone else", which
+  /// meant retyping the whole address every storm and saving a throwaway row
+  /// each time. Those throwaway rows are precisely what used to leak back in as
+  /// the customer's "saved address" (is_one_off, migration 20260811160000).
+  Future<void> loadAddresses() async {
     try {
       final data = await supabase
           .from('addresses')
           .select()
-          // A customer only ever creates ONE address of their own — the address
-          // screen UPDATES it in place. Every other row on their user_id is a
-          // one-off service address the webhook saved for an "ordering for
-          // someone else" order, and is somebody else's property.
-          //
-          // This used to be `.limit(1)` with no filter and no ORDER BY, so it
-          // returned whichever row Postgres happened to hand back — and that
-          // moves as rows are updated. On live data it resolved to a Bronx
-          // address left over from a "someone else" order instead of the
-          // customer's actual Yonkers home, which would have priced the order
-          // by the wrong zone and sent a provider to the wrong house.
           .eq('user_id', supabase.auth.currentUser!.id)
           .eq('is_one_off', false)
-          .order('created_at')
-          .limit(1);
-      if (mounted && data.isNotEmpty) {
-        setState(() => savedAddress = data.first);
-        _refreshServiceArea();
-        _prefillNotesForSavedAddress();
-      }
+          // ascending EXPLICITLY: postgrest-dart's .order() defaults to
+          // DESCENDING, so the bare call put the newest property first and the
+          // app opened on "Mom's" instead of the customer's own home. Caught on
+          // the emulator, which is the only reason it wasn't shipped.
+          .order('created_at', ascending: true);
+      if (!mounted) return;
+      final list = List<Map<String, dynamic>>.from(data);
+      // Keep the current selection across a reload (an edit, a new address) so
+      // the screen doesn't silently jump to a different property under someone
+      // mid-order. Fall back to the first, which is their original home.
+      final selectedId = savedAddress?['id']?.toString();
+      final stillThere = list.where((a) => a['id'].toString() == selectedId);
+      setState(() {
+        savedAddresses = list;
+        savedAddress = stillThere.isNotEmpty
+            ? stillThere.first
+            : (list.isNotEmpty ? list.first : null);
+      });
+      _refreshServiceArea();
+      _prefillNotesForSavedAddress();
     } catch (_) {}
+  }
+
+  /// The customer's own name for a property, or null if they never gave one.
+  String? _labelOf(Map<String, dynamic> a) {
+    final l = a['label']?.toString().trim();
+    return (l == null || l.isEmpty) ? null : l;
+  }
+
+  /// Choose which saved property this order is for, edit one, or add another.
+  ///
+  /// Switching property re-runs the zone match, the storm reading and the note
+  /// prefill, because every one of those is per-address: a different house can
+  /// be in a different pricing zone, under different snow, with a different
+  /// gate code. Selection is deliberately NOT persisted between sessions —
+  /// defaulting to their first address every launch is predictable, whereas
+  /// silently remembering "the rental" and pricing that on next week's storm is
+  /// how somebody clears the wrong driveway.
+  Future<void> _pickAddress() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Your properties',
+                    style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: SnowServColors.navy)),
+              ),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final a in savedAddresses)
+                    ListTile(
+                      leading: Icon(
+                        a['id'] == savedAddress?['id']
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                        color: SnowServColors.iceBlue,
+                      ),
+                      title: Text(_labelOf(a) ?? a['address_line']?.toString() ?? ''),
+                      subtitle: Text(
+                        '${a['address_line']}, ${a['city']}, ${a['state']} ${a['zip']}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        tooltip: 'Edit this address',
+                        onPressed: () async {
+                          Navigator.pop(sheetCtx);
+                          final result = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => AddressScreen(existingAddress: a)),
+                          );
+                          if (result == true) await loadAddresses();
+                        },
+                      ),
+                      onTap: () {
+                        Navigator.pop(sheetCtx);
+                        if (a['id'] == savedAddress?['id']) return;
+                        setState(() {
+                          savedAddress = a;
+                          // The note belongs to the property, not the customer.
+                          _customerNotesController.clear();
+                        });
+                        _refreshServiceArea();
+                        _prefillNotesForSavedAddress();
+                      },
+                    ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.add_location_alt_outlined,
+                        color: SnowServColors.iceBlue),
+                    title: const Text('Add another property'),
+                    onTap: () async {
+                      Navigator.pop(sheetCtx);
+                      final result = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AddressScreen()),
+                      );
+                      if (result == true) await loadAddresses();
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   // Standing instructions for THIS property, carried forward from the last order
@@ -1044,7 +1157,7 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
         context,
         MaterialPageRoute(builder: (_) => const AddressScreen()),
       );
-      if (result == true) await loadAddress();
+      if (result == true) await loadAddresses();
       return;
     }
     if (orderingForSomeoneElse) {
@@ -1446,7 +1559,7 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
             onPressed: () async {
-              await Future.wait([loadMyJobs(), loadAddress(), _loadSavedCard()]);
+              await Future.wait([loadMyJobs(), loadAddresses(), _loadSavedCard()]);
               loadSurge();
             },
           ),
@@ -1656,22 +1769,33 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                     const Icon(Icons.location_on, size: 16, color: SnowServColors.iceBlue),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(
-                        '${savedAddress!['address_line']}, ${savedAddress!['city']}, ${savedAddress!['state']} ${savedAddress!['zip']}',
-                        style: const TextStyle(color: Colors.black87, fontSize: 13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_labelOf(savedAddress!) != null)
+                            Text(_labelOf(savedAddress!)!,
+                                style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: SnowServColors.navy)),
+                          Text(
+                            '${savedAddress!['address_line']}, ${savedAddress!['city']}, ${savedAddress!['state']} ${savedAddress!['zip']}',
+                            style: const TextStyle(color: Colors.black87, fontSize: 13),
+                          ),
+                        ],
                       ),
                     ),
+                    // Always the picker — it holds edit AND "add another", so
+                    // there is a route to a second property from the very first
+                    // one. The old button went straight to the editor, which is
+                    // why a second address could only ever be reached through
+                    // "ordering for someone else". Says "Switch" only when
+                    // there is something to switch between.
                     TextButton(
-                      onPressed: () async {
-                        final result = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AddressScreen(existingAddress: savedAddress),
-                          ),
-                        );
-                        if (result == true) loadAddress();
-                      },
-                      child: const Text('Change'),
+                      onPressed: _pickAddress,
+                      child: Text(
+                          savedAddresses.length > 1 ? 'Switch' : 'Change'),
                     ),
                   ],
                 ),
@@ -1683,7 +1807,7 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                     context,
                     MaterialPageRoute(builder: (_) => const AddressScreen()),
                   );
-                  if (result == true) loadAddress();
+                  if (result == true) loadAddresses();
                 },
                 icon: const Icon(Icons.add_location_alt),
                 label: const Text('Add your address'),

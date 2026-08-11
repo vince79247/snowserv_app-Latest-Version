@@ -14,6 +14,7 @@ class AddressScreen extends StatefulWidget {
 }
 
 class _AddressScreenState extends State<AddressScreen> {
+  late final TextEditingController labelController;
   late final TextEditingController addressController;
   late final TextEditingController cityController;
   late final TextEditingController stateController;
@@ -24,6 +25,7 @@ class _AddressScreenState extends State<AddressScreen> {
   void initState() {
     super.initState();
     final a = widget.existingAddress;
+    labelController = TextEditingController(text: a?['label'] ?? '');
     addressController = TextEditingController(text: a?['address_line'] ?? '');
     cityController = TextEditingController(text: a?['city'] ?? '');
     stateController = TextEditingController(text: a?['state'] ?? '');
@@ -32,6 +34,7 @@ class _AddressScreenState extends State<AddressScreen> {
 
   @override
   void dispose() {
+    labelController.dispose();
     addressController.dispose();
     cityController.dispose();
     stateController.dispose();
@@ -53,20 +56,31 @@ class _AddressScreenState extends State<AddressScreen> {
     try {
       final userId = supabase.auth.currentUser!.id;
       final existing = widget.existingAddress;
+      final label = labelController.text.trim();
       if (existing != null) {
         await supabase.from('addresses').update({
+          'label': label.isEmpty ? null : label,
           'address_line': addressController.text.trim(),
           'city': cityController.text.trim(),
           'state': stateController.text.trim(),
           'zip': zipController.text.trim(),
+          // Editing the street invalidates the cached geocode; clearing it lets
+          // the next order re-resolve rather than price the old coordinates.
+          'lat': null,
+          'lng': null,
         }).eq('id', existing['id']);
       } else {
         await supabase.from('addresses').insert({
           'user_id': userId,
+          'label': label.isEmpty ? null : label,
           'address_line': addressController.text.trim(),
           'city': cityController.text.trim(),
           'state': stateController.text.trim(),
           'zip': zipController.text.trim(),
+          // Explicit, not merely defaulted: this is a property the customer
+          // saved for themselves, never a one-off "ordering for someone else"
+          // address, and loadAddress() selects on exactly this.
+          'is_one_off': false,
         });
       }
       if (mounted) Navigator.pop(context, true);
@@ -118,6 +132,20 @@ class _AddressScreenState extends State<AddressScreen> {
               style: TextStyle(fontSize: 12, color: SnowServColors.inkSoft),
             ),
             const SizedBox(height: 20),
+            // Optional, and first, because it is how the customer will pick this
+            // property out of a list later. Four saved addresses all reading
+            // "1 Main St" style street lines are no easier to choose between
+            // than retyping them; "Mom's" is.
+            TextField(
+              controller: labelController,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Name this property (optional)',
+                hintText: 'Home · Mom\'s · The rental',
+                prefixIcon: Icon(Icons.label_outline),
+              ),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: addressController,
               decoration: const InputDecoration(
