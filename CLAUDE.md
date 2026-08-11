@@ -147,9 +147,9 @@ lib/
 - Yonkers zone as of 2026-08-04: sidewalk $80 · driveway $120 · both $160
 - DEICER IS PRICED PER SURFACE (2026-08-04, migration 20260804140000). Three columns:
   price_salting_sidewalk / price_salting_driveway / price_salting (= the BOTH price,
-  original column, meaning unchanged). All three are $90 in Yonkers right now, i.e.
-  behaviourally identical to the old flat fee until an admin lowers them in the Zones
-  editor. One flat fee broke when salting rose to $90: a sidewalk-only order was $80 to
+  original column, meaning unchanged). Live Yonkers values as of 2026-08-11 are sidewalk $45 /
+  driveway $70 / both $90 — an admin HAS since lowered the per-surface ones, so the
+  three-column split is doing real work now, not sitting inert. One flat fee broke when salting rose to $90: a sidewalk-only order was $80 to
   shovel + $90 to salt. Readers coalesce to price_salting so an old zone row can't price
   at $0. ⚠️ customer_home.dart `_priceSalting` and create-checkout-session must pick the
   SAME column for the same selection — one is what's SHOWN, the other what's CHARGED.

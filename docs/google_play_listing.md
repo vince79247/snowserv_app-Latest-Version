@@ -45,7 +45,7 @@ DRIVE WITH SNOWSERV
 Have a plow truck or just a reliable shovel? Sign up as a provider, get matched to nearby
 jobs, and keep the majority of every job — with fast payouts to your bank.
 
-Now serving Yonkers and nearby Westchester County, NY — with more areas on the way.
+Now serving Yonkers, NY — with more of Westchester County on the way.
 If we're not in your neighborhood yet, join the waitlist in the app and we'll let you
 know when we arrive.
 
