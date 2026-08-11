@@ -83,8 +83,11 @@ checkout page:
 Booking places an AUTHORIZATION HOLD — the card is not actually charged during review.
 
 DEMO ACCOUNT (customer)
+  (password NOT stored in this repo — it is a live login on the production
+  database and this repo is PUBLIC. Read it from Play Console > Test and release >
+  App content > Sign in details, or App Store Connect > App Review Information.)
   Email:    support@snowserv.app
-  Password: SnowServReview1
+  Password: <in the consoles — not in this repo>
 
 HOW TO TEST (customer flow)
 1. Enter the demo email + password and tap Log In (no role to pick — the app routes
@@ -142,7 +145,7 @@ Tip: use a clean demo account with realistic sample data; hide any real personal
 ## Pre-submission verification (Claude, 2026-07-17 — tested against the LIVE DB)
 The demo review path was re-checked end-to-end after the RLS lockdown + signup-trigger
 changes, since a broken demo login is the #1 rejection cause:
-- ✅ **Demo login works** — `support@snowserv.app / SnowServReview1` authenticates against
+- ✅ **Demo login works** — `support@snowserv.app / see Play Console or App Store Connect` authenticates against
   the live auth endpoint and issues a token. Account is a **confirmed customer**.
 - ✅ **Yonkers service zone is ACTIVE** with a polygon (5 vertices) + zip fallback and live
   pricing (driveway $120 / both $160 / salting $45) — so the reviewer's Yonkers test
@@ -158,7 +161,7 @@ working iOS Stripe Checkout, **privacy policy + terms published (snowserv.app/pr
 /terms — LIVE)**, export-compliance exemption declared, demo review account verified.
 
 NEEDS YOU:
-- [x] Demo review account (customer): support@snowserv.app / SnowServReview1 — **verified
+- [x] Demo review account (customer): support@snowserv.app / see Play Console or App Store Connect — **verified
       working 2026-07-17** (authenticates + confirmed customer).
 - [ ] Capture **screenshots** (§11) — the one thing only you can do (needs the app running).
 - [ ] Create the app record in **App Store Connect** and paste §1–§10.

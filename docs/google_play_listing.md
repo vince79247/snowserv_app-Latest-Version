@@ -112,8 +112,11 @@ in-app (Account menu → Delete Account). **No data is used for advertising or s
 Parts of the app require an account, so provide a login in **App content → App access**:
 ```
 DEMO ACCOUNT (customer)
+  (password NOT stored in this repo — it is a live login on the production
+  database and this repo is PUBLIC. Read it from Play Console > Test and release >
+  App content > Sign in details, or App Store Connect > App Review Information.)
   Email:    support@snowserv.app
-  Password: SnowServReview1
+  Password: <in the consoles — not in this repo>
 
 Payments run in Stripe TEST mode for review — pay with card 4242 4242 4242 4242,
 any future expiry, any CVC. Booking places an authorization HOLD (card not charged).
