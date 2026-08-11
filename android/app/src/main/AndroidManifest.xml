@@ -1,7 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- READ_MEDIA_IMAGES deliberately NOT declared (removed 2026-08-11).
+         Insurance-document upload uses image_picker, which on Android 13+ opens the
+         system PHOTO PICKER (and ACTION_GET_CONTENT below that) — both hand back a
+         single file with a temporary URI grant and need no permission. Proof it was
+         never load-bearing: the app has no runtime request for it anywhere, and
+         `dumpsys package` showed granted=false while gallery upload worked.
+         Declaring it made Play demand a "Photo and video permissions" declaration
+         justifying broad library access we do not use and would not be granted. -->
+
+
     <!-- Android 13+ requires this to show ANY notification (FCM job offers). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- geolocator: provider live location + customer address geocoding. -->

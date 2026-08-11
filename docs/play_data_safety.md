@@ -122,19 +122,28 @@ Declared in `android/app/src/main/AndroidManifest.xml`:
 `INTERNET` · `CAMERA` · `READ_MEDIA_IMAGES` · `POST_NOTIFICATIONS` ·
 `ACCESS_FINE_LOCATION` · `ACCESS_COARSE_LOCATION`
 
-✅ **`READ_MEDIA_IMAGES` is REQUIRED — do not remove it.** (Checked 2026-08-11; an
-earlier version of this file claimed it looked unnecessary and should be stripped with
-`tools:node="remove"`. That was wrong and would have broken provider registration.)
+❌ **`READ_MEDIA_IMAGES` was REMOVED 2026-08-11 — do not re-add it.**
 
-Camera-only applies to **job photos** (before/completion), where Gallery was
-deliberately removed on 2026-07-13 so the photo is genuine proof-of-work. **Insurance
-documents are a separate flow and do use the gallery:**
-* `provider_details_screen.dart` → `_pickInsurancePhoto` uses `ImageSource.gallery`
-  exclusively — there is no camera path.
-* `provider_registration_screen.dart` offers an explicit "Choose from Gallery" option.
+This section has now been wrong in both directions, so here is the settled answer with
+the evidence:
 
-That is the right design: people photograph their insurance card once and upload it
-later, rather than being made to hold the document up to the camera mid-signup.
+* `image_picker_android` 0.8.13+19 declares **no storage permissions** in its own
+  manifest and ships Android's **Photo Picker** (see its `ModuleDependencies` service).
+  The Photo Picker — and `ACTION_GET_CONTENT` on older devices — returns one file with a
+  temporary URI grant. **No permission is involved.**
+* The app has **no runtime permission request** for photos anywhere; the only requests in
+  the codebase are FCM notifications and Geolocator.
+* `adb shell dumpsys package com.snowserv.app` showed
+  `READ_MEDIA_IMAGES: granted=false` while gallery upload worked fine.
+
+So it was declared but never requested and never granted — dead weight. Its only real
+effect was to make Play open a **"Photo and video permissions" declaration** (which
+appeared the moment build 18 was uploaded), asking us to justify broad photo-library
+access as *core functionality*. A one-time insurance-document upload is a weak case for
+that, and we do not need the access anyway.
+
+⚠️ Gallery upload after removal has NOT yet been exercised on a device — it needs a
+provider account (insurance step). Test it on the internal track before production.
 
 ---
 
