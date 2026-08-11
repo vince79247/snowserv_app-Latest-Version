@@ -41,9 +41,11 @@ WHY SNOWSERV
 • Secure payment powered by Stripe.
 • Real-time updates and notifications from request to completion.
 
-DRIVE WITH SNOWSERV
+CLEAR SNOW WITH SNOWSERV
 Have a plow truck or just a reliable shovel? Sign up as a provider, get matched to nearby
-jobs, and keep the majority of every job — with fast payouts to your bank.
+jobs, with fast payouts to your bank. Tap "Clear snow with us" on the sign-in screen to
+see exactly what the work pays before you register — and every job shows its pay on the
+offer, before you accept it.
 
 Now serving Yonkers, NY — with more of Westchester County on the way.
 If we're not in your neighborhood yet, join the waitlist in the app and we'll let you
