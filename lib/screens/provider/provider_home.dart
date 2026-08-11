@@ -341,7 +341,10 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
       final data = await supabase
           .from('jobs')
           // Join the customer so the provider can call them (gate, dog, etc.).
-          .select('*, addresses(*), users!jobs_customer_id_fkey(name, phone)')
+          // NOTE: name only — the customer's phone is deliberately NOT fetched, so
+          // it never reaches the provider's device even if some future UI asks for
+          // it. See the customer-name block below for why.
+          .select('*, addresses(*), users!jobs_customer_id_fkey(name)')
           .eq('provider_id', providerId!)
           .inFilter('status', ['assigned', 'in_progress'])
           .order('created_at', ascending: true);
@@ -1937,17 +1940,34 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                   ],
                                 ),
                                 _addressRow(job),
-                                // Customer contact — call OR text to sort out a
-                                // gate, a dog, where to pile snow, etc.
+                                // Customer NAME only — never the phone number.
+                                //
+                                // This used to print `name · phone` with Call and
+                                // Text buttons (tel:/sms: handoffs). Removed
+                                // 2026-08-11 (Vince): "if he wants to poach a
+                                // customer, let him work for it. We shouldn't make
+                                // it easy." Handing both sides a permanent, direct
+                                // channel is exactly what the Non-Circumvention
+                                // clause of the Provider Service Agreement exists to
+                                // prevent — and it disclosed a homeowner's personal
+                                // cell to a contractor they'd never met, with no way
+                                // to take it back after the job.
+                                //
+                                // What replaced it: the customer's order note, which
+                                // now asks for the gate code / where to pile snow /
+                                // what to avoid, and persists per address so it is
+                                // typed once rather than every storm. Snow removal
+                                // needs no rendezvous — nobody has to be home — so
+                                // unlike a food delivery there is nothing that
+                                // *requires* live contact. If real storms prove the
+                                // note insufficient, the next step is masked proxy
+                                // numbers (punchlist #26), NOT restoring this.
                                 Builder(builder: (_) {
-                                  final cust = job['users'];
-                                  final name = (cust?['name'] as String?)?.trim();
-                                  final phone = (cust?['phone'] as String?)?.trim();
-                                  if ((phone == null || phone.isEmpty)) {
+                                  final name =
+                                      (job['users']?['name'] as String?)?.trim();
+                                  if (name == null || name.isEmpty) {
                                     return const SizedBox.shrink();
                                   }
-                                  final dialable =
-                                      phone.replaceAll(RegExp(r'[^0-9+]'), '');
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Row(
@@ -1956,34 +1976,11 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                                             size: 15, color: SnowServColors.navy),
                                         const SizedBox(width: 4),
                                         Expanded(
-                                          child: Text(
-                                              name?.isNotEmpty == true
-                                                  ? '$name · $phone'
-                                                  : phone,
+                                          child: Text(name,
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
                                                   fontSize: 13,
                                                   color: SnowServColors.navy)),
-                                        ),
-                                        TextButton.icon(
-                                          onPressed: () => launchUrl(Uri(
-                                              scheme: 'tel', path: dialable)),
-                                          icon: const Icon(Icons.call, size: 16),
-                                          label: const Text('Call'),
-                                          style: TextButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8),
-                                              minimumSize: const Size(0, 32)),
-                                        ),
-                                        TextButton.icon(
-                                          onPressed: () => launchUrl(Uri(
-                                              scheme: 'sms', path: dialable)),
-                                          icon: const Icon(Icons.sms, size: 16),
-                                          label: const Text('Text'),
-                                          style: TextButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8),
-                                              minimumSize: const Size(0, 32)),
                                         ),
                                       ],
                                     ),

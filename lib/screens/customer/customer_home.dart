@@ -166,8 +166,42 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
       if (mounted && data.isNotEmpty) {
         setState(() => savedAddress = data.first);
         _refreshServiceArea();
+        _prefillNotesForSavedAddress();
       }
     } catch (_) {}
+  }
+
+  // Standing instructions for THIS property, carried forward from the last order
+  // placed at it. The gate code doesn't change between storms, but the note used
+  // to: it lived on the job and died with it, so the customer retyped it every
+  // time — and the storm they forgot was the storm the provider stood at a locked
+  // gate with no way to ask. (Providers already have the address-scoped equivalent
+  // in address_notes; this is the customer-authored side of the same idea.)
+  //
+  // Only ever prefilled for the customer's own SAVED address. An "ordering for
+  // someone else" address is a different property, and sending your gate code to
+  // your mother's house would be worse than sending nothing.
+  Future<void> _prefillNotesForSavedAddress() async {
+    final addressId = savedAddress?['id'];
+    if (addressId == null || orderingForSomeoneElse) return;
+    try {
+      final rows = await supabase
+          .from('jobs')
+          .select('customer_notes')
+          .eq('customer_id', supabase.auth.currentUser!.id)
+          .eq('address_id', addressId)
+          .not('customer_notes', 'is', null)
+          .order('created_at', ascending: false)
+          .limit(1);
+      if (!mounted || rows.isEmpty) return;
+      final last = (rows.first['customer_notes'] as String?)?.trim() ?? '';
+      // Never clobber something the customer is in the middle of typing.
+      if (last.isNotEmpty && _customerNotesController.text.trim().isEmpty) {
+        _customerNotesController.text = last;
+      }
+    } catch (_) {
+      // Prefill is a convenience — a failure here must never block ordering.
+    }
   }
 
   Future<void> _loadIsAdmin() async {
@@ -1667,6 +1701,14 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                       onChanged: (val) {
                         setState(() => orderingForSomeoneElse = val);
                         _refreshServiceArea();
+                        // The note is per-PROPERTY. Switching to a different
+                        // address must not carry your own standing instructions
+                        // across; switching back restores them.
+                        if (val) {
+                          _customerNotesController.clear();
+                        } else {
+                          _prefillNotesForSavedAddress();
+                        }
                       },
                     ),
                   ],
@@ -1905,9 +1947,16 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
               controller: _customerNotesController,
               maxLines: 2,
               maxLength: 200,
+              // Asks a QUESTION rather than offering a blank box. The provider
+              // can't phone you mid-job (deliberately — see provider_home), so
+              // whatever they need to know has to be here. Naming the three
+              // things that actually strand someone at 5am gets far better
+              // answers than "Notes for provider (optional)" ever did.
               decoration: const InputDecoration(
-                labelText: 'Notes for provider (optional)',
-                hintText: 'e.g. Side gate is unlocked, dog in backyard...',
+                labelText: 'Anything the provider should know?',
+                hintText: 'Gate code, where to pile the snow, what to avoid',
+                helperText: 'Saved for this address — you only type it once',
+                helperMaxLines: 2,
                 prefixIcon: Icon(Icons.notes_outlined),
               ),
             ),
