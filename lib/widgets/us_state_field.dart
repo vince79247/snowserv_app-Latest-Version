@@ -42,13 +42,22 @@ class _UsStateFieldState extends State<UsStateField> {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
-      // Long value lists want the button to fill its width, or the selected
-      // item can run past the field's border on a narrow phone.
-      isExpanded: true,
+      // NOT isExpanded. It was set to stop a long value running past the border,
+      // but every value here is exactly two characters, so it bought nothing and
+      // cost the selected value: in the narrow State column of a City/State/ZIP
+      // row it laid the selection out in a one-character-wide slot, so picking
+      // NY displayed "N" with empty space beside it (seen on device 2026-08-11).
       initialValue: _value,
+      // NO prefix icon. This field sits in a City/State/ZIP row where State is
+      // the narrowest column (flex 1 against City's 2), and a leading icon plus
+      // the dropdown chevron together consumed the ENTIRE width — so picking a
+      // state stored it correctly and then showed you an empty box. Verified on
+      // device 2026-08-11: selecting NY resolved the service zone and priced the
+      // order while the field still rendered blank, which reads as "my choice
+      // didn't take" and invites people to tap it again. Two letters need the
+      // room more than a decorative map pin does.
       decoration: InputDecoration(
         labelText: widget.label,
-        prefixIcon: const Icon(Icons.map_outlined),
         filled: widget.filled ? true : null,
         fillColor: widget.filled ? Colors.white : null,
       ),

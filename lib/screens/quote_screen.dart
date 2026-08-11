@@ -149,10 +149,15 @@ class _QuoteScreenState extends State<QuoteScreen> {
             decoration: const InputDecoration(labelText: 'Street address', filled: true, fillColor: Colors.white),
           ),
           const SizedBox(height: 8),
+          // City 5 · State 3 · ZIP 4 — same fix as the order screen's address
+          // row: at City 2 / State 1 / ZIP 1 the ZIP column was too narrow to
+          // show five digits, so the first one scrolled out of sight. This is
+          // the pre-signup quote, the very first thing a stranger types into
+          // SnowServ, and a ZIP they can't read back is a bad first impression.
           Row(
             children: [
               Expanded(
-                flex: 2,
+                flex: 5,
                 child: TextField(
                   controller: _cityCtrl,
                   decoration: const InputDecoration(labelText: 'City', filled: true, fillColor: Colors.white),
@@ -160,10 +165,12 @@ class _QuoteScreenState extends State<QuoteScreen> {
               ),
               const SizedBox(width: 8),
               Expanded(
+                flex: 3,
                 child: UsStateField(controller: _stateCtrl, filled: true),
               ),
               const SizedBox(width: 8),
               Expanded(
+                flex: 4,
                 child: TextField(
                   controller: _zipCtrl,
                   keyboardType: TextInputType.number,

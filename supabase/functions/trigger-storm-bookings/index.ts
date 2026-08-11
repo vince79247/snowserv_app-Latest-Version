@@ -264,6 +264,36 @@ Deno.serve(async (req: Request) => {
         continue
       }
 
+      // ---- the customer's standing note for THIS property ------------------
+      // A storm booking fires at 4am with nobody awake, so it is the one order
+      // the customer cannot be asked about — which makes carrying the gate code
+      // MORE important here, not less. Without this the auto-created job went
+      // out with an empty note and the provider met a locked gate on exactly
+      // the orders the note exists to prevent.
+      //
+      // Same rule the order screen prefills by (customer_home
+      // _prefillNotesForSavedAddress): the most recent note left at this
+      // address wins. Read at TRIGGER time, not booking time, so editing the
+      // note on any ordinary order also updates what the next storm job says.
+      let carriedNotes: string | null = null
+      try {
+        const nRes = await fetch(
+          `${url}/rest/v1/jobs?select=customer_notes` +
+          `&customer_id=eq.${b.customer_id}&address_id=eq.${b.address_id}` +
+          `&customer_notes=not.is.null&order=created_at.desc&limit=1`,
+          { headers: svc })
+        if (nRes.ok) {
+          const n = (await nRes.json())?.[0]?.customer_notes
+          if (typeof n === 'string' && n.trim()) carriedNotes = n.trim()
+        } else {
+          console.error('note carry-over lookup failed', nRes.status)
+        }
+      } catch (e) {
+        // Never block the job on this — a job without the note still beats no
+        // job at all during a storm.
+        console.error('note carry-over lookup threw', String(e))
+      }
+
       // ---- create the job, exactly as the webhook would for a normal order
       const jobRow = await (await fetch(`${url}/rest/v1/jobs`, {
         method: 'POST',
@@ -271,6 +301,7 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           customer_id: b.customer_id,
           address_id: b.address_id,
+          ...(carriedNotes ? { customer_notes: carriedNotes } : {}),
           service_type: b.service_type,
           walkway: b.service_type !== 'driveway',
           driveway: b.service_type !== 'sidewalk',

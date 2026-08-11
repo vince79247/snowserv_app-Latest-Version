@@ -1740,10 +1740,20 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                       ),
                     ),
                     const SizedBox(height: 8),
+                    // Widths: City 5 · State 3 · ZIP 4 (of 12) = 41.7% / 25% / 33.3%.
+                    // ZIP used to get a quarter of the row, too narrow to SHOW
+                    // five digits — the field held 10704 and displayed 0704, the
+                    // leading digit scrolled off, so a customer could not read
+                    // back the ZIP they had just typed (measured on device
+                    // 2026-08-11, not assumed). ZIP is sized for the five digits
+                    // it will ever hold and no more; City stays the widest
+                    // because it's the only variable-length field here. State
+                    // keeps EXACTLY the 25% it had, which is the width "NY" was
+                    // verified to render at — don't shave it.
                     Row(
                       children: [
                         Expanded(
-                          flex: 2,
+                          flex: 5,
                           child: TextField(
                             controller: _otherCityController,
                             decoration: const InputDecoration(
@@ -1755,11 +1765,13 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                         ),
                         const SizedBox(width: 8),
                         Expanded(
+                          flex: 3,
                           child: UsStateField(
                               controller: _otherStateController, filled: true),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
+                          flex: 4,
                           child: TextField(
                             controller: _otherZipController,
                             decoration: const InputDecoration(
