@@ -228,20 +228,34 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     } catch (_) {}
   }
 
+  /// Storm pricing for the SERVICE ADDRESS — never for wherever the phone is.
+  ///
+  /// This used to take a GPS fix and price the snow at the customer's current
+  /// position. The server charges on the snow at the job's coordinates
+  /// (create-checkout-session), so ordering from anywhere but the property
+  /// showed one multiplier and billed another — order your mother's driveway
+  /// from the office, or open the app on holiday, and the quote was for the
+  /// wrong sky. The shown price must equal the charged price; that rule is why
+  /// the zone matcher is duplicated server-side, and it applies here too.
+  ///
+  /// _orderLat/_orderLng are the geocoded service address, already resolved by
+  /// _refreshServiceArea. No coordinates yet → no storm figure, rather than a
+  /// confident wrong one.
   Future<void> loadSurge() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      final lat = _orderLat, lng = _orderLng;
+      if (lat == null || lng == null) {
+        if (mounted) {
+          setState(() {
+            snowDepthInches = 0;
+            surgeMultiplier = 1.0;
+          });
+        }
+        return;
       }
-      if (permission == LocationPermission.deniedForever) return;
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
-      );
 
       final url =
-          'https://api.open-meteo.com/v1/forecast?latitude=${position.latitude}&longitude=${position.longitude}&current=snow_depth&timezone=auto';
+          'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lng&current=snow_depth&timezone=auto';
 
       double snowDepthMeters = 0.0;
       try {
@@ -620,6 +634,10 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
         _orderLng = geo?['lng'];
         _checkingArea = false;
       });
+      // Storm pricing follows the ADDRESS, so re-read it whenever the address
+      // moves — otherwise switching to a "someone else" property would price
+      // its snow using the previous property's sky.
+      await loadSurge();
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -1508,7 +1526,11 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                             final ahead = _jobsAhead[job['id'].toString()]!;
                             return Row(
                               children: [
-                                Icon(ahead > 0 ? Icons.people_outline : Icons.local_shipping_outlined,
+                                // near_me, not local_shipping — the delivery-van
+                                // glyph read as a parcel arriving, which is the
+                                // wrong promise for a plow. This one is a
+                                // heading arrow: someone is en route to you.
+                                Icon(ahead > 0 ? Icons.people_outline : Icons.near_me_outlined,
                                     size: 14, color: Colors.grey),
                                 const SizedBox(width: 4),
                                 Text(

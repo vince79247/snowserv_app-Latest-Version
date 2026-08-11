@@ -111,6 +111,32 @@ class _CustomerJobHistoryScreenState extends State<CustomerJobHistoryScreen> {
                 _receiptRow('Address',
                     '${job['addresses']['address_line']}, ${job['addresses']['city']}, ${job['addresses']['state']} ${job['addresses']['zip']}'),
               _receiptRow('Date', formatDate(job['created_at'])),
+              // Storm pricing, itemized WITH ITS EVIDENCE. A multiplier the
+              // customer cannot check is a dispute waiting to happen: "you
+              // charged me for twelve inches and we got eleven" is only
+              // settleable if the receipt records what was measured, where, and
+              // by whom. This is the depth the price was actually computed
+              // from, stored on the job at the moment it was priced — not
+              // re-read later, when the snow will have changed.
+              Builder(builder: (_) {
+                final surge =
+                    (job['surge_multiplier'] as num?)?.toDouble() ?? 1.0;
+                if (surge <= 1.0) return const SizedBox.shrink();
+                final snow = (job['snow_level'] as num?)?.toDouble();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Divider(height: 24),
+                    _receiptRow('Base price', '\$${job['base_price']}'),
+                    _receiptRow('Storm pricing',
+                        '${surge.toStringAsFixed(surge % 1 == 0 ? 0 : 2)}×'),
+                    if (snow != null)
+                      _receiptRow('Snow measured',
+                          '${snow.toStringAsFixed(1)} in at this address'),
+                    _receiptRow('Measured by', 'Open-Meteo weather service'),
+                  ],
+                );
+              }),
               const Divider(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

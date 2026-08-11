@@ -168,4 +168,18 @@ class AppConfig {
     });
     stormBands = bands;
   }
+
+  /// Admin: persist the storm-booking price ceiling. trigger-storm-bookings
+  /// reads the SAME app_settings row and enforces it, so the cap promised on
+  /// the booking card is the cap actually charged. Upsert (not update) so it
+  /// self-heals if the seed row is ever missing.
+  static Future<void> setStormBookingMaxSurge(double cap) async {
+    final clamped = cap.clamp(stormBookingCapMin, stormBookingCapMax);
+    await Supabase.instance.client.from('app_settings').upsert({
+      'key': 'storm_booking_max_surge',
+      'value': clamped.toString(),
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+    stormBookingMaxSurge = clamped;
+  }
 }

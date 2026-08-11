@@ -233,6 +233,23 @@ List<_FaqSection> get _customerSections => [
       'What is storm pricing?',
       'During heavier snow, the job takes more time and effort, so prices adjust automatically based on current snow depth:\n\n$_stormTiers\n\nThe storm pricing level is always shown on the order screen before you pay.',
     ),
+    // Naming the source, the location and the moment of measurement, in public,
+    // BEFORE anyone is charged. A storm-pricing argument is unwinnable if the
+    // only answer to "how much snow do you say fell?" is "our system decided" —
+    // so this states the referee up front and points at the receipt, which
+    // records the exact figure the price was computed from.
+    _FaqItem(
+      'Who decides how much snow fell?',
+      'We do not measure it ourselves and neither side gets to argue the number after the fact. Snow depth comes from Open-Meteo, an independent weather service, read for the coordinates of YOUR service address — not a regional average and not a figure we set.\n\n'
+          'It is read at the moment you order, and the exact depth used is saved with that order. Open your receipt and you will see the snow depth, the multiplier it produced, and the source, for that specific job.\n\n'
+          'Because it is read the moment you order, it reflects the snow on your property at that moment. Snow that falls after you order does not change your price — the price you saw is the price you pay.',
+    ),
+    _FaqItem(
+      'How is a booked-ahead storm job priced?',
+      'A storm booking fires on its own once the snow stops, while you are most likely asleep — so it is capped. Storm pricing on a booking never exceeds ${AppConfig.stormBookingMaxSurge.toStringAsFixed(AppConfig.stormBookingMaxSurge % 1 == 0 ? 0 : 1)}× the normal rate, no matter how much snow falls. Blizzard pricing never applies to a job you booked in advance.\n\n'
+          'A booking is priced on the NEW snow that fell in that storm, measured at your address by Open-Meteo; an on-demand order is priced on the snow lying on the ground when you order. Either way the figure used is recorded on your receipt.\n\n'
+          'We put a hold on your card when the job is created and send you a notification with the amount. You are only actually charged once a provider starts, so you can still cancel free before then.',
+    ),
     _FaqItem(
       'When am I charged?',
       'When you place an order, we put a temporary authorization hold on your card for the job amount. This reserves the funds and confirms your card is valid — but it is NOT a charge yet.\n\nYour card is only actually charged once a provider starts your job. Until then it stays a hold — so if no provider takes the job, or you cancel before a provider starts, the hold is released and you are never charged.',

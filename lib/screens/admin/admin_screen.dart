@@ -447,6 +447,85 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     }
   }
 
+  // Admin-editable ceiling on storm pricing for BOOKED-AHEAD jobs. A storm
+  // booking fires while the customer is asleep and charges their card
+  // off-session, so they never see the multiplier and cannot decline it — this
+  // cap is what stands in for that consent, and the booking card and FAQ both
+  // promise the number, so changing it here changes what customers are told.
+  Future<void> _editStormBookingCap() async {
+    final ctrl = TextEditingController(
+        text: AppConfig.stormBookingMaxSurge.toString());
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Storm booking price cap'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                'The most storm pricing can multiply a BOOKED-AHEAD job. On-demand '
+                'orders are unaffected — the customer sees that multiplier and can '
+                'decline it. A booking fires while they sleep, so this is the '
+                'ceiling we promise them on the booking card and in the FAQ.',
+                style: TextStyle(fontSize: 13, color: SnowServColors.inkSoft)),
+            const SizedBox(height: 10),
+            Text(
+                'Your bands: ${AppConfig.stormBands.map((b) => '${b.multiplier}x').join(' · ')}. '
+                'A cap only costs you in bands above it.',
+                style: const TextStyle(
+                    fontSize: 12.5, color: SnowServColors.inkSoft)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Maximum multiplier',
+                suffixText: '×',
+                helperText:
+                    'Between ${AppConfig.stormBookingCapMin} and ${AppConfig.stormBookingCapMax} (e.g. 1.5).',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (saved != true) return;
+    final cap = double.tryParse(ctrl.text.trim());
+    if (cap == null ||
+        cap < AppConfig.stormBookingCapMin ||
+        cap > AppConfig.stormBookingCapMax) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Enter a number between ${AppConfig.stormBookingCapMin} and ${AppConfig.stormBookingCapMax}.')));
+      }
+      return;
+    }
+    try {
+      await AppConfig.setStormBookingMaxSurge(cap);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Storm bookings now capped at ${cap}x.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not save: $e')));
+      }
+    }
+  }
+
   // Admin-editable storm pricing (snow depth -> price multiplier ladder).
   // Persists to app_settings.storm_bands via AppConfig; the
   // create-checkout-session function reads the SAME row, so the customer price
@@ -2852,6 +2931,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         if (includeTicker) _buildLiveTicker(),
         _dispatchTimerBar(),
         _stormPricingBar(),
+        // Directly under the storm ladder, because it is the ceiling ON that
+        // ladder and only means anything read together with it.
+        _stormBookingCapBar(),
         _searchField('Search jobs by #, name, address, or ZIP',
             (v) => setState(() => _jobSearch = v)),
         SizedBox(
@@ -2947,6 +3029,59 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               Expanded(
                 child: Text(
                   'Storm pricing: $summary',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange),
+                ),
+              ),
+              const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.tune, size: 14, color: Colors.orange),
+                SizedBox(width: 4),
+                Text('Edit',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange)),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _stormBookingCapBar() {
+    final cap = AppConfig.stormBookingMaxSurge;
+    final capStr = cap.toStringAsFixed(cap % 1 == 0 ? 0 : 1);
+    // Name the consequence, not just the number: which of your own bands this
+    // actually holds back is the only thing that decides whether the cap costs
+    // you anything.
+    final bitesAt = AppConfig.stormBands
+        .where((b) => b.multiplier > cap)
+        .map((b) => '${b.minInches.round()}"+')
+        .toList();
+    final effect = bitesAt.isEmpty
+        ? 'never reached by your current bands'
+        : 'holds back ${bitesAt.first} storms';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: InkWell(
+        onTap: _editStormBookingCap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.event_available, size: 16, color: Colors.orange),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Storm booking cap: ${capStr}x  ·  $effect',
                   style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

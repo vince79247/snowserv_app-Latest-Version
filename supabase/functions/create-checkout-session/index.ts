@@ -160,8 +160,8 @@ async function surgeForPoint(
   lat: number | null,
   lng: number | null,
   bands: StormBand[],
-): Promise<number> {
-  if (lat == null || lng == null) return 1.0
+): Promise<{ mult: number; inches: number | null }> {
+  if (lat == null || lng == null) return { mult: 1.0, inches: null }
   try {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=snow_depth&timezone=auto`
@@ -170,9 +170,15 @@ async function surgeForPoint(
     const inches = (Number.isFinite(meters) ? meters : 0) * 39.3701
     let mult = 1.0
     for (const b of bands) if (inches >= b.min) mult = b.mult
-    return mult
+    // Hand back the DEPTH as well as the multiplier. It gets stored on the job
+    // (jobs.snow_level) and printed on the receipt, so "why was I charged 1.5x"
+    // has an answer with a number in it instead of our word against theirs.
+    return { mult, inches }
   } catch {
-    return 1.0 // no storm data → base price (never over/undercharge on a fetch error)
+    // No storm data → base price. Never over- or under-charge on a fetch error,
+    // and record no depth rather than a fake 0 that would read as "we measured
+    // zero inches" on a receipt.
+    return { mult: 1.0, inches: null }
   }
 }
 
@@ -317,7 +323,8 @@ Deno.serve(async (req: Request) => {
       : 0
     const baseTotal = servicePrice + saltingPrice
     const stormBands = await loadStormBands(supabaseUrl, dbHeaders)
-    const surge = await surgeForPoint(geo?.lat ?? null, geo?.lng ?? null, stormBands)
+    const storm = await surgeForPoint(geo?.lat ?? null, geo?.lng ?? null, stormBands)
+    const surge = storm.mult
     const finalPrice = Math.round(baseTotal * surge)
     const amountCents = finalPrice * 100
     if (!Number.isFinite(amountCents) || amountCents < 50) {
@@ -336,6 +343,11 @@ Deno.serve(async (req: Request) => {
     meta.base_price = String(baseTotal)
     meta.surge_multiplier = String(surge)
     meta.final_price = String(finalPrice)
+    // The measured snow depth behind that multiplier, in inches, at the JOB's
+    // coordinates. Stored on the job and printed on the receipt so a storm-
+    // pricing question is settled by a recorded number and a named source
+    // rather than by argument. Omitted (not zeroed) when the lookup failed.
+    if (storm.inches != null) meta.snow_level = storm.inches.toFixed(1)
     // job_lat/lng drive DISPATCH proximity + the on-site verification chips —
     // never the price (that's `zone` + `surge`, both computed from our own
     // geocode above). So: prefer our server geocode; if it failed, fall back to

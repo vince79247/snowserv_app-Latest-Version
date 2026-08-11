@@ -326,6 +326,14 @@ Deno.serve(async (req: Request) => {
           base_price: base,
           surge_multiplier: surge,
           final_price: finalPrice,
+          // What we measured, kept with the job it priced. NOTE this is NEW
+          // snow that fell in this storm (hourly `snowfall`), whereas an
+          // on-demand order prices on snow currently ON THE GROUND (`current
+          // .snow_depth`) — a booking is paid for clearing one storm, an
+          // on-demand order for clearing whatever is lying there. The receipt
+          // says which, because "you said 12 inches, I measured 11" is only
+          // settleable if both sides know what was being measured.
+          snow_level: Number(w.fellInches.toFixed(1)),
           status: 'requested',
           payment_intent_id: pi.id,
           job_lat: lat,

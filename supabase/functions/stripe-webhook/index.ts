@@ -152,6 +152,9 @@ Deno.serve(async (req: Request) => {
       payment_intent_id: paymentIntentId,
     }
     if (m.customer_notes) jobBody.customer_notes = m.customer_notes
+    // The snow depth the storm multiplier was computed from — the evidence for
+    // the price, kept with the job it priced.
+    if (m.snow_level) jobBody.snow_level = Number(m.snow_level)
     // Driveway size for qualification dispatch (only present on driveway orders).
     if (m.driveway_size) jobBody.driveway_size = m.driveway_size
     if (m.job_lat) jobBody.job_lat = Number(m.job_lat)
