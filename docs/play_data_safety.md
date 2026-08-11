@@ -122,12 +122,19 @@ Declared in `android/app/src/main/AndroidManifest.xml`:
 `INTERNET` · `CAMERA` · `READ_MEDIA_IMAGES` · `POST_NOTIFICATIONS` ·
 `ACCESS_FINE_LOCATION` · `ACCESS_COARSE_LOCATION`
 
-⚠️ **`READ_MEDIA_IMAGES` looks unnecessary.** Photo capture is camera-only — Gallery
-selection was deliberately removed on 2026-07-13 so completion photos are genuine
-proof-of-work. The permission is most likely injected by `image_picker`'s manifest
-merger rather than requested by our code. Declaring photo-library access an app never
-uses is the kind of thing that draws a policy question. Worth confirming and, if it is
-ours, removing with `tools:node="remove"` before the first submission.
+✅ **`READ_MEDIA_IMAGES` is REQUIRED — do not remove it.** (Checked 2026-08-11; an
+earlier version of this file claimed it looked unnecessary and should be stripped with
+`tools:node="remove"`. That was wrong and would have broken provider registration.)
+
+Camera-only applies to **job photos** (before/completion), where Gallery was
+deliberately removed on 2026-07-13 so the photo is genuine proof-of-work. **Insurance
+documents are a separate flow and do use the gallery:**
+* `provider_details_screen.dart` → `_pickInsurancePhoto` uses `ImageSource.gallery`
+  exclusively — there is no camera path.
+* `provider_registration_screen.dart` offers an explicit "Choose from Gallery" option.
+
+That is the right design: people photograph their insurance card once and upload it
+later, rather than being made to hold the document up to the camera mid-signup.
 
 ---
 
