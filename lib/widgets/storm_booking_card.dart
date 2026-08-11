@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/app_config.dart';
 import '../theme.dart';
 
 // "Book my next storm" — a standing order that fires itself when snow STOPS.
@@ -253,10 +254,22 @@ class _StormBookingCardState extends State<StormBookingCard> {
             // Said plainly, because "we'll charge your card automatically at
             // some unknown future time" is exactly the kind of thing people
             // feel tricked by if it's buried.
-            const Text(
-              'Nothing is charged now. When it snows we charge the card on '
-              'file at that day\'s price, and tell you before anyone arrives.',
-              style: TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
+            //
+            // The CAP is the part that earns this feature the right to charge a
+            // sleeping customer. On demand you see the storm multiplier and can
+            // decline it; a booking fires at 4am and authorizes the card
+            // off-session, so the ceiling is what stands in for that consent —
+            // and it is the honest reason to book ahead, which is why it is
+            // stated here rather than in the FAQ.
+            Text(
+              'Nothing is charged now. When it snows we put a hold on the card '
+              'on file at that day\'s price — never more than '
+              '${AppConfig.stormBookingMaxSurge.toStringAsFixed(
+                      AppConfig.stormBookingMaxSurge % 1 == 0 ? 0 : 1)}× '
+              'the normal rate, so blizzard pricing never applies to a booking. '
+              'You\'re only charged once a provider starts, and you can cancel '
+              'free before then.',
+              style: const TextStyle(fontSize: 11.5, color: SnowServColors.inkSoft),
             ),
             const SizedBox(height: 10),
             if (!widget.hasCard)

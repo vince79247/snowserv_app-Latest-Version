@@ -43,7 +43,10 @@ async function sendNotification(accessToken: string, fcmToken: string, title: st
   return { ok: false, code }
 }
 
-function getNotificationContent(status: string): { title: string; body: string } | null {
+function getNotificationContent(
+  status: string,
+  opts?: { amountUsd?: number | null },
+): { title: string; body: string } | null {
   switch (status) {
     case 'assigned':
       return { title: 'Provider Assigned!', body: 'A provider has accepted your job and is on the way.' }
@@ -77,11 +80,23 @@ function getNotificationContent(status: string): { title: string; body: string }
         title: 'We couldn\'t find a provider',
         body: 'Nobody was available for your job, so we\'ve cancelled it and released the hold on your card. You were not charged. Sorry about that.',
       }
-    case 'storm_booking_triggered':
+    case 'storm_booking_triggered': {
+      // SAY THE NUMBER. This is the one job the customer never approved in the
+      // moment: it fires while they are asleep and authorizes their card
+      // off-session. A notification that doesn't name the amount is how a
+      // reasonable person ends up disputing the charge instead of asking about
+      // it — they wake to a hold they never saw agreed to. It is still only a
+      // hold until a provider starts, and cancelling before then releases it in
+      // full, which is worth the extra sentence at 4am.
+      const amt = opts?.amountUsd
+      const money = typeof amt === 'number' && amt > 0 ? `$${Math.round(amt)}` : null
       return {
         title: 'Snow stopped — your job is booked ❄️',
-        body: 'Your storm booking just fired. We\'re sending a provider to clear your property.',
+        body: money
+          ? `We're sending a provider to clear your property. ${money} is on hold — you're only charged once they start, so you can still cancel free in the app.`
+          : 'Your storm booking just fired. We\'re sending a provider to clear your property.',
       }
+    }
     case 'storm_booking_failed':
       return {
         title: 'Storm booking needs attention',
@@ -116,8 +131,10 @@ Deno.serve(async (req: Request) => {
   try {
     const { job_id, user_id, status } = await req.json()
 
-    const notification = getNotificationContent(status)
-    if (!notification) return new Response(JSON.stringify({ skipped: true }), { status: 200, headers: cors })
+    // Cheap check first: an unknown status does no database work at all.
+    if (!getNotificationContent(status)) {
+      return new Response(JSON.stringify({ skipped: true }), { status: 200, headers: cors })
+    }
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
@@ -125,11 +142,18 @@ Deno.serve(async (req: Request) => {
     // than a job — a storm booking whose card was declined has no job to point
     // at, because failing to authorize is precisely why no job exists.
     let customerId: string | null = user_id ?? null
+    let amountUsd: number | null = null
     if (!customerId) {
-      const { data: job, error: jobError } = await supabase.from('jobs').select('customer_id').eq('id', job_id).single()
+      const { data: job, error: jobError } = await supabase
+          .from('jobs').select('customer_id, final_price').eq('id', job_id).single()
       if (!job) return new Response(JSON.stringify({ error: 'Job not found', details: jobError }), { status: 404, headers: cors })
       customerId = job.customer_id
+      amountUsd = job.final_price != null ? Number(job.final_price) : null
     }
+
+    // Rebuilt with the amount now that the job is loaded — see
+    // storm_booking_triggered, which must name the sum it just put on hold.
+    const notification = getNotificationContent(status, { amountUsd })!
 
     const { data: profile } = await supabase.from('profiles').select('fcm_token').eq('id', customerId).single()
     if (!profile?.fcm_token) return new Response(JSON.stringify({ sent: 0 }), { status: 200, headers: cors })

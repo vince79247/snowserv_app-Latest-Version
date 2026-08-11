@@ -50,6 +50,27 @@ class AppConfig {
   static const double stormMultMin = 1.0; // storm pricing only ever raises price
   static const double stormMultMax = 5.0;
 
+  /// Ceiling on storm pricing for a BOOKED-AHEAD job (app_settings
+  /// .storm_booking_max_surge). A storm booking fires while the customer is
+  /// asleep and authorizes their card off-session, so they cannot see the
+  /// multiplier and decline it the way an on-demand customer can — this is the
+  /// promise that replaces that missing consent: "book ahead and blizzard
+  /// pricing never applies to you".
+  ///
+  /// 1.5 is close to free. On the launch ladder the bands are 1.0 / 1.2 / 1.5 /
+  /// 2.0, so the cap only bites in the 10"+ band; every smaller storm already
+  /// prices at or below it. Capping LOWER is not free: the provider takes their
+  /// share of whatever is charged, so a hard 1.0x would make booked jobs pay
+  /// half what the on-demand job next door pays, and providers reject what they
+  /// can see is underpaid — the pre-booked jobs would be the ones nobody takes,
+  /// during the worst storm of the year.
+  ///
+  /// Read by BOTH this app (to state the ceiling on the booking card) and the
+  /// trigger-storm-bookings function (which enforces it), like storm_bands.
+  static const double stormBookingCapMin = 1.0;
+  static const double stormBookingCapMax = 5.0;
+  static double stormBookingMaxSurge = 1.5;
+
   static Future<void> load() async {
     try {
       final rows = await Supabase.instance.client
@@ -67,6 +88,10 @@ class AppConfig {
       }
       final sb = parseStormBands(map['storm_bands']);
       if (sb != null) stormBands = sb;
+      final cap = double.tryParse(map['storm_booking_max_surge'] ?? '');
+      if (cap != null && cap >= stormBookingCapMin && cap <= stormBookingCapMax) {
+        stormBookingMaxSurge = cap;
+      }
     } catch (_) {
       // Keep the defaults on any failure — pricing/dispatch must never break.
     }

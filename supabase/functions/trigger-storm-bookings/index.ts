@@ -128,6 +128,18 @@ Deno.serve(async (req: Request) => {
     let bands: Array<{ min: number; mult: number }> = [{ min: 0, mult: 1 }]
     try { bands = JSON.parse(setting('storm_bands') ?? '') ?? bands } catch { /* defaults */ }
 
+    // Ceiling on storm pricing for a BOOKED job. This fires while the customer
+    // is asleep and charges their card off-session, so they never get to see
+    // the multiplier and decline it the way an on-demand customer does. The cap
+    // is what stands in for that missing consent, and it is what the booking
+    // card promises them. Default 1.5 — on the launch ladder (1.0/1.2/1.5/2.0)
+    // that only bites in a 10"+ blizzard, so it costs nothing on ordinary snow.
+    // Clamped to a sane range so a bad settings value can't uncap the charge.
+    const rawCap = Number(setting('storm_booking_max_surge'))
+    const surgeCap = Number.isFinite(rawCap) && rawCap >= 1 && rawCap <= 5
+      ? rawCap
+      : 1.5
+
     let fired = 0
     const results: unknown[] = []
 
@@ -215,6 +227,10 @@ Deno.serve(async (req: Request) => {
 
       let surge = 1
       for (const band of bands) if (w.fellInches >= band.min) surge = band.mult
+      // The capped multiplier is what we charge AND what we store on the job, so
+      // the receipt, the provider's 75% and the customer's card all agree. The
+      // provider is never paid on a number the customer wasn't charged.
+      if (surge > surgeCap) surge = surgeCap
       const base = servicePrice + saltPrice
       const finalPrice = Math.round(base * surge)
       const cents = finalPrice * 100
