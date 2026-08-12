@@ -1,6 +1,7 @@
 # Google Play listing + submission pack — SnowServ (Android)
 
-Copy-paste source for the Google Play Console. Draft by Claude 2026-07-17. Mirrors
+Copy-paste source for the Google Play Console. Drafted 2026-07-17, refreshed
+2026-08-12 (added storm booking + multiple properties; softened two claims — see below). Mirrors
 the iOS pack (docs/app_store_listing.md) with Play-specific pieces (Data safety,
 content rating, permissions declaration). Fields marked **[YOU]** need your action.
 
@@ -17,39 +18,35 @@ number Vince now has** → skips the 20-tester/14-day rule that new personal acc
 ```
 Snow removal, on demand.
 
-SnowServ connects you with vetted local snow-removal pros — so you can skip the shovel
-and book help in a couple of taps. Driveway buried? Walkway iced over? Request service
-from your phone and a nearby provider takes care of it.
+SnowServ connects you with local snow-removal pros — so you can skip the shovel and book help in a couple of taps. Driveway buried? Walkway iced over? Request service from your phone and a nearby provider takes care of it.
 
 HOW IT WORKS
-• Enter your address and pick what you need — driveway, walkway, or both, plus optional
-  de-icing/salting.
+• Enter your address and pick what you need — driveway, sidewalk, or both, plus optional de-icing.
 • See your price upfront before you book. No surprises.
-• A vetted local provider is dispatched to you.
+• A local provider is dispatched to you.
 • Track your job and get notified when it's done. Rate your provider when it's complete.
+
+BOOK AHEAD FOR THE NEXT STORM
+Don't want to wake up at 5am to order? Set it up in advance and we'll send someone once the snow actually stops falling — not in the middle of the storm, when the driveway just fills back in. You'll see the price cap before you agree to anything.
+
+MORE THAN ONE PLACE TO CLEAR
+Save several properties — your own home, a parent's house, a rental — and switch between them when you order.
 
 UPFRONT, HONEST PRICING
 • You see the full price before you order.
-• During storms, pricing adjusts with snow depth — and we show you exactly how, so you
-  always know why a price is what it is.
-• Your card is only placed on hold when you book — you're not charged until a provider
-  actually starts the work. Cancel before that and the hold is released.
+• During storms, pricing adjusts with snow depth — and we show you exactly how, and where the snow measurement comes from, so you always know why a price is what it is.
+• Your card is only placed on hold when you book — you're not charged until a provider actually starts the work. Cancel before that and the hold is released.
 
 WHY SNOWSERV
-• Vetted, local providers.
+• Local providers, reviewed before they can take jobs.
 • No contracts. No monthly fees. No hidden fees.
 • Secure payment powered by Stripe.
 • Real-time updates and notifications from request to completion.
 
 CLEAR SNOW WITH SNOWSERV
-Have a plow truck or just a reliable shovel? Sign up as a provider, get matched to nearby
-jobs, with fast payouts to your bank. Tap "Clear snow with us" on the sign-in screen to
-see exactly what the work pays before you register — and every job shows its pay on the
-offer, before you accept it.
+Have a plow truck or just a reliable shovel? Sign up as a provider and get matched to nearby jobs, with payouts straight to your bank. Tap "Clear snow with us" on the sign-in screen to see exactly what the work pays before you register — and every job shows its pay on the offer, before you accept it.
 
-Now serving Yonkers, NY — with more of Westchester County on the way.
-If we're not in your neighborhood yet, join the waitlist in the app and we'll let you
-know when we arrive.
+Now serving Yonkers, NY — with more of Westchester County on the way. If we're not in your neighborhood yet, join the waitlist in the app and we'll let you know when we arrive.
 
 Questions? support@snowserv.app
 ```
@@ -141,20 +138,27 @@ products → the "Financial features" declaration is answered accordingly (none)
 
 ---
 
-## What's DONE vs. what needs YOU
-DONE (in repo): package `com.snowserv.app`, Firebase/FCM wired, permissions declared, a
-release **app bundle builds** (`flutter build appbundle` → 58 MB .aab), release **signing
-wired** (needs your keystore — see android/key.properties.example), privacy policy LIVE.
+## Status as of 2026-08-12
+DONE: developer account (Organization, so no 12-tester rule) · app created · keystore +
+Play App Signing · all 11 App content declarations · Data safety (CSV import) · content
+rating · target audience · sign-in details · **build 23 live on Internal testing**.
 
-NEEDS YOU:
-- [ ] Create the **Play Console developer account** ($25), register as **Organization** with
-      your **D-U-N-S number**.
-- [ ] Generate the **release keystore** (one `keytool` command) + fill android/key.properties.
-- [ ] Create the **feature graphic** (1024×500).
-- [ ] Fill **Data safety** (§5) + **content rating** (§6) in the Console.
-- [ ] Upload the **.aab** and the screenshots; paste §1–§10.
-- [ ] **Test the app on a real Android device** first (it's never been run on Android — the
-      one true prerequisite; iOS-verified only so far).
+STILL OPEN — the Main store listing only:
+- [ ] Paste §1 (name / short / full description) and §2 (category) into the Console.
+- [ ] **Feature graphic** 1024×500 — still needs to be created.
+- [ ] **Phone screenshots** 2–8 — take them AFTER the build-23 test round settles the UI,
+      so the store images match what ships.
+
+## Wording changed 2026-08-12, and why
+- **"vetted" -> "reviewed before they can take jobs".** We do review every application,
+  require insurance for vehicle work, and Stripe runs real KYC before anyone is paid —
+  but we deliberately run NO criminal background checks (see CLAUDE.md). "Vetted" invites
+  the reader to assume one. The replacement is true and still reassuring.
+- **"fast payouts" -> "payouts straight to your bank".** Payouts run on a 7-day rolling
+  batch. "Fast" is a promise to providers we would be breaking on day one.
+- Added the storm-booking and multiple-properties sections; both shipped since the draft.
+- Added where the snow measurement comes from, which is the dispute the storm-pricing
+  copy exists to prevent.
 
 ## Not required (so we don't chase them)
 - Google Play Billing — not needed (real-world service; Stripe is allowed).
