@@ -44,6 +44,22 @@ and their property with care. You will not subcontract a job to anyone who has n
 approved by SnowServ. You may decline or cancel jobs, but repeated cancellations or
 no-shows may result in removal.
 
+## 3A. Your Account Is Yours Alone
+The person who registers this account must be the person who performs the work. You may
+not share, lend, sell, or transfer your account, your login, or your provider profile to
+anyone else, and you may not accept or perform jobs on behalf of another person's account.
+The identity verified with our payment processor must be your own.
+
+You may bring helpers. Working alongside employees, family, or crew you supervise is
+permitted and expected — you tell us your crew size when you register. What is not
+permitted is sending someone in your place. You remain personally present, personally
+responsible for the job, and solely responsible for anyone you bring: their pay, their
+taxes, their conduct, and their injuries. They are not SnowServ's workers and SnowServ has
+no obligation to them.
+
+Accounts found to be operated by someone other than the registered provider may be
+suspended immediately and any pending payout withheld pending review.
+
 ## 4. Non-Circumvention & Non-Solicitation (Anti-Harvesting)
 **This is a material term of this Agreement.**
 

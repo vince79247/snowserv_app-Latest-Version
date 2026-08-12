@@ -3335,6 +3335,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                 _jobTimeline(job),
                 _locationVerification(job),
+                _ratingRow(job),
                 _captureFailedBanner(job),
                 if (job['status'] == 'requested' ||
                     job['status'] == 'assigned')
@@ -3381,6 +3382,132 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         );
       },
     );
+  }
+
+  /// The customer's star rating for this job, and the only place a rating can be
+  /// removed.
+  ///
+  /// The panel used to display no rating at all, anywhere per-job — so an
+  /// "unfair rating" complaint could not even be looked at, let alone acted on.
+  Widget _ratingRow(Map<String, dynamic> job) {
+    final stars = job['customer_rating'] as int?;
+    final removedStars = job['rating_removed_stars'] as int?;
+    if (stars == null && removedStars == null) return const SizedBox.shrink();
+
+    if (stars == null) {
+      // Removed: keep it visible rather than vanishing, so the provider's
+      // average can still be explained months later.
+      final reason = (job['rating_removed_reason'] ?? '').toString().trim();
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(
+          children: [
+            Icon(Icons.star_border, size: 15, color: Colors.grey.shade500),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                'Rating removed (was $removedStars★)'
+                '${reason.isEmpty ? '' : ' — $reason'}',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: Colors.grey.shade600,
+                    fontStyle: FontStyle.italic),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          for (var i = 1; i <= 5; i++)
+            Icon(i <= stars ? Icons.star : Icons.star_border,
+                size: 15,
+                color: i <= stars ? Colors.amber.shade700 : Colors.grey.shade400),
+          const SizedBox(width: 6),
+          Text('$stars/5 from the customer',
+              style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700)),
+          const Spacer(),
+          TextButton(
+            onPressed: () => _removeRating(job),
+            style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            child: const Text('Remove', style: TextStyle(fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Drops a rating out of the provider's average.
+  ///
+  /// There is deliberately no "change it to 5 stars". Rewriting what a customer
+  /// said into a different number is falsifying their review; removing one made
+  /// in bad faith is defensible. The distinction is the whole design.
+  Future<void> _removeRating(Map<String, dynamic> job) async {
+    final reasonCtl = TextEditingController();
+    final stars = job['customer_rating'];
+    final provider = _providerName(job['provider_id']);
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove this rating?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Job #${job['job_number']} · $provider was given $stars★.\n\n'
+              'It comes out of their average immediately. The original stars and '
+              'your reason are kept on the job so this can be explained later.',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Reason (internal)',
+                hintText: 'e.g. photos show the work was done as ordered',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Remove rating')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      final newAvg = await supabase.rpc('admin_clear_job_rating', params: {
+        'p_job_id': job['id'],
+        'p_reason': reasonCtl.text.trim(),
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(newAvg == null
+            ? '$provider is back to unrated.'
+            : '$provider is now rated ${(newAvg as num).toStringAsFixed(1)}.'),
+      ));
+      await loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove the rating: $e')));
+    }
   }
 
   // On-site verification for the provider's Start/Complete taps (#19). One chip

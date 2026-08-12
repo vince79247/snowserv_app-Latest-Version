@@ -8,7 +8,11 @@ import '../../theme.dart';
 // deliberately never run is a permission slip with no upside — and the FCRA duties
 // that attach the moment you ACT on a consumer report make it worse than useless.
 // Providers who signed 1.1 keep 1.1 on their row; that is the version they agreed to.
-const String kProviderAgreementVersion = '1.2';
+// 1.3 (2026-08-12): added §3A "Your Account Is Yours Alone". The agreement
+// forbade subcontracting but never said the registered person must be the one
+// who shows up — so an account worked by someone else was an argument rather
+// than a breach. Helpers are explicitly permitted; substitution is not.
+const String kProviderAgreementVersion = '1.3';
 
 class _Clause {
   final String heading;
@@ -42,6 +46,32 @@ const List<_Clause> _clauses = [
         'services described in each job; communicate through the Platform; and treat customers '
         'and their property with care. You will not subcontract a job to anyone SnowServ has not '
         'approved. Repeated cancellations or no-shows may result in removal.',
+  ]),
+  // Added in v1.3. The agreement forbade SUBCONTRACTING but never said the
+  // registered person must be the one who shows up, and never said the account
+  // could not be handed to someone else. Identity is verified by our payment
+  // processor, so an account worked by a different person means the verified
+  // identity, the insurance policy and the 1099 all point at someone who was
+  // never on the property — which is exactly the argument you do not want to be
+  // having with an insurer after a damage claim.
+  //
+  // Helpers are explicitly ALLOWED. Providers register a crew size, so bringing
+  // a second pair of hands is expected and normal; the line that matters is
+  // sending someone INSTEAD of yourself. Saying so removes the ambiguity rather
+  // than leaving a provider to guess.
+  _Clause('3A. Your Account Is Yours Alone', [
+    'The person who registers this account must be the person who performs the work. You may '
+        'not share, lend, sell, or transfer your account, your login, or your provider profile '
+        'to anyone else, and you may not accept or perform jobs on behalf of another person\'s '
+        'account. The identity verified with our payment processor must be your own.',
+    'You may bring helpers. Working alongside employees, family, or crew you supervise is '
+        'permitted and expected — you tell us your crew size when you register. What is not '
+        'permitted is sending someone in your place. You remain personally present, personally '
+        'responsible for the job, and solely responsible for anyone you bring: their pay, their '
+        'taxes, their conduct, and their injuries. They are not SnowServ\'s workers and SnowServ '
+        'has no obligation to them.',
+    'Accounts found to be operated by someone other than the registered provider may be '
+        'suspended immediately and any pending payout withheld pending review.',
   ]),
   _Clause('4. Non-Circumvention & Non-Solicitation', [
     'This is a material term. Customers you meet through SnowServ are introduced to you by, and '
