@@ -16,6 +16,8 @@
 // Called by cron every 30 min. verify_jwt=false; guarded by a shared secret so
 // only the cron can fire it (it moves money).
 
+import { priceOrder, surfacesForServiceType } from '../_shared/pricing.ts'
+
 const QUIET_HOURS = 3      // hours of near-zero snowfall that mean "it stopped"
 const STOPPED_INCHES = 0.2 // total forecast snow over QUIET_HOURS to still count as stopped
 const M_TO_IN = 39.3701
@@ -222,16 +224,6 @@ Deno.serve(async (req: Request) => {
       if (!zone) { await stamp({ last_error: 'No active service zone' }); continue }
 
       const mult = Number(addr?.price_multiplier ?? 1) || 1
-      const per = (v: unknown) => Math.round((Number(v) || 0) * mult)
-      const servicePrice =
-        b.service_type === 'sidewalk_driveway' ? per(zone.price_both)
-        : b.service_type === 'driveway' ? per(zone.price_driveway)
-        : per(zone.price_sidewalk)
-      const saltKey =
-        b.service_type === 'sidewalk_driveway' ? 'price_salting'
-        : b.service_type === 'driveway' ? 'price_salting_driveway'
-        : 'price_salting_sidewalk'
-      const saltPrice = b.salting ? per(zone[saltKey] ?? zone.price_salting) : 0
 
       let surge = 1
       for (const band of bands) if (w.fellInches >= band.min) surge = band.mult
@@ -239,8 +231,23 @@ Deno.serve(async (req: Request) => {
       // the receipt, the provider's 75% and the customer's card all agree. The
       // provider is never paid on a number the customer wasn't charged.
       if (surge > surgeCap) surge = surgeCap
-      const base = servicePrice + saltPrice
-      const finalPrice = Math.round(base * surge)
+
+      // Priced by the SAME module the order screen and checkout use — see
+      // _shared/pricing.ts, verified against test/pricing_cases.json. This was
+      // a third hand-copied duplicate of the arithmetic, and it derived the
+      // surfaces by negation, so any new service_type would have silently
+      // billed as sidewalk.
+      const surfaces = surfacesForServiceType(b.service_type)
+      const priced = priceOrder({
+        zone,
+        wantsWalkway: surfaces.walkway,
+        wantsDriveway: surfaces.driveway,
+        wantsSalting: !!b.salting,
+        addressMultiplier: mult,
+        surge,
+      })
+      const base = priced.base
+      const finalPrice = priced.finalPrice
       const cents = finalPrice * 100
       if (!Number.isFinite(cents) || cents < 50) {
         await stamp({ last_error: 'Could not price this booking' }); continue
@@ -327,8 +334,11 @@ Deno.serve(async (req: Request) => {
           address_id: b.address_id,
           ...(carriedNotes ? { customer_notes: carriedNotes } : {}),
           service_type: b.service_type,
-          walkway: b.service_type !== 'driveway',
-          driveway: b.service_type !== 'sidewalk',
+          // From the shared mapping, not a pair of negations. The old form
+          // (walkway: type !== 'driveway') made ANY new service_type set both
+          // flags true while pricing fell through to the sidewalk rate.
+          walkway: surfaces.walkway,
+          driveway: surfaces.driveway,
           salting: b.salting,
           driveway_size: b.driveway_size,
           base_price: base,

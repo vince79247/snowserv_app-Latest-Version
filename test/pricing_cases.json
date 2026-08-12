@@ -1,0 +1,123 @@
+{
+  "_comment": [
+    "Shared golden cases for the order price math. Read by BOTH",
+    "test/pricing_test.dart (what the customer is SHOWN) and",
+    "supabase/functions/_shared/pricing_test.ts (what the customer is CHARGED).",
+    "",
+    "If these two ever disagree, the app quotes one number and the card is",
+    "debited another. That is the worst bug this codebase can have, and it has",
+    "nearly happened twice, so it is guarded here rather than by a comment",
+    "asking the next reader to keep three files in lockstep.",
+    "",
+    "Prices below are ILLUSTRATIVE fixtures, not the live Yonkers rates. They",
+    "must never be read as a source of truth for what anything costs — zone",
+    "prices are admin-editable and live in the database."
+  ],
+
+  "zones": {
+    "standard": {
+      "price_sidewalk": 80,
+      "price_driveway": 120,
+      "price_both": 160,
+      "price_salting_sidewalk": 45,
+      "price_salting_driveway": 70,
+      "price_salting": 90
+    },
+    "legacy_flat_deicer": {
+      "_comment": "A zone row saved BEFORE deicer was split per surface. The per-surface columns are absent and must coalesce to price_salting, never to 0.",
+      "price_sidewalk": 80,
+      "price_driveway": 120,
+      "price_both": 160,
+      "price_salting": 90
+    }
+  },
+
+  "cases": [
+    { "name": "sidewalk only",
+      "zone": "standard", "walkway": true, "driveway": false, "salting": false,
+      "expect": { "service": 80, "salting": 0, "base": 80, "final": 80 } },
+
+    { "name": "driveway only",
+      "zone": "standard", "walkway": false, "driveway": true, "salting": false,
+      "expect": { "service": 120, "salting": 0, "base": 120, "final": 120 } },
+
+    { "name": "both surfaces (the bundle)",
+      "zone": "standard", "walkway": true, "driveway": true, "salting": false,
+      "expect": { "service": 160, "salting": 0, "base": 160, "final": 160 } },
+
+    { "name": "sidewalk + deicer uses the SIDEWALK deicer price",
+      "zone": "standard", "walkway": true, "driveway": false, "salting": true,
+      "expect": { "service": 80, "salting": 45, "base": 125, "final": 125 } },
+
+    { "name": "driveway + deicer uses the DRIVEWAY deicer price",
+      "zone": "standard", "walkway": false, "driveway": true, "salting": true,
+      "expect": { "service": 120, "salting": 70, "base": 190, "final": 190 } },
+
+    { "name": "both + deicer uses the BOTH deicer price",
+      "zone": "standard", "walkway": true, "driveway": true, "salting": true,
+      "expect": { "service": 160, "salting": 90, "base": 250, "final": 250 } },
+
+    { "name": "legacy zone: sidewalk deicer coalesces to the flat price, never 0",
+      "zone": "legacy_flat_deicer", "walkway": true, "driveway": false, "salting": true,
+      "expect": { "service": 80, "salting": 90, "base": 170, "final": 170 } },
+
+    { "name": "legacy zone: driveway deicer coalesces to the flat price, never 0",
+      "zone": "legacy_flat_deicer", "walkway": false, "driveway": true, "salting": true,
+      "expect": { "service": 120, "salting": 90, "base": 210, "final": 210 } },
+
+    { "name": "per-address multiplier scales the service price",
+      "zone": "standard", "walkway": true, "driveway": true, "salting": false,
+      "addressMultiplier": 1.5,
+      "expect": { "service": 240, "salting": 0, "base": 240, "final": 240 } },
+
+    { "name": "per-address multiplier scales deicer too",
+      "zone": "standard", "walkway": true, "driveway": true, "salting": true,
+      "addressMultiplier": 1.5,
+      "expect": { "service": 240, "salting": 135, "base": 375, "final": 375 } },
+
+    { "name": "storm surge applies to the whole base",
+      "zone": "standard", "walkway": true, "driveway": true, "salting": false,
+      "surge": 1.2,
+      "expect": { "service": 160, "salting": 0, "base": 160, "final": 192 } },
+
+    { "name": "storm STACKS on the per-address multiplier, never replaces it",
+      "zone": "standard", "walkway": true, "driveway": true, "salting": true,
+      "addressMultiplier": 1.5, "surge": 1.2,
+      "expect": { "service": 240, "salting": 135, "base": 375, "final": 450 } },
+
+    { "name": "top storm band",
+      "zone": "standard", "walkway": false, "driveway": true, "salting": false,
+      "surge": 2.0,
+      "expect": { "service": 120, "salting": 0, "base": 120, "final": 240 } },
+
+    { "name": "storm-booking cap of 1.5x, as the trigger applies it",
+      "zone": "standard", "walkway": true, "driveway": true, "salting": false,
+      "surge": 1.5,
+      "expect": { "service": 160, "salting": 0, "base": 160, "final": 240 } },
+
+    { "name": "exact .5 rounds UP identically in Dart and JS (45 * 1.5)",
+      "zone": "standard", "walkway": true, "driveway": false, "salting": true,
+      "addressMultiplier": 1.5,
+      "expect": { "service": 120, "salting": 68, "base": 188, "final": 188 } },
+
+    { "name": "exact .5 on the storm multiply (125 * 1.5 = 187.5)",
+      "zone": "standard", "walkway": true, "driveway": false, "salting": true,
+      "surge": 1.5,
+      "expect": { "service": 80, "salting": 45, "base": 125, "final": 188 } },
+
+    { "name": "fractional multiplier rounds each component, then sums",
+      "zone": "standard", "walkway": false, "driveway": true, "salting": true,
+      "addressMultiplier": 1.25,
+      "expect": { "service": 150, "salting": 88, "base": 238, "final": 238 } },
+
+    { "name": "no zone matched: everything is 0, never a stray charge",
+      "zone": null, "walkway": true, "driveway": true, "salting": true,
+      "expect": { "service": 0, "salting": 0, "base": 0, "final": 0 } }
+  ],
+
+  "serviceTypeCases": [
+    { "serviceType": "sidewalk",          "walkway": true,  "driveway": false },
+    { "serviceType": "driveway",          "walkway": false, "driveway": true  },
+    { "serviceType": "sidewalk_driveway", "walkway": true,  "driveway": true  }
+  ]
+}

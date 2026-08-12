@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:geolocator/geolocator.dart';
+// No geolocator here on purpose: the storm quote is measured at the SERVICE
+// ADDRESS, not the phone. The customer app never needs the device's location.
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -20,6 +21,7 @@ import '../faq_screen.dart';
 import '../edit_profile_screen.dart';
 import '../admin/admin_screen.dart';
 import '../../utils/web_layout.dart';
+import '../../utils/pricing.dart';
 import '../../widgets/us_state_field.dart';
 
 final supabase = Supabase.instance.client;
@@ -658,9 +660,15 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
       : ((savedAddress?['price_multiplier'] as num?)?.toDouble() ?? 1.0);
 
   // Zone price for THIS property = zone base × the address multiplier, rounded
-  // (0 when no area / unserved ZIP).
+  // (0 when no area / unserved ZIP). The math lives in lib/utils/pricing.dart
+  // so the app and the server can be tested against the same cases.
   int _perProperty(dynamic zonePrice) =>
-      (((zonePrice as num?)?.toDouble() ?? 0) * _addressMultiplier).round();
+      perProperty(zonePrice, _addressMultiplier);
+
+  /// The surfaces the current selection covers, in the form the shared pricing
+  /// module (and the server) work in.
+  ({bool walkway, bool driveway}) get _surfaces =>
+      surfacesForServiceType(selectedService);
 
   // Prices come from the matched service area (0 when no area / unserved ZIP).
   int get _priceSidewalk => _perProperty(_serviceArea?['price_sidewalk']);
@@ -678,16 +686,12 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
   // ⚠️ create-checkout-session recomputes this server-side and its version is
   // what the customer is actually CHARGED. The two must pick the same column
   // for the same selection or the shown price won't match the charge.
-  int get _priceSalting {
-    final area = _serviceArea;
-    if (area == null) return 0;
-    final key = switch (selectedService) {
-      'sidewalk_driveway' => 'price_salting',
-      'driveway' => 'price_salting_driveway',
-      _ => 'price_salting_sidewalk',
-    };
-    return _perProperty(area[key] ?? area['price_salting']);
-  }
+  int get _priceSalting => saltingPriceFor(
+        zone: _serviceArea,
+        wantsWalkway: _surfaces.walkway,
+        wantsDriveway: _surfaces.driveway,
+        addressMultiplier: _addressMultiplier,
+      );
 
   // The ZIP for the current order — the "someone else" address when that toggle
   // is on, otherwise the customer's saved address. Used for waitlist capture and
@@ -785,25 +789,24 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     }
   }
 
-  int getBasePrice() {
-    switch (selectedService) {
-      case 'sidewalk': return _priceSidewalk;
-      case 'driveway': return _priceDriveway;
-      case 'sidewalk_driveway': return _priceBoth;
-      default: return 0;
-    }
-  }
+  /// The current selection priced by the shared module — the same code the
+  /// server runs (lib/utils/pricing.dart <-> functions/_shared/pricing.ts,
+  /// both verified against test/pricing_cases.json).
+  OrderPrice get _price => priceOrder(
+        zone: _serviceArea,
+        wantsWalkway: _surfaces.walkway,
+        wantsDriveway: _surfaces.driveway,
+        wantsSalting: salting,
+        addressMultiplier: _addressMultiplier,
+        surge: surgeMultiplier,
+      );
 
-  int getTotalBase() {
-    int total = getBasePrice();
-    if (salting) total += _priceSalting;
-    return total;
-  }
+  int getBasePrice() => _price.service;
 
-  int getFinalPrice() {
-    // base already includes the per-address multiplier (see _perProperty).
-    return (getTotalBase() * surgeMultiplier).round();
-  }
+  int getTotalBase() => _price.base;
+
+  // base already includes the per-address multiplier; storm stacks on top.
+  int getFinalPrice() => _price.finalPrice;
 
   // Customer-facing storm-pricing scale: shows the whole snow-depth -> price
   // ladder with a "today" marker and the normal price anchored, so a first-time

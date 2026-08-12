@@ -21,6 +21,8 @@
 // caller (and verify a saved address_id belongs to them), so an order can't be
 // priced at $0.50 or billed to another user by tampering with the request.
 
+import { priceOrder } from '../_shared/pricing.ts'
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -232,9 +234,6 @@ async function geocodeNominatim(oneLine: string): Promise<{ lat: number; lng: nu
   return null
 }
 
-const perProperty = (zonePrice: unknown, mult: number) =>
-  Math.round((Number(zonePrice) || 0) * mult)
-
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   const json = (b: unknown, status = 200) =>
@@ -302,30 +301,24 @@ Deno.serve(async (req: Request) => {
       Array.isArray(zones) ? zones : [])
     if (!zone) return json({ error: 'Not available in your area yet' }, 400)
 
-    // ---- Compute the price (same math the app shows) ----------------------
-    const servicePrice = wantsWalkway && wantsDriveway
-      ? perProperty(zone.price_both, multiplier)
-      : wantsDriveway
-        ? perProperty(zone.price_driveway, multiplier)
-        : perProperty(zone.price_sidewalk, multiplier)
-    // Deicer is priced per surface. price_salting is the both-surfaces price;
-    // the per-surface columns coalesce back to it so a zone row written before
-    // those columns existed prices sanely instead of charging $0.
-    // ⚠️ Must stay in lockstep with _priceSalting in customer_home.dart — this
-    // side is what the customer is CHARGED, that side is what they were SHOWN.
-    const saltingKey = wantsWalkway && wantsDriveway
-      ? 'price_salting'
-      : wantsDriveway
-        ? 'price_salting_driveway'
-        : 'price_salting_sidewalk'
-    const saltingPrice = wantsSalting
-      ? perProperty(zone[saltingKey] ?? zone.price_salting, multiplier)
-      : 0
-    const baseTotal = servicePrice + saltingPrice
+    // ---- Compute the price (the same module the app prices with) ----------
+    // Shared with lib/utils/pricing.dart and verified against the same cases
+    // in test/pricing_cases.json, so what the customer was SHOWN and what they
+    // are CHARGED cannot drift apart silently. This used to be a hand-copied
+    // duplicate kept in sync by a comment.
     const stormBands = await loadStormBands(supabaseUrl, dbHeaders)
     const storm = await surgeForPoint(geo?.lat ?? null, geo?.lng ?? null, stormBands)
-    const surge = storm.mult
-    const finalPrice = Math.round(baseTotal * surge)
+    const priced = priceOrder({
+      zone,
+      wantsWalkway,
+      wantsDriveway,
+      wantsSalting,
+      addressMultiplier: multiplier,
+      surge: storm.mult,
+    })
+    const baseTotal = priced.base
+    const surge = priced.surge
+    const finalPrice = priced.finalPrice
     const amountCents = finalPrice * 100
     if (!Number.isFinite(amountCents) || amountCents < 50) {
       return json({ error: 'Could not price this order' }, 400)
