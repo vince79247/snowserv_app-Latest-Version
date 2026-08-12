@@ -59,8 +59,9 @@ Questions? support@snowserv.app
 
 ## 3. Graphic assets  **[YOU — mostly]**
 - **App icon:** 512 × 512 PNG — already have the navy snowflake icon (reuse it exported at 512).
-- **Feature graphic:** 1024 × 500 PNG — **required by Play, needs to be created** (a simple
-  branded banner: snowflake + "SnowServ — On-demand snow removal" on the frost/navy palette).
+- **Feature graphic:** 1024 × 500 PNG — **DONE**, `docs/store/feature_graphic_1024x500.png`.
+  Navy gradient + falling snow, the real app icon, wordmark, tagline and "Yonkers, NY".
+  Regenerate with the script in the 2026-08-12 commit if the brand or the city changes.
 - **Phone screenshots:** 2–8, min 320px, 16:9 or 9:16. **Reuse the iOS captures** in
   ~/Desktop/SnowServ-AppStore-Screenshots (the 1290×2796 ones work fine for Play too).
 
@@ -145,7 +146,11 @@ rating · target audience · sign-in details · **build 23 live on Internal test
 
 STILL OPEN — the Main store listing only:
 - [ ] Paste §1 (name / short / full description) and §2 (category) into the Console.
-- [ ] **Feature graphic** 1024×500 — still needs to be created.
+- [x] **Feature graphic** 1024×500 — DONE 2026-08-12, generated from the real app
+      icon so the banner and the store icon are unmistakably the same brand.
+      Repo: `docs/store/feature_graphic_1024x500.png` (also in ~/Downloads).
+      Content is CENTERED with 148px margins — Play crops this asset in some
+      placements, so nothing important sits near an edge.
 - [ ] **Phone screenshots** 2–8 — take them AFTER the build-23 test round settles the UI,
       so the store images match what ships.
 
