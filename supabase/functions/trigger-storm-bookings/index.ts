@@ -91,13 +91,21 @@ async function weatherFor(lat: number, lng: number): Promise<Weather | null> {
 Deno.serve(async (req: Request) => {
   try {
     // Only the cron may fire this — it authorizes cards.
-    const secret = Deno.env.get('CRON_SECRET')
-    if (secret) {
-      const given = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
-      if (given !== secret && given !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
-        return json({ error: 'Unauthorized' }, 401)
-      }
-    }
+    //
+    // FAILS CLOSED. The previous form wrapped this whole check in
+    // `if (CRON_SECRET)`, and CRON_SECRET was never set — so the guard was a
+    // no-op and the function was reachable with the PUBLIC anon key, which
+    // ships inside the app and the web bundle (verified 2026-08-12: anon key
+    // -> HTTP 200). A guard that silently disables itself when its secret is
+    // missing is worse than no guard, because the comment above it says the
+    // endpoint is protected.
+    const given = (req.headers.get('Authorization') ?? '').replace('Bearer ', '').trim()
+    const svcRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const cronSecret = Deno.env.get('CRON_SECRET') ?? ''
+    const authorized =
+      (svcRole !== '' && given === svcRole) ||
+      (cronSecret !== '' && given === cronSecret)
+    if (!authorized) return json({ error: 'Unauthorized' }, 401)
 
     const url = Deno.env.get('SUPABASE_URL')!
     const svcKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
