@@ -17,6 +17,7 @@ import 'job_history_screen.dart';
 import 'provider_agreement_screen.dart';
 import 'provider_details_screen.dart';
 import 'rating_guide_screen.dart';
+import '../../widgets/agreement_update_sheet.dart';
 import '../faq_screen.dart';
 import '../edit_profile_screen.dart';
 import '../admin/admin_screen.dart';
@@ -67,6 +68,9 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
   /// Stripe Connect has verified them and payouts are live. Required to go
   /// online — see the comment where it's loaded.
   bool _payoutsReady = false;
+  // Which version of the Provider Service Agreement this provider has on file.
+  // NULL for anyone who registered before the signing step existed.
+  String? _signedAgreementVersion;
 
   @override
   void initState() {
@@ -176,7 +180,7 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     try {
       final results = await supabase
           .from('providers')
-          .select('id, is_online, rating, total_jobs, auto_accept, equipment, vehicle_make, vehicle_model, vehicle_year, vehicle_plate, payouts_enabled')
+          .select('id, is_online, rating, total_jobs, auto_accept, equipment, vehicle_make, vehicle_model, vehicle_year, vehicle_plate, payouts_enabled, service_agreement_version')
           .eq('user_id', supabase.auth.currentUser!.id)
           .limit(1);
       if (results.isEmpty) return;
@@ -195,6 +199,8 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
           // without it. Before this gate, a provider could go online, work a
           // whole storm, and silently never be paid.
           _payoutsReady = data['payouts_enabled'] == true;
+          _signedAgreementVersion =
+              data['service_agreement_version'] as String?;
           // Truck details are optional at registration — nobody should have to
           // walk out to the driveway mid-signup. This is the other half of that
           // bargain: a standing reminder until they're filled in.
@@ -259,6 +265,29 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         return;
       }
       if (mounted) setState(() {});
+    }
+
+    // Current agreement on file, or they don't start a shift. Sits right after
+    // the payouts gate because it is the same idea: the things that protect both
+    // sides go in place BEFORE the first job, not after a dispute.
+    //
+    // This is what makes "we'll have them accept it in October" actually happen.
+    // The agreement was signed at registration only and never re-checked, which
+    // is how two approved providers ended up with nothing on file at all.
+    if (value && _signedAgreementVersion != kProviderAgreementVersion) {
+      final signed = await showAgreementUpdate(
+        context,
+        providerId: providerId!,
+        signedVersion: _signedAgreementVersion,
+        providerName: supabase.auth.currentUser?.userMetadata?['name'] as String?,
+      );
+      if (!signed) {
+        // Declining just leaves them offline. Nothing else changes, and they can
+        // come back to it whenever they like.
+        if (mounted) setState(() {});
+        return;
+      }
+      _signedAgreementVersion = kProviderAgreementVersion;
     }
 
     // Pick up any admin change to the dispatch-offer window at the start of each
