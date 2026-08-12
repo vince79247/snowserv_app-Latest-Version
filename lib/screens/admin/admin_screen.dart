@@ -2192,8 +2192,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         Icons.payments_outlined,
         _buildPayoutsTab(),
         threeCol ? 820 : 480);
+    // Providers are PEOPLE, not vehicles — plenty of them work with a shovel.
     final providersPanel = _dashPanel('Providers (${providers.length})',
-        Icons.local_shipping_outlined, _buildProvidersTab(), 640);
+        Icons.engineering_outlined, _buildProvidersTab(), 640);
     final customersPanel = _dashPanel('Customers ($_customerCount)',
         Icons.people_outline, _buildUsersTab(), 560);
     final disputesPanel = _dashPanel(
@@ -2800,7 +2801,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             ),
           ]),
           Row(children: [
-            const Icon(Icons.local_shipping, size: 12, color: Colors.grey),
+            // Distinct from the customer's person icon above, without being a
+            // delivery van.
+            const Icon(Icons.engineering_outlined, size: 12, color: Colors.grey),
             const SizedBox(width: 3),
             Expanded(
               child: Text(_providerName(job['provider_id']),
@@ -3287,7 +3290,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                         : 'SnowServ — regarding your order'),
                 Row(
                   children: [
-                    const Icon(Icons.local_shipping,
+                    const Icon(Icons.engineering_outlined,
                         size: 13, color: Colors.blueGrey),
                     const SizedBox(width: 4),
                     Text('Provider: ${_providerName(job['provider_id'])}',

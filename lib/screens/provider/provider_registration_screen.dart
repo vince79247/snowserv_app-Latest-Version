@@ -545,7 +545,10 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
               'Walkways and sidewalks'),
           _equipmentCard('snowblower', Icons.ac_unit, 'Snowblower',
               'Driveways and walkways'),
-          _equipmentCard('plow', Icons.local_shipping, 'Plow truck',
+          // Heavy-equipment glyph, not the parcel van. A plow rig and a
+          // delivery truck are not the same vehicle, and the van made the
+          // most serious equipment tier look like a toy.
+          _equipmentCard('plow', Icons.agriculture, 'Plow truck',
               'Driveways and larger jobs'),
           const SizedBox(height: 16),
           const Text('Crew Size', style: TextStyle(fontWeight: FontWeight.w600)),

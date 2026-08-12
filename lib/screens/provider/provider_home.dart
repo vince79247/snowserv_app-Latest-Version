@@ -1725,7 +1725,9 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
       ),
       child: Row(
         children: [
-          Icon(Icons.local_shipping_outlined,
+          // A plain car outline, not the parcel-delivery van. This banner is
+          // about vehicle details; the van glyph read as a courier app.
+          Icon(Icons.directions_car_outlined,
               size: 20, color: Colors.orange.shade800),
           const SizedBox(width: 10),
           Expanded(
