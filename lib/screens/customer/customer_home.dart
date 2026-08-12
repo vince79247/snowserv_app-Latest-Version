@@ -43,7 +43,11 @@ class CustomerHome extends StatefulWidget {
 }
 
 class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver {
-  String selectedService = 'sidewalk';
+  // Defaults to the BUNDLE, not the cheapest option. The screen used to open on
+  // "Sidewalk Only" — every order started at the bottom of the price list and
+  // the customer had to work upward, which is backwards for the option we most
+  // want chosen and the one that's actually cheaper than buying the two parts.
+  String selectedService = 'sidewalk_driveway';
   // Driveway size — only asked when the order includes a driveway. Drives
   // qualification dispatch (a large driveway prefers snowblower/plow); it does
   // NOT change the price. Defaults to 'small' so we never over-classify.
@@ -1379,7 +1383,19 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     );
   }
 
-  Widget serviceButton(String key, String label, int price, IconData icon) {
+  /// What the two à-la-carte services cost bought separately, minus the bundle.
+  /// Computed from the LIVE zone prices, never hardcoded — an admin can edit any
+  /// of the three in the Areas tab, and a stale "save $40" would be a false
+  /// price claim. Returns 0 when the bundle isn't actually cheaper, in which
+  /// case nothing is shown rather than something misleading.
+  int get _bundleSavings {
+    final separate = _priceSidewalk + _priceDriveway;
+    final diff = separate - _priceBoth;
+    return diff > 0 ? diff : 0;
+  }
+
+  Widget serviceButton(String key, String label, int price, IconData icon,
+      {String? badge, String? subtitle}) {
     final isSelected = selectedService == key;
     return GestureDetector(
       onTap: () => setState(() => selectedService = key),
@@ -1403,15 +1419,61 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
             Icon(icon, color: isSelected ? Colors.white : SnowServColors.iceBlue, size: 22),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : SnowServColors.navy,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Badge on its OWN line, not beside the title. "Sidewalk +
+                  // Driveway" wraps to two lines at this width, and a pill
+                  // floating alongside the wrap point read as a collision.
+                  if (badge != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Colors.white.withValues(alpha: 0.22)
+                            : SnowServColors.iceBlue.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        badge,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                          color:
+                              isSelected ? Colors.white : SnowServColors.iceBlue,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                  ],
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : SnowServColors.navy,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white.withValues(alpha: 0.92)
+                            : SnowServColors.success,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
+            const SizedBox(width: 8),
             Text(
               '\$$price',
               style: TextStyle(
@@ -1967,9 +2029,23 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
               _buildNotAvailableBanner(),
             if (_serviceArea != null) ...[
               const SizedBox(height: 16),
+              // Bundle first, and pre-selected. It's the recommended option AND
+              // genuinely the cheaper one — the two parts bought separately cost
+              // more — so leading with it is honest, not a dark pattern. The
+              // saving was previously invisible: the customer had to add up two
+              // other buttons to notice it existed.
+              serviceButton(
+                'sidewalk_driveway',
+                'Sidewalk + Driveway',
+                _priceBoth,
+                Icons.home,
+                badge: 'MOST POPULAR',
+                subtitle: _bundleSavings > 0
+                    ? 'Save \$$_bundleSavings vs. booking separately'
+                    : null,
+              ),
               serviceButton('sidewalk', 'Sidewalk Only', _priceSidewalk, Icons.directions_walk),
               serviceButton('driveway', 'Driveway Only', _priceDriveway, Icons.directions_car),
-              serviceButton('sidewalk_driveway', 'Sidewalk + Driveway', _priceBoth, Icons.home),
 
             if (selectedService == 'driveway' ||
                 selectedService == 'sidewalk_driveway') ...[

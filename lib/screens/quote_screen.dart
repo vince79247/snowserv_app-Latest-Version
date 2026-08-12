@@ -250,6 +250,21 @@ class _QuoteScreenState extends State<QuoteScreen> {
           row('Sidewalk only', p('price_sidewalk')),
           row('Driveway only', p('price_driveway')),
           row('Sidewalk + Driveway', p('price_both')),
+          // Same point the order screen makes: the bundle is cheaper than its
+          // two halves, and nobody adds it up on their own. Computed live, and
+          // suppressed entirely if a zone is ever priced so it isn't true.
+          if (p('price_sidewalk') + p('price_driveway') - p('price_both') > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                'Save \$${p('price_sidewalk') + p('price_driveway') - p('price_both')} '
+                'booking both together',
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: SnowServColors.success),
+              ),
+            ),
           rowText('Deicer add-on', _deicerRange(a)),
           const SizedBox(height: 8),
           const Text('Prices may be higher during heavy snow (storm pricing).',
