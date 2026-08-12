@@ -2183,15 +2183,6 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
             // this is the overnight case on-demand can't serve because nobody is
             // awake at 4am to tap Order. Hidden for a one-off "someone else"
             // address, which has no standing relationship to attach to.
-            if (!orderingForSomeoneElse)
-              StormBookingCard(
-                addressId: savedAddress?['id']?.toString(),
-                addressLabel: (savedAddress?['address_line'] ?? 'your address').toString(),
-                serviceType: selectedService,
-                salting: salting,
-                hasCard: _savedCard != null,
-              ),
-
             const SizedBox(height: 16),
             TextField(
               controller: _customerNotesController,
@@ -2289,6 +2280,42 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                     )
                   : const Text('Request Service'),
             ),
+
+            // BELOW the order button on purpose. This used to sit in the middle
+            // of the order flow, between the deicer row and the note box, and it
+            // caused three separate confusions at once (all found by Vince
+            // testing build 23):
+            //   - the note box looked MISSING, because this card pushed it below
+            //     the fold on the way to the pay button — and the note is the
+            //     single most operationally useful field on the screen
+            //   - "Your next storm is booked" sitting above a "Request Service"
+            //     button read as a contradiction, because a card inside the
+            //     order flow looks like it is describing THIS order
+            //   - the same confusion again with the confirmation snackbar
+            // Booking a future storm is a different action from ordering now.
+            // Putting it after the order finishes says that with layout instead
+            // of with words.
+            if (!orderingForSomeoneElse) ...[
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 12),
+              const Text(
+                'Not ordering today?',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: SnowServColors.navy),
+              ),
+              const SizedBox(height: 8),
+              StormBookingCard(
+                addressId: savedAddress?['id']?.toString(),
+                addressLabel:
+                    (savedAddress?['address_line'] ?? 'your address').toString(),
+                serviceType: selectedService,
+                salting: salting,
+                hasCard: _savedCard != null,
+              ),
+            ],
             const SizedBox(height: 20),
             ],
           ],

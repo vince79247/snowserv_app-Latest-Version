@@ -222,14 +222,34 @@ class _StormBookingCardState extends State<StormBookingCard> {
             ),
           ] else ...[
             const Text(
-              'Don\'t want to wake up and order at 5am? We\'ll clear your '
-              'property automatically once the snow stops falling.',
+              'Don\'t want to wake up and order at 5am? We\'ll send someone '
+              'automatically — and we wait until the storm has actually '
+              'stopped, so your driveway doesn\'t just fill back in.',
               style: TextStyle(fontSize: 13, height: 1.45),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
+            // The slider is a MINIMUM, not a timer, and the old label ("Come
+            // after ___") never said which. Vince read it in build 23 and
+            // couldn't tell what it controlled: the paragraph above promises we
+            // come when the snow stops, then a number of inches appears with no
+            // stated relationship to it.
+            //
+            // Both conditions really do have to be true (see
+            // trigger-storm-bookings): at least this much NEW snow fell, AND it
+            // has stopped. So this is the "don't bother for a dusting" dial —
+            // framed here as what it protects the customer from, which is being
+            // charged for a storm that barely happened.
+            const Text('Skip small snowfalls',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(
+              'Only send someone if at least this much falls. Less than that '
+              'and we don\'t come, and you\'re not charged.',
+              style: TextStyle(
+                  fontSize: 11.5, color: Colors.grey.shade600, height: 1.35),
+            ),
             Row(
               children: [
-                const Text('Come after', style: TextStyle(fontSize: 13)),
                 Expanded(
                   child: Slider(
                     value: _triggerInches,
@@ -242,7 +262,7 @@ class _StormBookingCardState extends State<StormBookingCard> {
                 ),
                 Text('${_triggerInches.toStringAsFixed(0)}"',
                     style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.bold)),
+                        fontSize: 15, fontWeight: FontWeight.bold)),
               ],
             ),
             Text(
