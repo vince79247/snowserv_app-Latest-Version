@@ -4162,6 +4162,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     // the recruiting pipeline in the exact situation they exist for — zero
     // providers, pre-season, trying to sign people up.
     final pendingCount = providers.where((p) => p['registration_status'] == 'pending_review').length;
+    final blockedCount = providers.where(_payoutBlocked).length;
     final onDuty = providers.where((p) => p['is_online'] == true).toList();
     final offDuty = providers.where((p) => p['is_online'] != true).toList();
     bool match(Map<String, dynamic> p) => _matchesSearch(
@@ -4217,6 +4218,26 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                   color: SnowServColors.navy),
                             ),
                           ),
+                          // Visible while the card is COLLAPSED — the whole
+                          // point is not having to open four cards to find out
+                          // who can actually work.
+                          if (_payoutBlocked(p)) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.red.shade200),
+                              ),
+                              child: Text('No payouts',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.red.shade700,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 7, vertical: 2),
@@ -4296,6 +4317,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                     // Sits FIRST: for a provider who never finished, this is
                     // the whole story, and everything below it is empty.
                     if (regStatus == 'incomplete') _registrationProgress(p),
+                    // Equally first for the opposite case: approved on paper,
+                    // blocked in practice.
+                    if (_payoutBlocked(p)) _payoutBlockedBanner(p),
                     // Contact the provider (call/text) — storm coordination.
                     _contactRow('Provider', p['users']?['phone'] as String?),
                     // ...and by email, which is how recruiting follow-up
@@ -4607,6 +4631,37 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ],
             ),
           ),
+        // The roster number that actually predicts whether a storm gets
+        // covered. "Approved" counts people who cannot be dispatched, so it
+        // reads better than reality — 2 of 4 approved providers were blocked
+        // when this was written, and nothing on this screen said so.
+        if (blockedCount > 0)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.red.shade300),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.block, color: Colors.red.shade700, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$blockedCount approved provider${blockedCount == 1 ? '' : 's'} '
+                    'cannot take jobs — payout setup unfinished',
+                    style: TextStyle(
+                        color: Colors.red.shade800,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Container(
           margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -4752,7 +4807,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   _funnelArrow(),
                   _tallyItem('Approved', approved.length, Colors.black87),
                   _funnelArrow(),
-                  _tallyItem('Can be paid', payable.length, tone),
+                  // "Can be paid" undersold what this number is. Payouts gate
+                  // going ONLINE, so this is the count of providers who can
+                  // actually work a storm — the only figure on this screen that
+                  // predicts whether jobs get covered.
+                  _tallyItem('Can work', payable.length, tone),
                   _funnelArrow(),
                   _tallyItem('Big driveways', bigJobCapable, Colors.black87),
                 ],
@@ -4773,10 +4832,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange.shade800),
                 const SizedBox(width: 5),
                 Expanded(
+                  // This said "they can take jobs but cannot be paid", which is
+                  // FALSE and reads as a minor billing nit rather than missing
+                  // coverage. provider_home gates the Online switch on
+                  // payouts_enabled, so an approved provider without payouts
+                  // cannot go online, cannot be dispatched, and cannot work.
+                  // Corrected 2026-08-12 after the panel contradicted itself.
                   child: Text(
                     '$unpayable approved provider${unpayable == 1 ? '' : 's'} '
                     "${unpayable == 1 ? "hasn't" : "haven't"} finished payout setup — "
-                    'they can take jobs but cannot be paid.',
+                    'they cannot go online or take jobs until they do.',
                     style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900),
                   ),
                 ),
@@ -4834,6 +4899,147 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
 
   /// True when the server has a written template for this provider's state, so
   /// the Email button can send as SnowServ instead of opening a mail draft.
+  /// Approved, but Stripe payout setup was never finished.
+  ///
+  /// These providers are the quietest failure on this screen: the card says
+  /// "Approved", the person believes they are done, and the app refuses to let
+  /// them go online (provider_home gates the Online switch on payouts_enabled).
+  /// They cannot be dispatched and they cannot be paid, and nothing told either
+  /// side. Found 2026-08-12: 2 of 4 approved providers were in this state.
+  static bool _payoutBlocked(Map<String, dynamic> p) =>
+      p['registration_status'] == 'approved' && p['payouts_enabled'] != true;
+
+  /// How long to leave someone alone between reminders.
+  ///
+  /// Vince's rule (2026-08-12): "We don't need to pester them right now. We can
+  /// pester them once a month." The button below enforces that rather than
+  /// trusting whoever is looking at the screen to remember when they last
+  /// wrote — which is the entire reason the contact dates were added.
+  static const int _nudgeCooldownDays = 30;
+
+  /// The most recent time we contacted this provider, from email_log with the
+  /// older recruit_emailed_at stamp as a fallback for anyone reached before
+  /// that table existed.
+  DateTime? _lastContact(Map<String, dynamic> p) {
+    final mail = _mailFor(
+      userId: p['user_id']?.toString(),
+      email: p['users']?['email'] as String?,
+    );
+    DateTime? newest;
+    for (final m in mail) {
+      final d = DateTime.tryParse(m['created_at']?.toString() ?? '');
+      if (d != null && (newest == null || d.isAfter(newest))) newest = d;
+    }
+    final stamp = DateTime.tryParse(p['recruit_emailed_at']?.toString() ?? '');
+    if (stamp != null && (newest == null || stamp.isAfter(newest))) {
+      newest = stamp;
+    }
+    return newest;
+  }
+
+  /// Banner for an approved provider who can't actually work yet.
+  Widget _payoutBlockedBanner(Map<String, dynamic> p) {
+    final last = _lastContact(p);
+    final daysSince =
+        last == null ? null : DateTime.now().difference(last).inDays;
+    final canNudge = daysSince == null || daysSince >= _nudgeCooldownDays;
+    final waitDays = daysSince == null ? 0 : _nudgeCooldownDays - daysSince;
+    final name = (p['users']?['name'] ?? '').toString().split(' ').first;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.block, size: 15, color: Colors.red.shade700),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Approved — but cannot take jobs yet',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.red.shade800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Payout setup with Stripe was never finished, so the app blocks '
+            'them from going online. They probably think they are done.',
+            style: TextStyle(fontSize: 11.5, color: Colors.red.shade900),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  last == null
+                      ? 'Never emailed'
+                      : canNudge
+                          ? 'Last emailed $daysSince days ago'
+                          : 'Emailed $daysSince days ago · next reminder in '
+                              '$waitDays ${waitDays == 1 ? 'day' : 'days'}',
+                  style: TextStyle(fontSize: 11.5, color: Colors.red.shade900),
+                ),
+              ),
+              TextButton.icon(
+                // Deliberately DISABLED inside the cooldown rather than hidden:
+                // the admin should be able to see that a reminder exists and is
+                // simply not due yet.
+                onPressed: canNudge
+                    ? () => _composeEmail(
+                          {
+                            'id': p['user_id'],
+                            'email': p['users']?['email'],
+                            'name': p['users']?['name'],
+                          },
+                          subject: 'One step left on your SnowServ account',
+                          // Seasonally neutral on purpose — this can be sent in
+                          // August, when "go online and start taking jobs"
+                          // reads as absurd.
+                          body: 'Hi${name.isEmpty ? '' : ' $name'},\n\n'
+                              'Your SnowServ provider application is approved — '
+                              'thanks again for signing up.\n\n'
+                              'There is one step left before you can accept '
+                              'jobs: connecting a bank account for payouts. '
+                              'Stripe handles that part, and it verifies your '
+                              'identity at the same time, so SnowServ never '
+                              'sees your bank details. It takes a few minutes.\n\n'
+                              'Open SnowServ, tap the person icon in the top '
+                              'right, then "Set up / manage payouts".\n\n'
+                              'Until it is done the app will not let you go '
+                              'online, so it is worth getting out of the way '
+                              'now.\n\n'
+                              'If you hit a snag, just reply to this email and '
+                              'we will sort it out.\n\n'
+                              '— SnowServ',
+                        )
+                    : null,
+                icon: const Icon(Icons.mail_outline, size: 15),
+                // Same label whether or not it's due. Swapping it to "Reminder
+                // sent" claimed something that hadn't happened — they were
+                // emailed about something else 3 days ago. The line beside it
+                // already says why it's greyed out.
+                label: const Text('Send reminder', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   static bool _hasProviderTemplate(Map<String, dynamic> p) =>
       p['registration_status'] == 'incomplete' ||
       p['registration_status'] == 'pending_review';
