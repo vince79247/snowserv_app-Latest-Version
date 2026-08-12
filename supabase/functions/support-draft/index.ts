@@ -27,11 +27,13 @@ ABOUT SNOWSERV
   Yonkers / Westchester NY area.
 - Support email: support@snowserv.app.
 
-SERVICES & PRICING (prices vary by service area; these are the Yonkers defaults)
-- Sidewalk only: $50. Driveway only: $100. Sidewalk + Driveway: $125. Deicer add-on: +$40.
-- Storm pricing: when snow is deeper the price scales up automatically by snow depth
-  on the ground — up to 3": standard, 3–6": 1.3x, 6–10": 1.7x, 10"+: 2.3x. It's shown
-  before the customer pays and eases back to normal as snow clears.
+SERVICES & PRICING
+- Prices vary by service area and are set by the admin. The LIVE numbers are
+  injected below under "CURRENT LIVE FIGURES" — use ONLY those. Never quote a
+  price from memory.
+- Storm pricing scales the price automatically with snow depth. It is shown
+  before the customer pays and eases back to normal as snow clears. The live
+  bands are below.
 
 HOW PAYMENT WORKS (very important — get this right)
 - Placing an order puts a HOLD (authorization) on the card. It is NOT a charge.
@@ -61,8 +63,12 @@ PROVIDER FLOW & EARNINGS
   photo is REQUIRED as proof of work).
 
 DISPATCH
-- New orders go to the best-matched online provider (nearest + least busy, and equipment
-  for large driveways). The provider has about 4 minutes to accept before it moves on.
+- New orders go to the best-matched online provider, ranked in this order:
+  equipment (shovel-only providers go last for LARGE driveways only), then current
+  workload, then distance in bands, then rating among providers who are about
+  equally close. Suspended providers are excluded entirely.
+- There is deliberately NO distance cap — a provider willing to drive further is
+  shown the distance and chooses. The offer window is below under live figures.
 
 TONE & RULES FOR YOUR REPLIES
 - Warm, concise, professional. Plain language. Sign off as "The SnowServ Team".
@@ -74,6 +80,96 @@ TONE & RULES FOR YOUR REPLIES
   NEVER promise a specific refund amount or outcome — that's for a human to confirm.
 - Never reveal internal/admin details or another customer's information.
 `
+
+/**
+ * The figures that DRIFT, read from the database on every call.
+ *
+ * These were hardcoded in the knowledge base above, and by 2026-08-12 every
+ * single one was wrong: sidewalk was quoted at $50 against a live $80, the
+ * bundle at $125 against $160, deicer as one flat $40 against a per-surface
+ * $45/$70/$90, and the storm bands as 1.3/1.7/2.3 against 1.2/1.5/2.0. Those
+ * numbers went into reply drafts that an admin then emailed to real people over
+ * the signature "The SnowServ Team".
+ *
+ * Prices are per-zone and admin-editable, so ANY figure typed into a prompt is
+ * a promise that decays. Same reason the FAQ screen renders storm tiers and the
+ * commission from app_settings rather than from constants.
+ */
+async function liveFigures(supabaseUrl: string, key: string): Promise<string> {
+  const h = { apikey: key, Authorization: `Bearer ${key}` }
+  const money = (v: unknown) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? `$${Math.round(n)}` : null
+  }
+  try {
+    const [zonesRes, setRes] = await Promise.all([
+      fetch(`${supabaseUrl}/rest/v1/service_areas?is_active=eq.true&select=*`, { headers: h }),
+      fetch(`${supabaseUrl}/rest/v1/app_settings?select=key,value`, { headers: h }),
+    ])
+    const zones = await zonesRes.json()
+    const settings = await setRes.json()
+    const setting = (k: string) =>
+      Array.isArray(settings) ? settings.find((s: { key: string }) => s.key === k)?.value : null
+
+    const lines: string[] = []
+    if (Array.isArray(zones) && zones.length) {
+      for (const z of zones) {
+        const salt = [
+          money(z.price_salting_sidewalk ?? z.price_salting) &&
+            `sidewalk +${money(z.price_salting_sidewalk ?? z.price_salting)}`,
+          money(z.price_salting_driveway ?? z.price_salting) &&
+            `driveway +${money(z.price_salting_driveway ?? z.price_salting)}`,
+          money(z.price_salting) && `both +${money(z.price_salting)}`,
+        ].filter(Boolean).join(' · ')
+        lines.push(
+          `- ${z.name}: sidewalk ${money(z.price_sidewalk) ?? 'n/a'} · ` +
+          `driveway ${money(z.price_driveway) ?? 'n/a'} · ` +
+          `sidewalk+driveway ${money(z.price_both) ?? 'n/a'}` +
+          (salt ? `\n    deicer: ${salt}` : ''),
+        )
+      }
+    } else {
+      lines.push('- (no active service area configured — do NOT quote any price)')
+    }
+
+    let bands = 'standard pricing only'
+    try {
+      const parsed = JSON.parse(setting('storm_bands') ?? '')
+      if (Array.isArray(parsed) && parsed.length) {
+        bands = parsed
+          .map((b: { min: number; mult: number }) =>
+            `${b.min}"+ → ${b.mult === 1 ? 'standard' : `${b.mult}x`}`)
+          .join(' · ')
+      }
+    } catch { /* keep the safe default */ }
+
+    const commission = Number(setting('commission_pct'))
+    const share = Number.isFinite(commission) && commission >= 0 && commission <= 100
+      ? `${Math.round(100 - commission)}% to the provider (${Math.round(commission)}% platform commission)`
+      : '75% to the provider (25% platform commission)'
+
+    const timeout = Number(setting('dispatch_timeout_seconds'))
+    const window = Number.isFinite(timeout) && timeout > 0
+      ? (timeout % 60 === 0 ? `${timeout / 60} minutes` : `${timeout} seconds`)
+      : '4 minutes'
+
+    return [
+      '\n=== CURRENT LIVE FIGURES (read from the database just now) ===',
+      'These override anything above. Quote ONLY these numbers.',
+      'PRICES BY SERVICE AREA:',
+      ...lines,
+      `STORM PRICING BANDS: ${bands}`,
+      `PROVIDER SHARE: ${share}`,
+      `DISPATCH OFFER WINDOW: ${window}`,
+    ].join('\n')
+  } catch {
+    // Fail LOUD in the prompt rather than silently falling back to stale
+    // numbers: a draft with no price is fixable, a draft with a wrong price
+    // gets emailed to a customer.
+    return '\n=== CURRENT LIVE FIGURES ===\nUNAVAILABLE — do NOT quote any price, ' +
+      'fee, commission or storm multiplier in this reply. Say the team will confirm.'
+  }
+}
 
 function decodeSub(auth: string | null): string | null {
   try {
@@ -119,7 +215,8 @@ Deno.serve(async (req: Request) => {
       `You are the support assistant for SnowServ. Write a ready-to-send email reply to ` +
       `an inbound message from ${who}. Use ONLY the knowledge base; follow its tone & rules.\n` +
       (extra ? `Extra instruction from the SnowServ team for this reply: ${extra}\n` : '') +
-      `\n=== SNOWSERV KNOWLEDGE BASE ===\n${KNOWLEDGE}`
+      `\n=== SNOWSERV KNOWLEDGE BASE ===\n${KNOWLEDGE}` +
+      await liveFigures(supabaseUrl, serviceKey)
 
     // ---- Call Anthropic ------------------------------------------------------
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
