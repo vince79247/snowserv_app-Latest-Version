@@ -68,7 +68,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   // Material (not a plain Container) so the tap ripple actually paints — a
-  // coloured box in between swallows it, which is what made the provider
+  // colored box in between swallows it, which is what made the provider
   // registration cards feel dead under the finger.
   Widget _roleCard({
     required String value,

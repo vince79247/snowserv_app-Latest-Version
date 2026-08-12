@@ -174,6 +174,18 @@ class _FaqItem {
 String _fmtMult(double m) =>
     m == m.roundToDouble() ? m.toStringAsFixed(0) : m.toString();
 
+// The offer window is admin-editable (app_settings.dispatch_timeout_seconds) and
+// the FAQ used to state a flat "4 minutes", which is only true until someone edits
+// it — the same way the storm tiers above went stale. Rendered from the live value.
+String get _offerWindow {
+  final s = AppConfig.dispatchTimeoutSeconds;
+  if (s % 60 == 0) {
+    final m = s ~/ 60;
+    return m == 1 ? '1 minute' : '$m minutes';
+  }
+  return '$s seconds';
+}
+
 // Highest live multiplier, for the provider earnings example.
 double get _topStormMult => AppConfig.stormBands
     .map((b) => b.multiplier)
@@ -348,7 +360,7 @@ List<_FaqSection> get _providerSections {
   _FaqSection('How Dispatching Works', [
     _FaqItem(
       'How are jobs assigned to me?',
-      'When a customer places an order, our system offers it to the best-matched online provider — balanced by distance, current workload, and (for larger driveways) your equipment — so it goes to a nearby, available provider who can actually do the job. You\'ll get a push notification and have 4 minutes to accept or decline. If you don\'t respond in time, the job moves to the next best provider.',
+      'When a customer places an order, our system offers it to the best-matched online provider — balanced by distance, current workload, (for larger driveways) your equipment, and your rating — so it goes to a nearby, available provider who can actually do the job. You\'ll get a push notification and have $_offerWindow to accept or decline. If you don\'t respond in time, the job moves to the next best provider.\n\nRating is the last of those, not the first: among providers who are about equally close, the higher-rated one is offered the job first. See "Your Rating" below for exactly how that works.',
     ),
     _FaqItem(
       'Does my equipment affect which jobs I get?',
@@ -385,11 +397,46 @@ List<_FaqSection> get _providerSections {
     // signal never arrives.
     _FaqItem(
       'This job is bigger than the price suggests — what do I do?',
-      'Do the job as booked, then leave a note on the property. On the job card, open Property notes, choose "Bigger job than priced" and say what you found — "driveway is about 200 feet, takes twice as long as a normal one", or "corner lot, sidewalk on two streets".\n\nThat note stays with the ADDRESS, not the job, so the next provider sent there sees it too — and it goes straight to us. We can raise the price on that specific property for future orders, which means the next person who clears it gets paid properly for the work it actually takes.\n\nWe can\'t change the price of a job already booked — the customer\'s card was authorised for the amount they agreed to. But telling us is how it gets fixed for next time. If a property is badly mispriced, say so; that\'s useful to us and we\'d rather know.',
+      'Do the job as booked, then leave a note on the property. On the job card, open Property notes, choose "Bigger job than priced" and say what you found — "driveway is about 200 feet, takes twice as long as a normal one", or "corner lot, sidewalk on two streets".\n\nThat note stays with the ADDRESS, not the job, so the next provider sent there sees it too — and it goes straight to us. We can raise the price on that specific property for future orders, which means the next person who clears it gets paid properly for the work it actually takes.\n\nWe can\'t change the price of a job already booked — the customer\'s card was authorized for the amount they agreed to. But telling us is how it gets fixed for next time. If a property is badly mispriced, say so; that\'s useful to us and we\'d rather know.',
     ),
     _FaqItem(
       'Do you send out commercial work — parking lots, complexes?',
       'No. Every job on SnowServ is residential — driveways, walkways and sidewalks at homes.\n\nWe don\'t take commercial contracts, so none will come to you through the app. If commercial is the part of your business you\'re trying to fill, SnowServ isn\'t the right fit for it, and it\'s better you know that before you sign up than after.\n\nWhat we do send is steady residential work in your area, matched to the equipment you have.',
+    ),
+  ]),
+  // Rating became load-bearing on 2026-08-11 — dispatch_jobs() now sorts by it
+  // inside a distance band. A number that quietly decides who gets offered work
+  // has to be explained, or the first provider who notices someone else getting
+  // the jobs concludes the app plays favorites. The full version is the "How
+  // your rating works" screen (tap the rating chip on the home screen).
+  _FaqSection('Your Rating', [
+    _FaqItem(
+      'What rating do I start with?',
+      'Five stars. New providers are treated as a 5.0 until customers start rating them, so you begin level with our best drivers rather than working your way up from the bottom.\n\nUntil your first rating arrives, your home screen shows a dash instead of a number. That\'s normal and it doesn\'t hold you back on jobs.',
+    ),
+    _FaqItem(
+      'Where does my rating come from?',
+      'After a job is marked complete, the customer can rate it 1 to 5 stars from their Orders screen. Your rating is the average of every job of yours that got rated, to one decimal place.\n\nOnly rated jobs count, and plenty of customers never rate at all — a quiet job is not a bad job. Jobs that were cancelled, and jobs a customer called off before you started, are never rated and never affect your average.',
+    ),
+    _FaqItem(
+      'Does my rating actually affect the jobs I get?',
+      'Yes, but only in close calls — and that\'s deliberate. When an order comes in we rank online providers by equipment (for large driveways), then current workload, then distance, then rating.\n\nDistance is compared in bands rather than to the foot: everyone within about two miles of the job counts as equally close, and among those drivers the higher-rated one is offered it first.\n\nSo a 5.0 driver across town will not take a job from a 4.6 driver on the next street — that would cost the customer time and cost you fuel over a rounding difference. What a good rating wins you is the close calls. In a neighborhood where several drivers are working the same few blocks, almost every call is a close call.',
+    ),
+    _FaqItem(
+      'How much does one bad rating hurt?',
+      'It depends entirely on how many you already have. An average moves fastest when there\'s little behind it: three perfect jobs followed by one 3-star leaves you at 4.5, while fifty perfect jobs followed by that same 3-star leaves you at 5.0 — it barely registers.\n\nThat\'s the honest reason to be careful early. It\'s also why a rough patch is recoverable: a run of good work pulls an average back up, and the fewer ratings you have, the faster it climbs.',
+    ),
+    _FaqItem(
+      'How do I protect my rating?',
+      'Almost every low rating we see comes down to one of these, and none of them are about skill:\n\n• Clear everything that was paid for. The job card itemizes it — driveway, walkway, deicer. Deicer is charged separately, so skipping it is the fastest route to a 1-star and a refund request.\n\n• Read the property notes before you start. Gate codes, where not to pile the snow, which side a neighbor parks on. Those notes stay with the address, so whoever went before you may have left you the answer.\n\n• Treat the completion photo as evidence, because that\'s what it is. Wide enough to show the whole surface, taken after you finish, in enough light to see the pavement. It\'s the first thing the customer sees when the job closes.\n\n• Take the optional "before" photo when you start. Thirty seconds, and it\'s the difference between "he barely did anything" and a pair of photos that settles it.\n\n• Don\'t accept what you can\'t get to. Declining an offer costs you nothing. Accepting and then cancelling costs the customer their morning, and cancellations after you\'ve started are counted on your record.',
+    ),
+    _FaqItem(
+      'Does my rating change how much I\'m paid?',
+      'No. You keep the same $keep% of every job regardless of your rating. There\'s no star bonus and no penalty rate — rating buys you position in line, never a different cut.\n\nCustomers aren\'t shown your rating and don\'t pick their driver from a list. The system uses it on their behalf, which is why the only thing it can do is decide who gets offered a job.',
+    ),
+    _FaqItem(
+      'I think a rating was unfair — what can I do?',
+      'Email support@snowserv.app with the job ID and what happened. There\'s no cutoff number that removes you automatically; when there\'s a problem a person looks at the account — the photos, the notes, any disputes — because one angry customer isn\'t the same thing as a pattern.\n\nIf your before-and-after photos show the work was done properly, say so and point us at that job. That\'s exactly what those photos are for.',
     ),
   ]),
   _FaqSection('Earnings & Payouts', [

@@ -37,7 +37,7 @@ ThemeData buildSnowServTheme() {
     error: SnowServColors.danger,
   );
 
-  // Inter everywhere, with brand ink colours and a tightened display scale.
+  // Inter everywhere, with brand ink colors and a tightened display scale.
   final baseText = GoogleFonts.interTextTheme(
     ThemeData(brightness: Brightness.light).textTheme,
   ).apply(bodyColor: SnowServColors.ink, displayColor: SnowServColors.navy);
@@ -77,7 +77,7 @@ ThemeData buildSnowServTheme() {
     ),
 
     // Tabs live in the navy AppBar, where Material 3's defaults resolve to dark
-    // on-surface colours and come out nearly unreadable — the FAQ's "For
+    // on-surface colors and come out nearly unreadable — the FAQ's "For
     // Customers / For Providers" tabs were the visible symptom. The admin panel
     // had already worked around it with the same values inline; putting them in
     // the theme fixes every TabBar at once and stops the next one repeating it.

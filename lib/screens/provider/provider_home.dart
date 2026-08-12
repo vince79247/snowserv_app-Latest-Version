@@ -16,6 +16,7 @@ import '../../utils/account_deletion.dart';
 import 'job_history_screen.dart';
 import 'provider_agreement_screen.dart';
 import 'provider_details_screen.dart';
+import 'rating_guide_screen.dart';
 import '../faq_screen.dart';
 import '../edit_profile_screen.dart';
 import '../admin/admin_screen.dart';
@@ -637,6 +638,22 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
                 onTap: () {
                   Navigator.pop(context);
                   _managePayouts();
+                },
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.star_outline, color: SnowServColors.navy),
+                title: const Text('How your rating works'),
+                subtitle: const Text('What it affects and how to protect it'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RatingGuideScreen(
+                          rating: _rating, totalJobs: _totalJobs),
+                    ),
+                  );
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
@@ -1838,48 +1855,72 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
             ),
             if (_rating != null || _totalJobs != null) ...[
               const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: SnowServColors.glacier),
+              // Tappable. Rating decides who gets offered a job now, and the
+              // place a provider first wonders what the number means is the
+              // place the explanation has to be — buried in the account menu
+              // it would never get found.
+              InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RatingGuideScreen(
+                        rating: _rating, totalJobs: _totalJobs),
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.star, color: Colors.amber, size: 20),
-                        const SizedBox(width: 6),
-                        Text(
-                          _rating != null ? _rating!.toStringAsFixed(1) : '—',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: SnowServColors.navy,
-                          ),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: SnowServColors.glacier),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 20),
+                            const SizedBox(width: 6),
+                            Text(
+                              _rating != null ? _rating!.toStringAsFixed(1) : '—',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: SnowServColors.navy,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Your Rating',
+                              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Your Rating',
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_outline, color: SnowServColors.iceBlue, size: 18),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                '${_totalJobs ?? 0} jobs done',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.check_circle_outline, color: SnowServColors.iceBlue, size: 18),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${_totalJobs ?? 0} jobs done',
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.help_outline, size: 18, color: Colors.grey.shade500),
+                    ],
+                  ),
                 ),
               ),
             ],

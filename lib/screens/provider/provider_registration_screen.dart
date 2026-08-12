@@ -444,7 +444,7 @@ class _ProviderRegistrationScreenState extends State<ProviderRegistrationScreen>
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
       // Material, not a Container with a BoxDecoration. ListTile and
       // SwitchListTile paint their ink splashes on the nearest Material
-      // ancestor, so a coloured DecoratedBox in between swallows every tap
+      // ancestor, so a colored DecoratedBox in between swallows every tap
       // ripple on this screen — the toggles looked dead when touched. Flutter
       // reports this, but only at runtime, which is why a widget test found it
       // and `flutter analyze` never could.
