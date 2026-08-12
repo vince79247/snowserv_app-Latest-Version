@@ -96,8 +96,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       _snack('Enter the 6-digit code from your email.');
       return;
     }
-    if (pass.length < 6) {
-      _snack('Your new password must be at least 6 characters.');
+    if (pass.length < 8) {
+      _snack('Your new password must be at least 8 characters.');
       return;
     }
     if (pass != confirm) {

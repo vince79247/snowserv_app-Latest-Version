@@ -149,9 +149,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         );
         return;
       }
-      if (passwordController.text.trim().length < 6) {
+      if (passwordController.text.trim().length < 8) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password must be at least 6 characters.')),
+          const SnackBar(content: Text('Password must be at least 8 characters.')),
         );
         return;
       }
@@ -246,8 +246,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         userMessage = 'Please confirm your email before logging in. Check your inbox.';
       } else if (message.contains('Invalid login')) {
         userMessage = 'Incorrect email or password.';
-      } else if (message.contains('Password') || message.contains('at least 6')) {
-        userMessage = 'Password must be at least 6 characters.';
+      } else if (message.contains('Password') || message.contains('at least')) {
+        userMessage = 'Password must be at least 8 characters, and cannot be one found in a known data breach.';
       } else {
         userMessage = 'Something went wrong. Please try again.';
       }
@@ -477,8 +477,19 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         decoration: InputDecoration(
                           labelText: isLogin ? 'Password' : 'Password *',
                           prefixIcon: const Icon(Icons.lock_outline),
+                          // Say the rule BEFORE they type it. A length rule that
+                          // only appears as an error after the fact is the most
+                          // avoidable way to make someone re-type a password.
+                          helperText: isLogin ? null : 'At least 8 characters',
                         ),
-                        autofillHints: const [AutofillHints.password],
+                        // newPassword on signup so the OS password manager offers
+                        // to GENERATE one rather than suggesting an existing —
+                        // a generated password is the single biggest win here.
+                        autofillHints: [
+                          isLogin
+                              ? AutofillHints.password
+                              : AutofillHints.newPassword,
+                        ],
                         obscureText: true,
                       ),
                       const SizedBox(height: 24),
