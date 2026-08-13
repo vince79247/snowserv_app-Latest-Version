@@ -573,6 +573,31 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                   }
                 },
               ),
+              // Card management belongs in the account menu, not in the order
+              // flow. It used to sit directly above Request Service, where it
+              // read as a statement about the payment you were one tap away
+              // from making — and then Stripe asked for the card anyway.
+              if (_savedCard != null) ...[
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.credit_card, color: SnowServColors.navy),
+                  title: Text(
+                      '${(_savedCard!['brand'] ?? '').toString().toUpperCase()} '
+                      '•••• ${_savedCard!['last4']}'),
+                  subtitle: const Text('Used for storms you book ahead'),
+                  trailing: TextButton(
+                    onPressed: _removingCard
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                            _removeSavedCard();
+                          },
+                    child: const Text('Remove',
+                        style: TextStyle(
+                            color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ],
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
                 leading: const Icon(Icons.help_outline, color: SnowServColors.navy),
@@ -2235,48 +2260,15 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
               style: TextStyle(
                   fontSize: 11, color: Colors.grey.shade600, height: 1.3),
             ),
-            if (_savedCard != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.credit_card, size: 16, color: Colors.grey),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      // Was "— change it at checkout", which implied the saved
-                      // card would be sitting there ready to tap. It is not:
-                      // hosted Stripe Checkout only PREFILLS the card form for
-                      // a returning customer, so the page still asks for card
-                      // details and shows "payment method required" until you
-                      // fill it in. Promising one-tap reuse and then demanding
-                      // the card again is worse than not promising it.
-                      'Card on file ${(_savedCard!['brand'] ?? '').toString().toUpperCase()} '
-                      '•••• ${_savedCard!['last4']} — used for booked storms. '
-                      'Checkout will confirm your card each time.',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  TextButton(
-                    onPressed: _removingCard ? null : _removeSavedCard,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: _removingCard
-                        ? const SizedBox(
-                            width: 14, height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Remove',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.redAccent,
-                                fontWeight: FontWeight.w600)),
-                  ),
-                ],
-              ),
-            ],
+            // The "card on file" chip used to live HERE, directly above Request
+            // Service. To a customer that reads as "this is the card you're
+            // about to be charged" — and then Stripe's page asks for the card
+            // anyway, one tap later. Two contradictory statements next to each
+            // other look like a bug, because functionally they are one.
+            //
+            // It now lives in two places that are actually true: the account
+            // menu (managing the card) and the storm-booking card (the one
+            // place the saved card genuinely gets charged, while you sleep).
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: loading ? null : createJob,
@@ -2322,6 +2314,10 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                 serviceType: selectedService,
                 salting: salting,
                 hasCard: _savedCard != null,
+                cardLabel: _savedCard == null
+                    ? null
+                    : '${(_savedCard!['brand'] ?? '').toString().toUpperCase()} '
+                        '•••• ${_savedCard!['last4']}',
               ),
             ],
             const SizedBox(height: 20),

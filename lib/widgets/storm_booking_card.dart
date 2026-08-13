@@ -34,6 +34,10 @@ class StormBookingCard extends StatefulWidget {
   /// True when the customer has a card on file — required, since we authorize
   /// off-session at trigger time with no chance to prompt them.
   final bool hasCard;
+  /// e.g. "VISA •••• 4242" — shown so the customer knows exactly what gets
+  /// charged while they're asleep. This is the ONE place the saved card is
+  /// genuinely used, so it is the one place worth naming it.
+  final String? cardLabel;
 
   const StormBookingCard({
     super.key,
@@ -42,6 +46,7 @@ class StormBookingCard extends StatefulWidget {
     required this.serviceType,
     required this.salting,
     required this.hasCard,
+    this.cardLabel,
   });
 
   @override
@@ -297,7 +302,23 @@ class _StormBookingCardState extends State<StormBookingCard> {
                 'Add a card first — place any order once and we\'ll save it.',
                 style: TextStyle(fontSize: 12, color: Colors.orange),
               )
-            else
+            else ...[
+              if (widget.cardLabel != null) ...[
+                Row(
+                  children: [
+                    Icon(Icons.credit_card, size: 15, color: Colors.grey.shade600),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'We\'ll charge ${widget.cardLabel} when it fires.',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade700),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -316,6 +337,7 @@ class _StormBookingCardState extends State<StormBookingCard> {
                       : const Text('Book my next storm'),
                 ),
               ),
+            ],
           ],
         ],
       ),
