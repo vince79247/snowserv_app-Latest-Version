@@ -12,6 +12,9 @@ import 'admin_map_screen.dart';
 import 'support_assistant_screen.dart';
 import '../../widgets/site_notes_panel.dart';
 import '../../utils/auth_actions.dart';
+// So an admin can look at the customer app without logging out of their own
+// account — RoleRouter never routes an is_admin login anywhere else.
+import '../customer/customer_home.dart';
 
 final supabase = Supabase.instance.client;
 
@@ -1641,9 +1644,41 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             onPressed: _openSettings,
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: loadAll),
-          TextButton(
-            onPressed: () => signOutSafely(context),
-            child: const Text('Log Out', style: TextStyle(color: Colors.white)),
+          // Overflow instead of another icon. The bar already carries four
+          // actions and adding a fifth truncated the title; this holds the two
+          // things you use rarely and gives the space back.
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: (v) {
+              if (v == 'customer') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const _CustomerPreview()),
+                );
+              } else if (v == 'logout') {
+                signOutSafely(context);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'customer',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.phone_iphone),
+                  title: Text('View customer app'),
+                  subtitle: Text('See what customers see'),
+                ),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'logout',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.logout),
+                  title: Text('Log out'),
+                ),
+              ),
+            ],
           ),
         ],
         bottom: wide ? null : _buildTabBar(),
@@ -6364,6 +6399,77 @@ class _PulseDotState extends State<_PulseDot>
           color: Color(0xFF4CD964),
           shape: BoxShape.circle,
         ),
+      ),
+    );
+  }
+}
+
+/// The customer app, opened from the admin panel.
+///
+/// An is_admin account is routed straight to the admin panel by RoleRouter and
+/// can never reach a customer or provider home — so the owner could not look at
+/// his own product without logging out and back in as somebody else. That
+/// friction means checking less often, which is how a truncated label survives
+/// a month.
+///
+/// The banner matters as much as the button: on web there is no system back
+/// gesture, and CustomerHome is normally the root of the app so it has no back
+/// arrow of its own. Without this you could get in and not out.
+class _CustomerPreview extends StatelessWidget {
+  const _CustomerPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          Material(
+            color: SnowServColors.navy,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.visibility_outlined,
+                        size: 16, color: Colors.white70),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Viewing the customer app',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back, size: 16),
+                      label: const Text('Back to admin'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // A NESTED Navigator, so CustomerHome is the root of its own stack.
+          // Pushed as an ordinary route it inherits a back arrow from the admin
+          // route, and that extra leading widget overflowed its app bar — the
+          // red "OVERFLOWED BY" stripe, caught on device. The banner above is
+          // the way out; the app bar does not need a second one. Internal
+          // navigation (My Orders, address editing) still works inside here.
+          Expanded(
+            child: Navigator(
+              onGenerateRoute: (_) =>
+                  MaterialPageRoute(builder: (_) => const CustomerHome()),
+            ),
+          ),
+        ],
       ),
     );
   }
