@@ -2243,8 +2243,16 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
+                      // Was "— change it at checkout", which implied the saved
+                      // card would be sitting there ready to tap. It is not:
+                      // hosted Stripe Checkout only PREFILLS the card form for
+                      // a returning customer, so the page still asks for card
+                      // details and shows "payment method required" until you
+                      // fill it in. Promising one-tap reuse and then demanding
+                      // the card again is worse than not promising it.
                       'Card on file ${(_savedCard!['brand'] ?? '').toString().toUpperCase()} '
-                      '•••• ${_savedCard!['last4']} — change it at checkout',
+                      '•••• ${_savedCard!['last4']} — used for booked storms. '
+                      'Checkout will confirm your card each time.',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ),

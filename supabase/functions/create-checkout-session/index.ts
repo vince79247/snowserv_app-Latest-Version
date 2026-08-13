@@ -403,6 +403,36 @@ Deno.serve(async (req: Request) => {
       body.append('customer', customerId)
       body.append('customer_update[address]', 'auto') // save the collected address for tax
       body.append('payment_intent_data[setup_future_usage]', 'off_session')
+      // OFFER the card we already have. Without this the saved-card feature was
+      // completely broken: Checkout only presents a stored PaymentMethod whose
+      // allow_redisplay is 'always', and every card saved through this flow —
+      // including real customers' — came back 'unspecified' (verified against
+      // live test-mode data 2026-08-12). The result was a returning customer
+      // seeing their Visa •••• 4242 listed, a red "payment method required"
+      // next to it, and being made to type the whole card in again while the
+      // app told them a card was on file.
+      //
+      // Listing 'unspecified' alongside 'always' covers cards already saved as
+      // well as new ones, so nobody has to re-enter a card once to repair it.
+      // NOTE (2026-08-12): a returning customer does NOT get a one-tap saved
+      // card here, and no parameter fixes that. Hosted Checkout only PREFILLS
+      // the card form from the most recent saved card — Stripe's docs say
+      // plainly that saved payment methods "don't appear for return purchases
+      // in Checkout". Redisplaying a stored card is a Payment Element (embedded)
+      // feature.
+      //
+      // Tried and reverted, both verified by screenshotting the real page:
+      //   saved_payment_method_options[allow_redisplay_filters] — no effect
+      //   saved_payment_method_options[payment_method_save]=enabled — no effect,
+      //     AND it hands the customer a checkbox that can DECLINE saving the
+      //     card. That silently breaks storm bookings, which charge off-session
+      //     against users.card_pm_id and simply fail with "No card on file" if
+      //     it was never saved. Forcing setup_future_usage above is what
+      //     guarantees we always have one.
+      //
+      // The real options are: live with prefill (current), or migrate to the
+      // embedded Payment Element — which would also require registering every
+      // domain for Apple Pay, a cost the hosted page avoids entirely.
     }
     for (const [k, v] of Object.entries(meta)) body.append(`metadata[${k}]`, v)
 
