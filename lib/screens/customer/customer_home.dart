@@ -1285,6 +1285,13 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
       final metadata = <String, dynamic>{
         'customer_id': userId,
         'address_mode': orderingForSomeoneElse ? 'new' : 'saved',
+        // Every job created through checkout had service_type NULL (caught on
+        // Vince's job #1187, 2026-08-12) while storm-booking jobs set it. Display
+        // never noticed, because the app describes a job from the booleans below
+        // — but the admin job search matches on service_type, and the vehicle
+        // dig-out spec assumes it is populated. Two data shapes for the same
+        // thing is how the next feature ends up with a silent hole in it.
+        'service_type': selectedService,
         'walkway': (selectedService == 'sidewalk' || selectedService == 'sidewalk_driveway').toString(),
         'driveway': (selectedService == 'driveway' || selectedService == 'sidewalk_driveway').toString(),
         if (selectedService == 'driveway' || selectedService == 'sidewalk_driveway')

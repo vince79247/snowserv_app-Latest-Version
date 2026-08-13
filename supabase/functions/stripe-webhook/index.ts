@@ -151,6 +151,9 @@ Deno.serve(async (req: Request) => {
       final_price: m.final_price != null ? Number(m.final_price) : null,
       payment_intent_id: paymentIntentId,
     }
+    // Keep the stored shape identical to the one trigger-storm-bookings writes.
+    // Without this every checkout-created job had service_type NULL.
+    if (m.service_type) jobBody.service_type = m.service_type
     if (m.customer_notes) jobBody.customer_notes = m.customer_notes
     // The snow depth the storm multiplier was computed from — the evidence for
     // the price, kept with the job it priced.
