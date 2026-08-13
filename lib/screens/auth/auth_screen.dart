@@ -245,7 +245,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       } else if (message.contains('Email not confirmed')) {
         userMessage = 'Please confirm your email before logging in. Check your inbox.';
       } else if (message.contains('Invalid login')) {
-        userMessage = 'Incorrect email or password.';
+        // Show the address BACK to them, wrapped. A long email scrolls out of a
+        // single-line field, so at the exact moment we say "one of these two is
+        // wrong" they cannot check which — verified on device: at 411dp,
+        // "claude.test.provider@snowserv.app" still loses its first character
+        // even with the icon removed and the font reduced, and a phone is
+        // narrower again.
+        //
+        // Shrinking text was a losing game — a 40-character address would fail
+        // at any size that is still readable. A SnackBar wraps, so this is
+        // correct for any length and any screen.
+        userMessage = 'Incorrect email or password.\n'
+            'Signing in as ${emailController.text.trim()}';
       } else if (message.contains('Password') || message.contains('at least')) {
         userMessage = 'Password must be at least 8 characters, and cannot be one found in a known data breach.';
       } else {
