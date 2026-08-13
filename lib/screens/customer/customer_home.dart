@@ -2174,6 +2174,29 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                   ],
                 ),
               ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _customerNotesController,
+              maxLines: 2,
+              maxLength: 200,
+              // The label was "Anything the provider should know?", which was a
+              // deliberate question — asking one gets better answers than a
+              // blank "Notes" box. But it was too long to fit beside the prefix
+              // icon and rendered as "Anything the provider shoul…", so it asked
+              // nothing at all.
+              //
+              // The question moves to the HINT, where it has the full width of
+              // the field and still does its job, and the label shrinks to
+              // something that fits. Prefix icon dropped for the same reason it
+              // was dropped from the state field earlier today: on a phone it
+              // costs ~40px of label width and buys decoration.
+              decoration: const InputDecoration(
+                labelText: 'Notes for your provider',
+                hintText: 'Gate code, where to pile snow, what to avoid',
+                helperText: 'Saved for this address — you only type it once',
+                helperMaxLines: 2,
+              ),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
@@ -2210,34 +2233,6 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
               ),
             ),
 
-            // "Book my next storm" — a standing order that fires when the snow
-            // STOPS. Deliberately BELOW the order total: on-demand is the pitch,
-            // this is the overnight case on-demand can't serve because nobody is
-            // awake at 4am to tap Order. Hidden for a one-off "someone else"
-            // address, which has no standing relationship to attach to.
-            const SizedBox(height: 16),
-            TextField(
-              controller: _customerNotesController,
-              maxLines: 2,
-              maxLength: 200,
-              // The label was "Anything the provider should know?", which was a
-              // deliberate question — asking one gets better answers than a
-              // blank "Notes" box. But it was too long to fit beside the prefix
-              // icon and rendered as "Anything the provider shoul…", so it asked
-              // nothing at all.
-              //
-              // The question moves to the HINT, where it has the full width of
-              // the field and still does its job, and the label shrinks to
-              // something that fits. Prefix icon dropped for the same reason it
-              // was dropped from the state field earlier today: on a phone it
-              // costs ~40px of label width and buys decoration.
-              decoration: const InputDecoration(
-                labelText: 'Notes for your provider',
-                hintText: 'Gate code, where to pile snow, what to avoid',
-                helperText: 'Saved for this address — you only type it once',
-                helperMaxLines: 2,
-              ),
-            ),
             const SizedBox(height: 12),
             // Reassure the customer this places a hold, not a charge. (Used to
             // live in the in-app payment sheet, which Stripe Checkout replaced.)

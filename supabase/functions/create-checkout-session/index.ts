@@ -373,6 +373,46 @@ Deno.serve(async (req: Request) => {
       customerId = customer.id
     }
 
+    // ---- Tax location = WHERE THE SNOW IS, not where the card is billed ----
+    // New York taxes snow removal as maintenance of real property, and a service
+    // performed on real property is sourced to the property — so a Yonkers
+    // driveway is taxed at the Yonkers rate even when the payer's card bills to
+    // another state. That case is not hypothetical: "ordering for someone else"
+    // exists precisely so an out-of-town child can clear a parent's driveway,
+    // and billing-address sourcing would tax that at the child's address.
+    //
+    // Stripe picks the shipping address first and falls back to billing. We have
+    // neither by default, so it was using whatever billing address got typed on
+    // the Checkout page. Writing the SERVICE address onto the customer, and
+    // setting customer_update[address]=never below so the typed one cannot
+    // override it, makes Stripe source tax from the property.
+    //
+    // Harmless today — with no tax registration Stripe computes $0 either way —
+    // which is exactly why this is the right moment to fix it, before the
+    // Certificate of Authority makes it real money.
+    if (customerId && addr) {
+      const ab = new URLSearchParams()
+      ab.append('address[line1]', String(addr.address_line ?? ''))
+      ab.append('address[city]', String(addr.city ?? ''))
+      ab.append('address[state]', String(addr.state ?? ''))
+      ab.append('address[postal_code]', String(addr.zip ?? ''))
+      ab.append('address[country]', 'US')
+      try {
+        await fetch(`https://api.stripe.com/v1/customers/${customerId}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${stripeKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: ab.toString(),
+        })
+      } catch (e) {
+        // Never block an order on this. Stripe falls back to the billing
+        // address, which is what it did before this existed.
+        console.error('could not set customer tax address', String(e))
+      }
+    }
+
     // ---- Build the Checkout Session ---------------------------------------
     const body = new URLSearchParams()
     body.append('mode', 'payment')
@@ -390,9 +430,14 @@ Deno.serve(async (req: Request) => {
     // this is safe to ship before the NY Certificate of Authority registration.
     body.append('line_items[0][price_data][tax_behavior]', 'exclusive')
     body.append('automatic_tax[enabled]', 'true')
-    // automatic_tax needs an address to source the rate: collect the payer's billing
-    // address on the Checkout page and let Stripe use it (customer_update[address]).
-    body.append('billing_address_collection', 'required')
+    // Billing address is no longer FORCED. It was required only because Stripe
+    // needed some address to source tax, and it now has the service address (see
+    // above). Vince, reading the page as a customer: being asked for an address
+    // right after typing the service address reads like the app forgot, or like
+    // the two are the same thing. 'auto' lets Stripe ask only when the payment
+    // itself needs it — Apple Pay and Link already carry one, so most customers
+    // never see the field at all.
+    body.append('billing_address_collection', 'auto')
     body.append('payment_intent_data[capture_method]', 'manual') // the HOLD
     body.append('payment_intent_data[description]', job_description ?? 'SnowServ snow removal')
     body.append(
@@ -401,7 +446,10 @@ Deno.serve(async (req: Request) => {
     )
     if (customerId) {
       body.append('customer', customerId)
-      body.append('customer_update[address]', 'auto') // save the collected address for tax
+      // 'never', not 'auto': a billing address typed on the Checkout page must
+      // NOT overwrite the service address we just set, or tax goes back to being
+      // sourced from the payer instead of the property.
+      body.append('customer_update[address]', 'never')
       body.append('payment_intent_data[setup_future_usage]', 'off_session')
       // OFFER the card we already have. Without this the saved-card feature was
       // completely broken: Checkout only presents a stored PaymentMethod whose
