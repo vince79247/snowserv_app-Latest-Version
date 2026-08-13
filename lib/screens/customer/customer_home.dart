@@ -2220,17 +2220,22 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
               controller: _customerNotesController,
               maxLines: 2,
               maxLength: 200,
-              // Asks a QUESTION rather than offering a blank box. The provider
-              // can't phone you mid-job (deliberately — see provider_home), so
-              // whatever they need to know has to be here. Naming the three
-              // things that actually strand someone at 5am gets far better
-              // answers than "Notes for provider (optional)" ever did.
+              // The label was "Anything the provider should know?", which was a
+              // deliberate question — asking one gets better answers than a
+              // blank "Notes" box. But it was too long to fit beside the prefix
+              // icon and rendered as "Anything the provider shoul…", so it asked
+              // nothing at all.
+              //
+              // The question moves to the HINT, where it has the full width of
+              // the field and still does its job, and the label shrinks to
+              // something that fits. Prefix icon dropped for the same reason it
+              // was dropped from the state field earlier today: on a phone it
+              // costs ~40px of label width and buys decoration.
               decoration: const InputDecoration(
-                labelText: 'Anything the provider should know?',
-                hintText: 'Gate code, where to pile the snow, what to avoid',
+                labelText: 'Notes for your provider',
+                hintText: 'Gate code, where to pile snow, what to avoid',
                 helperText: 'Saved for this address — you only type it once',
                 helperMaxLines: 2,
-                prefixIcon: Icon(Icons.notes_outlined),
               ),
             ),
             const SizedBox(height: 12),
