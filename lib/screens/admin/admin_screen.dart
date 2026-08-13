@@ -1606,7 +1606,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     final wide = MediaQuery.of(context).size.width >= 900;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Admin Panel'),
+        // "Admin Panel" truncated to "Admin P…" once the settings icon made it
+        // four actions. Nothing is gained by the second word — you know which
+        // app you are in.
+        title: const Text('Admin'),
         actions: [
           IconButton(
             icon: const Icon(Icons.support_agent_outlined),
@@ -1631,6 +1634,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                 ),
               ),
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'Settings',
+            onPressed: _openSettings,
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: loadAll),
           TextButton(
@@ -2932,14 +2940,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     return Column(
       children: [
         if (includeTicker) _buildLiveTicker(),
-        _dispatchTimerBar(),
-        _stormPricingBar(),
-        // Directly under the storm ladder, because it is the ceiling ON that
-        // ladder and only means anything read together with it.
-        _stormBookingSwitchBar(),
-        // Only meaningful while the feature is on — a cap on something switched
-        // off is just clutter.
-        if (AppConfig.stormBookingEnabled) _stormBookingCapBar(),
+        // The dispatch window, storm pricing, the storm-booking switch and its
+        // cap all used to sit here as stacked coloured bars — four settings
+        // above the jobs on the screen you read every day. They live behind the
+        // gear in the top bar now. Settings you touch a few times a season do
+        // not belong on top of content you read constantly.
         _searchField('Search jobs by #, name, address, or ZIP',
             (v) => setState(() => _jobSearch = v)),
         SizedBox(
@@ -3010,224 +3015,196 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // AppConfig — both the provider countdown and the cron expiry follow it).
   // Compact summary of the storm ladder in the Jobs tab, e.g.
   // "3"→1.3× · 6"→1.7× · 10"→2.3×". Tap to edit the thresholds + multipliers.
-  Widget _stormPricingBar() {
-    final surge = AppConfig.stormBands.where((b) => b.minInches > 0).toList();
-    final summary = surge.isEmpty
-        ? 'standard price only'
-        : surge
-            .map((b) => '${b.minInches}"→${_fmtMult(b.multiplier)}×')
-            .join('  ·  ');
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: InkWell(
-        onTap: _editStormPricing,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.ac_unit, size: 16, color: Colors.orange),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Storm pricing: $summary',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.orange),
-                ),
-              ),
-              const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.tune, size: 14, color: Colors.orange),
-                SizedBox(width: 4),
-                Text('Edit',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange)),
-              ]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Master switch for "Book my next storm".
+  /// One place for the knobs.
   ///
-  /// OFF for the launch season. Booking ahead is a PROMISE, and a promise needs
-  /// supply behind it — if a blizzard fires a dozen bookings at 4am against
-  /// three working providers, those customers wake up charged with nobody
-  /// coming. The re-enable condition is a number on this very tab: turn it on
-  /// when "Can work" comfortably exceeds the volume you would expect booked on
-  /// a storm night.
-  Widget _stormBookingSwitchBar() {
-    final on = AppConfig.stormBookingEnabled;
-    final canWork = providers
-        .where((p) =>
-            p['registration_status'] == 'approved' && p['payouts_enabled'] == true)
-        .length;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: (on ? Colors.green : Colors.blueGrey).withOpacity(0.10),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(on ? Icons.event_available : Icons.event_busy,
-                size: 16, color: on ? Colors.green.shade800 : Colors.blueGrey),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                on
-                    ? 'Storm booking: ON — customers can book ahead'
-                    : 'Storm booking: OFF — hidden from customers ($canWork '
-                        'provider${canWork == 1 ? '' : 's'} can work)',
-                style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: on ? Colors.green.shade900 : Colors.blueGrey.shade700),
-              ),
-            ),
-            Switch(
-              value: on,
-              activeColor: Colors.green,
-              onChanged: (v) async {
-                if (v) {
-                  final sure = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Turn storm booking on?'),
-                      content: Text(
-                        'Customers will be able to book a storm in advance. When '
-                        'one fires we charge their card while they sleep and '
-                        'create the job automatically — so you need enough '
-                        'providers online to cover them.\n\n'
-                        'Right now $canWork provider${canWork == 1 ? '' : 's'} '
-                        'can actually take a job.',
-                      ),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Cancel')),
-                        FilledButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Turn it on')),
-                      ],
+  /// These four settings used to sit as coloured bars stacked on top of the Jobs
+  /// tab — dispatch window, storm pricing, storm booking switch, storm booking
+  /// cap — so the screen you look at most opened with four settings and no jobs.
+  /// Vince, 2026-08-13: "starting to find the administration panel very
+  /// confusing." He was right, and it was accretion: every time a knob was
+  /// needed it got a bar at the top of the busiest screen.
+  ///
+  /// Settings you change a handful of times a season do not belong above content
+  /// you read every day.
+  void _openSettings() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          Widget row({
+            required IconData icon,
+            required String title,
+            required String value,
+            required VoidCallback onTap,
+            Widget? trailing,
+          }) =>
+              ListTile(
+                leading: Icon(icon, color: SnowServColors.iceBlue),
+                title: Text(title,
+                    style: const TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.w600)),
+                subtitle: Text(value,
+                    style: const TextStyle(
+                        fontSize: 12.5, color: SnowServColors.inkSoft)),
+                trailing: trailing ??
+                    const Icon(Icons.chevron_right, color: Colors.grey),
+                onTap: onTap,
+              );
+
+          final cap = AppConfig.stormBookingMaxSurge;
+          final canWork = providers
+              .where((p) =>
+                  p['registration_status'] == 'approved' &&
+                  p['payouts_enabled'] == true)
+              .length;
+
+          return SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, 4),
+                    child: Text('Settings',
+                        style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                            color: SnowServColors.navy)),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: Text(
+                      'Changes take effect immediately, for everyone.',
+                      style: TextStyle(
+                          fontSize: 12, color: SnowServColors.inkSoft),
                     ),
-                  );
-                  if (sure != true) return;
-                }
-                await AppConfig.setStormBookingEnabled(v);
-                if (mounted) setState(() {});
-              },
+                  ),
+                  const Divider(height: 1),
+                  row(
+                    icon: Icons.percent,
+                    title: 'Platform commission',
+                    value:
+                        '${AppConfig.commissionPct.round()}% to SnowServ · '
+                        '${(100 - AppConfig.commissionPct).round()}% to the provider',
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await _editCommission();
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  row(
+                    icon: Icons.timer_outlined,
+                    title: 'Dispatch offer window',
+                    value: '${_fmtOfferWindow()} for a provider to accept '
+                        'before it moves on',
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await _editDispatchTimeout();
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  row(
+                    icon: Icons.ac_unit,
+                    title: 'Storm pricing',
+                    value: AppConfig.stormBands
+                        .where((b) => b.multiplier > 1.0)
+                        .map((b) => '${b.minInches}"→${b.multiplier}x')
+                        .join(' · '),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await _editStormPricing();
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: Icon(
+                        AppConfig.stormBookingEnabled
+                            ? Icons.event_available
+                            : Icons.event_busy,
+                        color: AppConfig.stormBookingEnabled
+                            ? Colors.green
+                            : Colors.blueGrey),
+                    title: const Text('Book my next storm',
+                        style: TextStyle(
+                            fontSize: 14.5, fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      AppConfig.stormBookingEnabled
+                          ? 'Customers can book ahead. We charge their card and '
+                              'create the job automatically when a storm ends.'
+                          : 'Hidden from customers. $canWork provider'
+                              '${canWork == 1 ? '' : 's'} can currently work — '
+                              'turn this on when that comfortably covers a '
+                              'storm night.',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    value: AppConfig.stormBookingEnabled,
+                    activeColor: Colors.green,
+                    onChanged: (v) async {
+                      if (v) {
+                        final sure = await showDialog<bool>(
+                          context: ctx,
+                          builder: (d) => AlertDialog(
+                            title: const Text('Turn storm booking on?'),
+                            content: Text(
+                              'Bookings charge the customer\'s card while they '
+                              'sleep and create the job automatically, so you '
+                              'need providers online to cover them.\n\n'
+                              'Right now $canWork provider'
+                              '${canWork == 1 ? '' : 's'} can take a job.',
+                            ),
+                            actions: [
+                              TextButton(
+                                  onPressed: () => Navigator.pop(d, false),
+                                  child: const Text('Cancel')),
+                              FilledButton(
+                                  onPressed: () => Navigator.pop(d, true),
+                                  child: const Text('Turn it on')),
+                            ],
+                          ),
+                        );
+                        if (sure != true) return;
+                      }
+                      await AppConfig.setStormBookingEnabled(v);
+                      setSheet(() {});
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  if (AppConfig.stormBookingEnabled)
+                    row(
+                      icon: Icons.trending_up,
+                      title: 'Storm booking price cap',
+                      value: '${cap.toStringAsFixed(cap % 1 == 0 ? 0 : 1)}x — '
+                          'the most a booked job can be multiplied',
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        await _editStormBookingCap();
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _stormBookingCapBar() {
-    final cap = AppConfig.stormBookingMaxSurge;
-    final capStr = cap.toStringAsFixed(cap % 1 == 0 ? 0 : 1);
-    // Name the consequence, not just the number: which of your own bands this
-    // actually holds back is the only thing that decides whether the cap costs
-    // you anything.
-    final bitesAt = AppConfig.stormBands
-        .where((b) => b.multiplier > cap)
-        .map((b) => '${b.minInches.round()}"+')
-        .toList();
-    final effect = bitesAt.isEmpty
-        ? 'never reached by your current bands'
-        : 'holds back ${bitesAt.first} storms';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: InkWell(
-        onTap: _editStormBookingCap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.event_available, size: 16, color: Colors.orange),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Storm booking cap: ${capStr}x  ·  $effect',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.orange),
-                ),
-              ),
-              const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.tune, size: 14, color: Colors.orange),
-                SizedBox(width: 4),
-                Text('Edit',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange)),
-              ]),
-            ],
-          ),
-        ),
-      ),
-    );
+  String _fmtOfferWindow() {
+    final s = AppConfig.dispatchTimeoutSeconds;
+    if (s % 60 == 0) {
+      final m = s ~/ 60;
+      return m == 1 ? '1 minute' : '$m minutes';
+    }
+    return '$s seconds';
   }
 
-  Widget _dispatchTimerBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: InkWell(
-        onTap: _editDispatchTimeout,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: SnowServColors.iceBlue.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.timer_outlined, size: 16, color: SnowServColors.navy),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Dispatch offer window: ${_fmtMMSS(AppConfig.dispatchTimeoutSeconds)}',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: SnowServColors.navy),
-                ),
-              ),
-              const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.tune, size: 14, color: SnowServColors.iceBlue),
-                SizedBox(width: 4),
-                Text('Edit',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: SnowServColors.iceBlue)),
-              ]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+
 
   Widget _jobsListView(List<Map<String, dynamic>> list) {
     return ListView.builder(
