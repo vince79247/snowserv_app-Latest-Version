@@ -50,6 +50,25 @@ class AppConfig {
   static const double stormMultMin = 1.0; // storm pricing only ever raises price
   static const double stormMultMax = 5.0;
 
+  /// Master switch for "Book my next storm" (app_settings.storm_booking_enabled).
+  ///
+  /// OFF for the launch season (decided with Vince 2026-08-13). Not because the
+  /// feature is broken — it is built, and it was proven end to end against a
+  /// real storm — but because it makes a PROMISE, and promises need supply
+  /// behind them. Three providers can currently work. If fifteen people book
+  /// ahead and a blizzard fires the cron at 4am, fifteen cards are charged and
+  /// fifteen jobs appear for three people to cover, and those customers wake up
+  /// to a debit and no service. On-demand fails gracefully by comparison — the
+  /// customer watches it searching and can cancel with the hold released.
+  ///
+  /// Re-enable when the "Can work" count on the admin Providers tab comfortably
+  /// exceeds the volume you would expect booked on a storm night. Flipping this
+  /// to true is the entire re-launch: nothing was deleted.
+  ///
+  /// Default FALSE on purpose. A missing or unreadable setting must not switch
+  /// on a feature that charges cards unattended.
+  static bool stormBookingEnabled = false;
+
   /// Ceiling on storm pricing for a BOOKED-AHEAD job (app_settings
   /// .storm_booking_max_surge). A storm booking fires while the customer is
   /// asleep and authorizes their card off-session, so they cannot see the
@@ -92,6 +111,11 @@ class AppConfig {
       if (cap != null && cap >= stormBookingCapMin && cap <= stormBookingCapMax) {
         stormBookingMaxSurge = cap;
       }
+      // Only an explicit 'true' turns it on. Anything else — missing row,
+      // typo, empty string — leaves it off, because the failure direction that
+      // matters is "started charging cards nobody expected".
+      stormBookingEnabled =
+          (map['storm_booking_enabled'] ?? '').trim().toLowerCase() == 'true';
     } catch (_) {
       // Keep the defaults on any failure — pricing/dispatch must never break.
     }
@@ -181,5 +205,16 @@ class AppConfig {
       'updated_at': DateTime.now().toIso8601String(),
     });
     stormBookingMaxSurge = clamped;
+  }
+
+  /// Turn "Book my next storm" on or off. The server checks the same row before
+  /// firing anything, so this is not merely hiding the card.
+  static Future<void> setStormBookingEnabled(bool enabled) async {
+    await Supabase.instance.client.from('app_settings').upsert({
+      'key': 'storm_booking_enabled',
+      'value': enabled.toString(),
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+    stormBookingEnabled = enabled;
   }
 }

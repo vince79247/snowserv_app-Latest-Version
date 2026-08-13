@@ -115,6 +115,26 @@ Deno.serve(async (req: Request) => {
     const svc = { apikey: svcKey, Authorization: `Bearer ${svcKey}` }
     const jsonSvc = { ...svc, 'Content-Type': 'application/json' }
 
+    // MASTER SWITCH — checked before anything else, and before any card is
+    // touched. Hiding the card in the app is not enough on its own: an older
+    // installed build still shows it, and any booking already sitting in the
+    // table would otherwise still fire. This is the line that actually means
+    // "off".
+    //
+    // Defaults to OFF when the row is missing or unreadable. The dangerous
+    // direction here is charging cards nobody expected, so an unknown state
+    // must not be treated as permission.
+    const settingsRes = await fetch(
+      `${url}/rest/v1/app_settings?key=eq.storm_booking_enabled&select=value`,
+      { headers: svc })
+    const enabledRows = settingsRes.ok ? await settingsRes.json() : null
+    const stormBookingEnabled =
+      Array.isArray(enabledRows) &&
+      String(enabledRows[0]?.value ?? '').trim().toLowerCase() === 'true'
+    if (!stormBookingEnabled) {
+      return json({ disabled: true, checked: 0, fired: 0 })
+    }
+
     const bookings = await (await fetch(
       `${url}/rest/v1/storm_bookings?status=eq.active&select=*,addresses(*),users!storm_bookings_customer_id_fkey(stripe_customer_id,card_pm_id)`,
       { headers: svc })).json()

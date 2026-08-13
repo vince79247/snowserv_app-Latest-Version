@@ -2302,7 +2302,10 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
             // Booking a future storm is a different action from ordering now.
             // Putting it after the order finishes says that with layout instead
             // of with words.
-            if (!orderingForSomeoneElse) ...[
+            // OFF for the launch season — see AppConfig.stormBookingEnabled.
+            // Supply, not the feature, is why: booking ahead is a promise, and
+            // three working providers cannot cover a blizzard's worth of them.
+            if (AppConfig.stormBookingEnabled && !orderingForSomeoneElse) ...[
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 12),

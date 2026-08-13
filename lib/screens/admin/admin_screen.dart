@@ -2936,7 +2936,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         _stormPricingBar(),
         // Directly under the storm ladder, because it is the ceiling ON that
         // ladder and only means anything read together with it.
-        _stormBookingCapBar(),
+        _stormBookingSwitchBar(),
+        // Only meaningful while the feature is on — a cap on something switched
+        // off is just clutter.
+        if (AppConfig.stormBookingEnabled) _stormBookingCapBar(),
         _searchField('Search jobs by #, name, address, or ZIP',
             (v) => setState(() => _jobSearch = v)),
         SizedBox(
@@ -3049,6 +3052,84 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               ]),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Master switch for "Book my next storm".
+  ///
+  /// OFF for the launch season. Booking ahead is a PROMISE, and a promise needs
+  /// supply behind it — if a blizzard fires a dozen bookings at 4am against
+  /// three working providers, those customers wake up charged with nobody
+  /// coming. The re-enable condition is a number on this very tab: turn it on
+  /// when "Can work" comfortably exceeds the volume you would expect booked on
+  /// a storm night.
+  Widget _stormBookingSwitchBar() {
+    final on = AppConfig.stormBookingEnabled;
+    final canWork = providers
+        .where((p) =>
+            p['registration_status'] == 'approved' && p['payouts_enabled'] == true)
+        .length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: (on ? Colors.green : Colors.blueGrey).withOpacity(0.10),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(on ? Icons.event_available : Icons.event_busy,
+                size: 16, color: on ? Colors.green.shade800 : Colors.blueGrey),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                on
+                    ? 'Storm booking: ON — customers can book ahead'
+                    : 'Storm booking: OFF — hidden from customers ($canWork '
+                        'provider${canWork == 1 ? '' : 's'} can work)',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: on ? Colors.green.shade900 : Colors.blueGrey.shade700),
+              ),
+            ),
+            Switch(
+              value: on,
+              activeColor: Colors.green,
+              onChanged: (v) async {
+                if (v) {
+                  final sure = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Turn storm booking on?'),
+                      content: Text(
+                        'Customers will be able to book a storm in advance. When '
+                        'one fires we charge their card while they sleep and '
+                        'create the job automatically — so you need enough '
+                        'providers online to cover them.\n\n'
+                        'Right now $canWork provider${canWork == 1 ? '' : 's'} '
+                        'can actually take a job.',
+                      ),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel')),
+                        FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Turn it on')),
+                      ],
+                    ),
+                  );
+                  if (sure != true) return;
+                }
+                await AppConfig.setStormBookingEnabled(v);
+                if (mounted) setState(() {});
+              },
+            ),
+          ],
         ),
       ),
     );
