@@ -1741,6 +1741,66 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
     );
   }
 
+  /// The one thing standing between an approved provider and earning.
+  ///
+  /// Deliberately louder than the truck reminder below it: missing truck details
+  /// is a nice-to-have, missing payouts means you cannot work at all. Says what
+  /// is blocked and what to do, in that order — "you can't take jobs yet" is the
+  /// fact that makes someone tap the button.
+  Widget _payoutsRequiredBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        border: Border.all(color: Colors.red.shade300, width: 1.5),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.block, size: 20, color: Colors.red.shade700),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "You can't take jobs yet",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.red.shade800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "You're approved — there's one step left. Connect a bank account so "
+            'we can pay you, and the Online switch unlocks. Stripe handles it '
+            'and it takes a few minutes; SnowServ never sees your bank details.',
+            style: TextStyle(
+                fontSize: 13, height: 1.4, color: Colors.red.shade900),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _managePayouts,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.account_balance_outlined, size: 18),
+              label: const Text('Set up payouts'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Registration lets a plow provider skip his truck details rather than lose
   // him to a walk out to the driveway. This is the reminder that closes it out.
   Widget _truckDetailsReminder() {
@@ -1820,6 +1880,20 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // FIRST, above everything. Reaching this screen at all means
+            // RoleRouter saw registration_status='approved', so an unset
+            // payouts flag here means: approved, believes they are done, and
+            // cannot take a single job.
+            //
+            // Until now NOTHING said so. The only way to find out was to try
+            // the Online switch and hit _promptPayoutSetup — and a provider who
+            // tried once weeks ago and did not finish was never reminded again.
+            // That is exactly how Isaiah and Tony went dark: both approved,
+            // both signed, neither ever tapped "Set up payouts"
+            // (stripe_connect_id null on both, 2026-08-13). Recruiting more
+            // people into a funnel that loses them here is pouring water into a
+            // leaky bucket.
+            if (!_payoutsReady) _payoutsRequiredBanner(),
             if (_missingTruckDetails) _truckDetailsReminder(),
             // Online toggle
             AnimatedContainer(
