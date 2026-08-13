@@ -155,7 +155,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
         supabase.from('jobs').select('*, addresses(*)').order('created_at', ascending: false),
         supabase
             .from('providers')
-            .select('*, users!inner(name, email, phone)')
+            .select('*, users!inner(name, email, phone, is_test)')
             .order('created_at', ascending: false),
         // Resilient like loadAll: a disputes hiccup shouldn't stall the rest.
         supabase
@@ -191,7 +191,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           .order('created_at', ascending: false);
       final providersData = await supabase
           .from('providers')
-          .select('*, users!inner(name, email, phone)')
+          .select('*, users!inner(name, email, phone, is_test)')
           .order('created_at', ascending: false);
       final payoutsData = await supabase
           .from('jobs')
@@ -1701,7 +1701,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     );
   }
 
+  /// A test/family account. Marked on users.is_test.
+  ///
+  /// These are NOT hidden — you still have to see and manage them — but they
+  /// must never be counted as supply. On 2026-08-13 the panel reported "3
+  /// providers can work" and all three were test accounts, while the real
+  /// recruited pipeline was three strangers, one approved, none able to take a
+  /// job. Launch decisions were resting on that number.
+  static bool _isTestProvider(Map<String, dynamic> p) =>
+      p['users']?['is_test'] == true;
+
+  /// Providers excluding test accounts — the only list a readiness number may
+  /// be computed from.
+  List<Map<String, dynamic>> get _realProviders =>
+      providers.where((p) => !_isTestProvider(p)).toList();
+
   int get _customerCount => users
+      .where((u) => u['is_test'] != true)
       .where((u) => !providers
           .map((p) => p['user_id']?.toString())
           .toSet()
@@ -3089,7 +3105,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               );
 
           final cap = AppConfig.stormBookingMaxSurge;
-          final canWork = providers
+          final canWork = _realProviders
               .where((p) =>
                   p['registration_status'] == 'approved' &&
                   p['payouts_enabled'] == true)
@@ -4385,7 +4401,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
     // the recruiting pipeline in the exact situation they exist for — zero
     // providers, pre-season, trying to sign people up.
     final pendingCount = providers.where((p) => p['registration_status'] == 'pending_review').length;
-    final blockedCount = providers.where(_payoutBlocked).length;
+    final blockedCount = _realProviders.where(_payoutBlocked).length;
     final onDuty = providers.where((p) => p['is_online'] == true).toList();
     final offDuty = providers.where((p) => p['is_online'] != true).toList();
     bool match(Map<String, dynamic> p) => _matchesSearch(
@@ -4441,6 +4457,26 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                   color: SnowServColors.navy),
                             ),
                           ),
+                          // TEST chip, first and unmissable. Without it the
+                          // roster reads as nine providers when three are real.
+                          if (_isTestProvider(p)) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.purple.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.purple.shade200),
+                              ),
+                              child: Text('TEST',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      letterSpacing: 0.5,
+                                      color: Colors.purple.shade700,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                           // Visible while the card is COLLAPSED — the whole
                           // point is not having to open four cards to find out
                           // who can actually work.
@@ -4537,6 +4573,33 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                   ),
                   children: [
                     const Divider(height: 16),
+                    // Maintainable from here, so the flag stays true over time
+                    // instead of decaying into another number you cannot trust.
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: _isTestProvider(p),
+                      activeColor: Colors.purple,
+                      title: const Text('Test account',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: const Text(
+                        'Excluded from storm-readiness and provider counts',
+                        style: TextStyle(fontSize: 11.5),
+                      ),
+                      onChanged: (v) async {
+                        try {
+                          await supabase
+                              .from('users')
+                              .update({'is_test': v}).eq('id', p['user_id']);
+                          await loadAll();
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Could not update: $e')));
+                        }
+                      },
+                    ),
                     // Sits FIRST: for a provider who never finished, this is
                     // the whole story, and everything below it is empty.
                     if (regStatus == 'incomplete') _registrationProgress(p),
@@ -4967,8 +5030,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // can accept and complete jobs and then can't be paid, which you'd discover
   // during a storm.
   Widget _stormReadinessPanel() {
-    final approved =
-        providers.where((p) => p['registration_status'] == 'approved').toList();
+    // _realProviders, never `providers`: this panel decides whether there is
+    // enough coverage to market to customers, and test accounts are not
+    // coverage.
+    final approved = _realProviders
+        .where((p) => p['registration_status'] == 'approved')
+        .toList();
     final payable = approved.where((p) => p['payouts_enabled'] == true).toList();
     final unpayable = approved.length - payable.length;
     // Dispatch only deprioritizes 'shovel' on LARGE driveways; null/snowblower/
@@ -5026,7 +5093,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _tallyItem('Registered', providers.length, Colors.black54),
+                  // Real only, like every other step. Counting all 10 here
+                  // against 1 approved read as a catastrophic approval rate,
+                  // when 7 of the 10 were test accounts. The funnel is only
+                  // informative if every stage measures the same population.
+                  _tallyItem('Registered', _realProviders.length, Colors.black54),
                   _funnelArrow(),
                   _tallyItem('Approved', approved.length, Colors.black87),
                   _funnelArrow(),
