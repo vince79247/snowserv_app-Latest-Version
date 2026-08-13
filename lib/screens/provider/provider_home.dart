@@ -1894,7 +1894,13 @@ class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver
             // people into a funnel that loses them here is pouring water into a
             // leaky bucket.
             if (!_payoutsReady) _payoutsRequiredBanner(),
-            if (_missingTruckDetails) _truckDetailsReminder(),
+            // ONE blocking thing at a time. Vince, testing build 24: the payout
+            // banner ("you cannot work at all") and the truck reminder
+            // ("customers cannot spot your vehicle") stacked on top of each
+            // other. Two nags dilute the urgent one, and truck details are
+            // pointless to chase from someone who cannot take a job yet. The
+            // reminder comes back the moment payouts are sorted.
+            if (_payoutsReady && _missingTruckDetails) _truckDetailsReminder(),
             // Online toggle
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),

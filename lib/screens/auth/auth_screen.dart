@@ -464,9 +464,22 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
                       TextField(
                         controller: emailController,
+                        // Slightly smaller, and NO prefix icon. Vince, build 24:
+                        // he mistyped a password, got "Incorrect email or
+                        // password", went to check the address — and could not
+                        // read all of it, because a long email scrolls out of a
+                        // single line and the icon was eating ~40px of the room
+                        // it needed.
+                        //
+                        // Being unable to verify what you typed, at the exact
+                        // moment you are told one of the two is wrong, is the
+                        // worst possible time for that. Third field today where
+                        // a prefixIcon caused truncation — the state dropdown
+                        // showed "N" for "NY", and the note label asked half a
+                        // question. The icon is decoration; the text is the job.
+                        style: const TextStyle(fontSize: 15),
                         decoration: InputDecoration(
                           labelText: isLogin ? 'Email' : 'Email *',
-                          prefixIcon: const Icon(Icons.email_outlined),
                         ),
                         autofillHints: const [AutofillHints.username, AutofillHints.email],
                         keyboardType: TextInputType.emailAddress,
