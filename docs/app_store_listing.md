@@ -131,14 +131,31 @@ Declare "Data is NOT used to track you" (no third-party ad tracking).
   Answer the encryption question accordingly (no custom/proprietary crypto). Add
   `ITSAppUsesNonExemptEncryption = false` to Info.plist to skip the prompt each upload.
 
-## 11. Screenshots — shot list  **[YOU — capture these]**
-Required at least for 6.7" iPhone (App Store will scale for others). Capture 4–6 of:
-1. Service selector / home (pick driveway·walkway·salting) — the core value prop.
-2. Upfront price screen (and the storm-pricing scale, to showcase pricing transparency).
-3. Active job / tracking screen.
-4. Order history / receipt.
-5. (Optional) provider "available jobs" screen — shows the two-sided marketplace.
-Tip: use a clean demo account with realistic sample data; hide any real personal info.
+## 11. Screenshots — ✅ CAPTURED 2026-08-16 (build 24, iPhone 17 Pro Max simulator)
+
+Four are in **`docs/store/ios/`** at **1320×2868** — one of Apple's two accepted 6.9"
+sizes, so they upload without resizing and App Store Connect scales them down for
+every smaller iPhone. Upload all four to the 6.9" slot; no other size is required.
+
+| # | File | What it sells |
+|---|---|---|
+| 1 | `01_request_service.png` | Service selector — bundle marked MOST POPULAR with the $40 saving, all three prices visible |
+| 2 | `02_upfront_price.png` | The $160 total, notes-to-provider, and the hold-not-a-charge promise above Request Service |
+| 3 | `03_instant_quote.png` | "See your price before you sign up" → real Yonkers prices, no account |
+| 4 | `04_my_orders.png` | Order history with total spent, rating, and a receipt |
+
+Play versions (same four, padded to 1434×2868) are in `docs/store/play/` — see the
+Play listing doc for why the padding exists.
+
+Deliberately not shot: an **active job / tracking** screen, which needs a live job.
+Staging one meant writing a fake job to the production DB purely for a picture, and
+a `requested` row would have dispatched a push to Isaiah. Add it after the first
+real storm, when a genuine in-progress job exists to photograph.
+
+Captured with the status bar pinned to Apple's 9:41 / full-bars convention
+(`xcrun simctl status_bar … override`). Re-shooting? See
+`docs/simulator_screenshots.md` — synthetic mouse clicks do NOT reach the Simulator,
+so the whole flow is keyboard-driven.
 
 ---
 
@@ -163,7 +180,7 @@ working iOS Stripe Checkout, **privacy policy + terms published (snowserv.app/pr
 NEEDS YOU:
 - [x] Demo review account (customer): support@snowserv.app / see Play Console or App Store Connect — **verified
       working 2026-07-17** (authenticates + confirmed customer).
-- [ ] Capture **screenshots** (§11) — the one thing only you can do (needs the app running).
+- [x] Capture **screenshots** (§11) — **DONE 2026-08-16**, four in `docs/store/ios/`.
 - [ ] Create the app record in **App Store Connect** and paste §1–§10.
 - [ ] Upload **build 7** (Face ID + live-location fixes) via Xcode, then submit for review.
 - [ ] (Optional) If you want the reviewer to see the provider side too, create one provider

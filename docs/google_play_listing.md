@@ -62,8 +62,15 @@ Questions? support@snowserv.app
 - **Feature graphic:** 1024 × 500 PNG — **DONE**, `docs/store/feature_graphic_1024x500.png`.
   Navy gradient + falling snow, the real app icon, wordmark, tagline and "Yonkers, NY".
   Regenerate with the script in the 2026-08-12 commit if the brand or the city changes.
-- **Phone screenshots:** 2–8, min 320px, 16:9 or 9:16. **Reuse the iOS captures** in
-  ~/Desktop/SnowServ-AppStore-Screenshots (the 1290×2796 ones work fine for Play too).
+- **Phone screenshots:** ✅ **DONE 2026-08-16** — four in **`docs/store/play/`**, upload
+  all four. Same four shots as the App Store set (`docs/store/ios/`), described in
+  §11 of `docs/app_store_listing.md`.
+  ⚠️ They are **1434×2868, not the raw 1320×2868 iOS files** — do not substitute the
+  iOS ones. Play rejects any screenshot whose long side is more than **twice** its
+  short side, and a raw iPhone 6.9" capture is 2.17×. The Play copies carry ~57px of
+  padding on each side, made by stretching each row's own edge pixel outward, so the
+  seam is invisible even across the navy app bar. Any future iPhone capture needs the
+  same treatment — the script is in the 2026-08-16 commit.
 
 ## 4. Contact details + URLs
 - **Email:** support@snowserv.app
@@ -151,8 +158,8 @@ STILL OPEN — the Main store listing only:
       Repo: `docs/store/feature_graphic_1024x500.png` (also in ~/Downloads).
       Content is CENTERED with 148px margins — Play crops this asset in some
       placements, so nothing important sits near an edge.
-- [ ] **Phone screenshots** 2–8 — take them AFTER the build-23 test round settles the UI,
-      so the store images match what ships.
+- [x] **Phone screenshots** — DONE 2026-08-16, four in `docs/store/play/`, captured
+      from build 24 (the UI that actually ships). See §3 for the padding caveat.
 
 ## Wording changed 2026-08-12, and why
 - **"vetted" -> "reviewed before they can take jobs".** We do review every application,
