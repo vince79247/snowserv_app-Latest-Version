@@ -65,12 +65,16 @@ Questions? support@snowserv.app
 - **Phone screenshots:** ✅ **DONE 2026-08-16** — four in **`docs/store/play/`**, upload
   all four. Same four shots as the App Store set (`docs/store/ios/`), described in
   §11 of `docs/app_store_listing.md`.
-  ⚠️ They are **1434×2868, not the raw 1320×2868 iOS files** — do not substitute the
-  iOS ones. Play rejects any screenshot whose long side is more than **twice** its
-  short side, and a raw iPhone 6.9" capture is 2.17×. The Play copies carry ~57px of
-  padding on each side, made by stretching each row's own edge pixel outward, so the
-  seam is invisible even across the navy app bar. Any future iPhone capture needs the
-  same treatment — the script is in the 2026-08-16 commit.
+  ⚠️ They are **1620×2880, not the raw 1320×2868 iOS files** — do not substitute the
+  iOS ones. Play applies two separate bars, and 9:16 clears both:
+    - to UPLOAD, the long side may be at most **twice** the short side. A raw iPhone
+      6.9" capture is 2.17×, so it is refused outright.
+    - to be eligible for **promotional placement** on Play, it wants 9:16, ≥1080px,
+      and at least 4 shots. 1620×2880 is exactly 9:16, and we have exactly 4.
+  The padding (150px sides, 6px top/bottom) is made by stretching each edge row and
+  column of the capture outward, so the seam is invisible even across the navy app
+  bar — a flat fill leaves visible side bars there. Regenerate any future capture
+  with `python3 tools/pad_for_play.py docs/store/ios docs/store/play`.
 
 ## 4. Contact details + URLs
 - **Email:** support@snowserv.app

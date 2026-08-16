@@ -90,7 +90,12 @@ xcrun simctl status_bar $MAX override --time "9:41" \
 ## Google Play needs different files
 
 Play rejects any screenshot whose long side is more than **twice** the short side.
-1320×2868 is 2.17×, so the raw iOS captures are **not** usable. Pad the width to
-`height / 2` (1434) by stretching each row's own edge pixel outward — a flat fill
-leaves visible bars across the navy app bar, edge extension is seamless. The
-script that did it is in the 2026-08-16 commit; output lives in `docs/store/play/`.
+1320×2868 is 2.17×, so the raw iOS captures are **not** usable. Separately, Play
+wants **9:16** for an app to be eligible for promotional placement.
+
+`tools/pad_for_play.py` clears both at once by centering the capture on a
+**1620×2880** canvas (exactly 9:16) and stretching each edge row and column
+outward to fill the margin — a flat fill leaves visible bars across the navy app
+bar, edge extension is seamless.
+
+    python3 tools/pad_for_play.py docs/store/ios docs/store/play

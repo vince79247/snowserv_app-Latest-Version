@@ -144,8 +144,8 @@ every smaller iPhone. Upload all four to the 6.9" slot; no other size is require
 | 3 | `03_instant_quote.png` | "See your price before you sign up" → real Yonkers prices, no account |
 | 4 | `04_my_orders.png` | Order history with total spent, rating, and a receipt |
 
-Play versions (same four, padded to 1434×2868) are in `docs/store/play/` — see the
-Play listing doc for why the padding exists.
+Play versions (same four, padded to 1620×2880 = 9:16) are in `docs/store/play/` —
+see the Play listing doc for why the padding exists.
 
 Deliberately not shot: an **active job / tracking** screen, which needs a live job.
 Staging one meant writing a fake job to the production DB purely for a picture, and
