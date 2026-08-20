@@ -1,7 +1,43 @@
 # NY Certificate of Authority (Sales Tax) — Application Answers
 
-**Status:** Answers finalized 2026-07-25. NOT yet submitted — NY Business Express
-blocks submission until **90 days before the business begin date**.
+## ✅ SUBMITTED 2026-08-20, 06:34 AM
+
+| | |
+|---|---|
+| Entity name | SnowServ LLC |
+| **Application ID** | **DTF17-2026-052519** |
+| **Document Locator Number (DLN)** | **4604477** |
+| Submitted via | NY Business Express (businessexpress.ny.gov) |
+| Business begin date entered | 11/15/2026 |
+
+Check status / print the certificate under **Recent Activity** on the Business
+Express dashboard. A confirmation email was also sent.
+
+⚠️ **First sales-tax return is due 2026-12-20** (period Sep 1 – Nov 30, the
+quarter containing the 11/15/2026 begin date). It must be filed even with zero
+taxable sales and even if launch slips; NY bills automatically for a missed
+return, **$50 minimum penalty**. Calendar reminder is on Vince's Mac.
+
+Worth recording because it disproves the old plan: the application's own warning
+says the first return covers the period containing the BUSINESS BEGIN DATE, not
+the application date. So applying in August created **no** extra $0 returns —
+the "wait until September to avoid empty filings" reasoning was solving a problem
+that did not exist, and cost three months of schedule risk for nothing.
+
+### When the certificate arrives
+1. Stripe → **Tax** → **Registrations** → add New York.
+2. The sales-tax code (create-checkout-session + stripe-webhook `tax_amount`) is
+   already written and staged; it goes from calculating $0 to real money the
+   moment that registration exists.
+3. Place one test order and confirm the price SHOWN equals the price CHARGED.
+4. Update `docs/snowserv_llc_operating_agreement_execution.html` §6.4 if you ever
+   re-execute the agreement — it currently says the Company "shall register",
+   which is accurate now and stays accurate after issuance.
+
+---
+
+**Original status note:** Answers finalized 2026-07-25. NY Business Express
+blocked submission until **90 days before the business begin date**.
 
 ## When to submit
 - Business begin date entered: **November 15, 2026**
