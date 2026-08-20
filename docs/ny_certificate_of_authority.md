@@ -19,7 +19,11 @@ Check the dashboard first for a saved/in-progress draft before re-entering.
   (settled 2026-08-20 against the Census index — see the NAICS section below.
   NOT 561730 Landscaping, NOT 513210 Software Publishers.)
 - **Home-based business:** Yes
-- **Member information:** Vince Citarella — sole member, 100% ownership
+- **Member information:** **Vincent R. Citarella** — sole member, 100% ownership.
+  Corrected 2026-08-20; this doc previously said "Vince Citarella". Use the LEGAL
+  name exactly as it appears on the LLC formation filing — a state registration
+  that does not match the entity record is a rejection, and the name has to be
+  identical across the CoA, the LLC filing, the EIN and the insurance policy.
 - **Business / mailing address:** _[fill from the LLC filing — same as on file]_
 
 ## ⚠️ NAICS REVERSED 2026-08-20 — use 561790, NOT 513210 and NOT 561730
