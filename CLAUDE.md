@@ -202,6 +202,13 @@ lib/
   session sets `automatic_tax[enabled]=true` and writes the service address to the
   Stripe customer with `customer_update[address]='never'`; stripe-webhook records
   `jobs.tax_amount`. Stripe computes the rate — never hardcode one.
+- ⚠️ **Stripe Tax registrations do NOT carry over from TEST mode to LIVE mode.**
+  They are entirely separate, exactly like the webhook signing secret. Adding NY
+  in test mode makes TEST orders calculate tax and does nothing for live. At
+  go-live the registration has to be added a SECOND time in Live mode, or the
+  first real customer is charged no tax on a taxable service and SnowServ eats it.
+  Test: dashboard.stripe.com/test/tax/registrations ·
+  Live: dashboard.stripe.com/tax/registrations
 - **It currently calculates $0** because no NY registration exists in Stripe Tax.
   The Certificate of Authority was applied for 2026-08-20 (application
   DTF17-2026-052519, DLN 4604477); approval takes about a week.
