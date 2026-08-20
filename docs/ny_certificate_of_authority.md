@@ -1,6 +1,16 @@
 # NY Certificate of Authority (Sales Tax) — Application Answers
 
-## ✅ SUBMITTED 2026-08-20, 06:34 AM
+## ✅ APPROVED AND ISSUED 2026-08-20 — same day as submission
+"Application approved. Your sales tax Certificate of Authority has been issued."
+Printed copy follows within 10 business days, but the certificate is viewable and
+printable immediately under **Recent Activity** on NY Business Express — do not
+wait for the mail.
+
+⚠️ **Display requirement:** NY requires the Certificate of Authority to be
+prominently displayed at the place of business. Home-based still means keep it at
+the principal office, not filed in a drawer.
+
+## Submission record
 
 | | |
 |---|---|
