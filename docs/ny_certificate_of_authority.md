@@ -13,10 +13,20 @@
 Check status / print the certificate under **Recent Activity** on the Business
 Express dashboard. A confirmation email was also sent.
 
-⚠️ **First sales-tax return is due 2026-12-20** (period Sep 1 – Nov 30, the
-quarter containing the 11/15/2026 begin date). It must be filed even with zero
-taxable sales and even if launch slips; NY bills automatically for a missed
-return, **$50 minimum penalty**. Calendar reminder is on Vince's Mac.
+⚠️ **First return: 2026-12-20 IF NY assigns quarterly filing — CONFIRM WHEN THE
+CERTIFICATE ARRIVES.** The rule is that the first return covers the period
+containing the 11/15/2026 begin date, but which period that is depends on the
+filing frequency NY assigns, and they only tell you with the certificate:
+- **Quarterly** → period Sep 1 – Nov 30, due **2026-12-20**.
+- **Annual** → period Mar 1 2026 – Feb 28 2027, due **2027-03-20**. Genuinely
+  possible here: NY allows annual filing when tax due is under $3,000/yr and
+  taxable receipts are under $300,000, which is exactly what was estimated on
+  the application ($0–$35,000 sales / $0–$3,000 tax).
+
+The Dec 20 reminder on Vince's Mac is the CONSERVATIVE one — it fires first
+either way. Adjust it once the assigned frequency is known. Filing is mandatory
+even at zero sales; NY bills automatically for a missed return, **$50 minimum
+penalty**.
 
 Worth recording because it disproves the old plan: the application's own warning
 says the first return covers the period containing the BUSINESS BEGIN DATE, not
