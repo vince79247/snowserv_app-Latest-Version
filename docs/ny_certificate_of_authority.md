@@ -15,13 +15,52 @@ Check the dashboard first for a saved/in-progress draft before re-entering.
 
 ## Answers (as entered)
 - **Entity type:** LLC (member-managed, domestic NY LLC)
-- **NAICS code:** **513210 — Software Publishers** (corrected 2026-08-01; was
-  561730 Landscaping Services, which was wrong on the earlier EIN/state paperwork)
+- **NAICS code:** **561790 — Other Services to Buildings and Dwellings**
+  (settled 2026-08-20 against the Census index — see the NAICS section below.
+  NOT 561730 Landscaping, NOT 513210 Software Publishers.)
 - **Home-based business:** Yes
 - **Member information:** Vince Citarella — sole member, 100% ownership
 - **Business / mailing address:** _[fill from the LLC filing — same as on file]_
 
-## NAICS code — why 513210, not 561730 (decided 2026-08-01)
+## ⚠️ NAICS REVERSED 2026-08-20 — use 561790, NOT 513210 and NOT 561730
+
+Vince looked at the live record (it still reads **561730 Landscaping Services**,
+so the "NY already has 513210" claim below is WRONG) and said the classification
+felt off. He was right, and the fix below was also wrong. Checked against the
+Census NAICS index rather than reasoning from memory:
+
+- **561730 Landscaping Services** — snow plowing **combined with** landscaping or
+  seasonal property maintenance. We do not do landscaping, so this is wrong.
+- **561790 Other Services to Buildings and Dwellings** — the index entry is
+  literally *"snow plowing driveways and parking lots (i.e., not combined with
+  any other service)"*. **This is us.**
+
+**Why 513210 Software Publishers is wrong**, despite the reasoning below:
+1. **It fails the revenue test**, which is how NAICS actually classifies. 513210
+   is for establishments that publish or sell software. SnowServ sells software to
+   nobody — 100% of revenue is a 25% cut of snow-removal jobs.
+2. **It now contradicts the sales-tax registration.** We register as VENDOR OF
+   RECORD selling a taxable snow-removal service. Declaring "software publisher"
+   on that same certificate invites the obvious question of why we are collecting
+   tax on services at all. This is the inconsistency the doc warns about, created
+   by the doc itself.
+3. **The reasoning below overstates what NAICS does.** Insurers rate from their
+   OWN class systems (ISO/NCCI), not NAICS, and a NAICS code is not evidence in a
+   worker-classification dispute — the actual working relationship is. Describe
+   operations honestly on the insurance application instead (see the insurance
+   section below); that is what protects the policy.
+
+**What the July reasoning got right:** "Landscaping Services" is a bad label,
+because it asserts physical landscaping operations that do not exist. 561790
+solves that without pretending to be a software company — it is not landscaping,
+and it accurately describes selling snow removal.
+
+**The EIN/SS-4 carries 561730.** Leave it. NAICS is statistical, 561730 and
+561790 are neighbors in the same industry group, and that mismatch is trivial
+next to a cross-sector one. Do not open a federal amendment over it.
+
+---
+## SUPERSEDED — original reasoning for 513210, kept for the record (2026-08-01)
 The earlier filings (EIN / SS-4 and NY paperwork) used **561730 Landscaping
 Services**, which covers snow plowing. That was wrong, and 513210 is what NY now
 has on file. Keep 513210 everywhere from here.
