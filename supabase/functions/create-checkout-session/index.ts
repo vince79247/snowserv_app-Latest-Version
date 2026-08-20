@@ -424,10 +424,32 @@ Deno.serve(async (req: Request) => {
     body.append('line_items[0][price_data][product_data][name]', job_description ?? 'SnowServ snow removal')
     // Sales tax (Stripe Tax): tax is added ON TOP of the service price (exclusive),
     // never baked in, so final_price stays the pre-tax amount our payout math uses.
-    // The product tax category comes from the account default (set to "General -
-    // Services" in the Stripe Tax dashboard). INERT until a tax registration exists
-    // for the buyer's state — Stripe computes $0 tax where we aren't registered, so
-    // this is safe to ship before the NY Certificate of Authority registration.
+    // INERT until a tax registration exists for the buyer's state — Stripe computes
+    // $0 where we aren't registered.
+    //
+    // ⚠️ THE TAX CODE IS LOAD-BEARING. DO NOT REMOVE IT AND DO NOT FALL BACK TO THE
+    // ACCOUNT DEFAULT. The account default is "General - Services" (txcd_20030000),
+    // and Stripe treats that as EXEMPT IN NEW YORK — it previews a 0% rate and says
+    // so out loud in the registration flow. New York exempts most services and taxes
+    // only enumerated ones, so a generic services code lands on the exempt side.
+    // Left alone, every order would have calculated $0 tax forever while looking
+    // perfectly configured, and as VENDOR OF RECORD we would owe that uncollected
+    // tax out of margin. Caught 2026-08-20 on the Stripe "Confirm your tax rates"
+    // screen, which is the only place it is ever stated.
+    //
+    // txcd_20070007 = "Landscaping — a charge for services related to the
+    // maintenance of grounds". That is what NY snow removal IS: 20 NYCRR §527.7
+    // treats services to the grounds, snow removal included, as maintaining and
+    // servicing real property. This classifies the SERVICE SOLD, and is a different
+    // question from the NAICS code that classifies the BUSINESS (561790, deliberately
+    // not a landscaping code — see docs/ny_certificate_of_authority.md). No conflict.
+    //
+    // ⚠️ VERIFY EMPIRICALLY, do not trust this comment: place a test order to a
+    // Yonkers address once the NY registration is live and confirm tax lands at the
+    // local combined rate (~8.875%), NOT 0%. If it still comes back 0%, try
+    // txcd_20080007 "Repairs to Real Property" and re-test. A silent 0% is the whole
+    // failure mode here and it does not announce itself.
+    body.append('line_items[0][price_data][product_data][tax_code]', 'txcd_20070007')
     body.append('line_items[0][price_data][tax_behavior]', 'exclusive')
     body.append('automatic_tax[enabled]', 'true')
     // Billing address is no longer FORCED. It was required only because Stripe

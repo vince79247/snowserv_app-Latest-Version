@@ -197,6 +197,20 @@ lib/
   purpose — it is versioned, and editing it forces every signed provider to
   re-accept. Four documents have to agree: the CoA, the Terms, the app copy and
   the operating agreement.
+- ⚠️ **PRODUCT TAX CODE IS LOAD-BEARING.** create-checkout-session sets
+  `product_data[tax_code] = txcd_20070007` ("Landscaping — maintenance of
+  grounds") explicitly. The Stripe ACCOUNT DEFAULT is "General - Services"
+  (txcd_20030000), which Stripe treats as **EXEMPT IN NEW YORK** — NY exempts most
+  services and taxes only enumerated ones, so the generic code lands on the exempt
+  side and previews **0%**. Left on the default, every order would calculate $0 tax
+  forever while looking correctly configured, and as vendor of record we would owe
+  it out of margin. Caught 2026-08-20 on Stripe's "Confirm your tax rates" screen,
+  the only place it is ever stated out loud.
+  This classifies the SERVICE SOLD and is a different question from the NAICS code
+  that classifies the BUSINESS (561790, deliberately not landscaping) — no conflict.
+  ⚠️ **Verify empirically after the registration goes live**: a Yonkers test order
+  must show ~8.875%, not 0%. If it shows 0%, try txcd_20080007 "Repairs to Real
+  Property" and re-test.
 - MECHANICS: tax is **exclusive** (added ON TOP of the service price) and sourced
   to the **SERVICE address**, not the payer's billing address. create-checkout-
   session sets `automatic_tax[enabled]=true` and writes the service address to the
