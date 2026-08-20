@@ -304,7 +304,7 @@ List<_FaqSection> get _customerSections => [
     ),
     _FaqItem(
       'Who\'s responsible if my property is damaged?',
-      'Providers on SnowServ are independent professionals, responsible for their own work — SnowServ is the marketplace that connects you with them. If you believe a provider damaged your property, email support@snowserv.app right away with your job number and photos, and we\'ll help you work it out with the provider. The full details are in our Terms of Service.',
+      'Providers on SnowServ are independent professionals, responsible for their own work. If you believe a provider damaged your property, email support@snowserv.app right away with your job number and photos, and we\'ll help you work it out with the provider. The full details are in our Terms of Service.',
     ),
     _FaqItem(
       'Is my address information secure?',

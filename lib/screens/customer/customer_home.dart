@@ -2261,8 +2261,14 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
             ),
             const SizedBox(height: 8),
             Text(
-              'Providers are independent professionals. SnowServ connects you with '
-              'them but isn\'t responsible for property damage from a job — see our '
+              // NOT "SnowServ connects you with them" — that is agency language,
+              // and it contradicts the Terms, which register SnowServ as the
+              // SELLER of the service for NY sales tax (vendor of record, decided
+              // 2026-08-20; see docs/ny_certificate_of_authority.md). The
+              // liability disclaimer is untouched — a seller may still limit
+              // liability, and Terms §6–§8 do.
+              'Work is performed by independent providers. SnowServ isn\'t '
+              'responsible for property damage from a job — see our '
               'Terms of Service.',
               style: TextStyle(
                   fontSize: 11, color: Colors.grey.shade600, height: 1.3),
