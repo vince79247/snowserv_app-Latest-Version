@@ -179,6 +179,54 @@ lib/
   ⚠️ REQUIRES Stripe Connect + Express enabled in the Stripe dashboard (platform
   profile completed) + 1099-NEC filing turned on — account-level config, not code.
 
+## Sales tax (NY) — STAGED, currently calculating $0
+- Snow removal is a TAXABLE service in NY (maintaining real property; the
+  "regular contractual basis" exemption is INTERIOR only and does not reach it).
+  The WHOLE charge is taxable **including the deicer** — never itemize salt out.
+- **SnowServ is the VENDOR OF RECORD** (decided 2026-08-20). We set the price,
+  hold the customer, take the payment and dispatch; providers perform the work as
+  independent contractors. NY's marketplace-provider rules were written for
+  tangible goods and don't cleanly reach a service, so "the provider is the
+  seller" would make every individual shoveler a registered vendor — which will
+  not happen. Full reasoning: `docs/ny_certificate_of_authority.md`.
+- ⚠️ **Do NOT reintroduce facilitator language anywhere customer-facing.**
+  "SnowServ connects you with them", "marketplace and payment facilitator" and
+  similar were REMOVED from website/terms.html §1, customer_home's order-screen
+  disclaimer, and the FAQ, because they contradict a vendor-of-record
+  registration. The Provider Service Agreement still carries the old phrasing on
+  purpose — it is versioned, and editing it forces every signed provider to
+  re-accept. Four documents have to agree: the CoA, the Terms, the app copy and
+  the operating agreement.
+- MECHANICS: tax is **exclusive** (added ON TOP of the service price) and sourced
+  to the **SERVICE address**, not the payer's billing address. create-checkout-
+  session sets `automatic_tax[enabled]=true` and writes the service address to the
+  Stripe customer with `customer_update[address]='never'`; stripe-webhook records
+  `jobs.tax_amount`. Stripe computes the rate — never hardcode one.
+- **It currently calculates $0** because no NY registration exists in Stripe Tax.
+  The Certificate of Authority was applied for 2026-08-20 (application
+  DTF17-2026-052519, DLN 4604477); approval takes about a week.
+  ⚠️ **The day someone adds the registration under Stripe → Tax → Registrations,
+  live prices jump by the local rate (~8.9% in Yonkers) with no code change.**
+  That is expected, not a bug — the order screen already says "Sales tax, if any,
+  is calculated at checkout". Place one test order afterwards and confirm the
+  price SHOWN equals the price CHARGED.
+- First NY return is due **2026-12-20** (period Sep 1 – Nov 30), mandatory even at
+  zero sales, $50 minimum penalty.
+
+## Company & legal records (not in this repo's code path)
+- **SnowServ LLC** — NY domestic LLC, DOS ID **7962382**, formed **2026-07-09**,
+  Delaware County. Sole member **Vincent R. Citarella** (legal name — earlier docs
+  said "Vince", and a filing that mismatches the entity record gets rejected).
+- Operating agreement EXECUTED 2026-08-20 (NY LLC Law §417, which requires
+  adoption within 90 days of formation and is never filed with the state).
+  Source: `docs/snowserv_llc_operating_agreement_execution.html`.
+- NAICS **561790** (Other Services to Buildings and Dwellings) — the Census index
+  entry for standalone driveway snow plowing. NOT 561730 (that is plowing combined
+  with landscaping) and NOT 513210 Software Publishers (we publish no software;
+  100% of revenue is a cut of snow-removal jobs).
+- Recurring: **NY Biennial Statement** every 2 years, $9, due in the formation
+  month — first one **July 2028**.
+
 ## Payment flow (Stripe Checkout)
 - Migrated OFF flutter_stripe → **Stripe Checkout** (hosted page) 2026-07-07 so ONE
   code path serves iOS, Android AND web (Mac/Windows use the web app in a browser).
