@@ -461,7 +461,11 @@ List<_FaqSection> get _providerSections {
       // concludes they are being skimmed. Much cheaper to answer here now than
       // to rebut an accusation later.
       'Does sales tax come out of my pay?',
-      'No. Where sales tax applies, it is added to the customer\'s bill on top of the job price and sent to the state. It is never part of the job price and it never reduces your share.\n\nYou keep $keep% of the job price, every time. On a \$100 job you are paid \$${(100 * f).toStringAsFixed(2)}, and any sales tax the customer paid on top of that goes straight to the state — SnowServ keeps none of it either. If a customer ever mentions paying more than the job price, that difference is tax, not a deduction from your pay.',
+      // Deliberately names NO state. Tax rules and rates differ by area and this
+      // answer has to stay true everywhere SnowServ opens. "The tax authority"
+      // rather than "the state" because local sales tax is not always
+      // state-administered (Colorado home-rule cities, Louisiana parishes).
+      'No. Where sales tax applies, it is added to the customer\'s bill on top of the job price and sent to the tax authority. It is never part of the job price and it never reduces your share.\n\nYou keep $keep% of the job price, every time. On a \$100 job you are paid \$${(100 * f).toStringAsFixed(2)}, and any sales tax the customer paid on top of that goes straight to the tax authority — SnowServ keeps none of it either. If a customer ever mentions paying more than the job price, that difference is tax, not a deduction from your pay.',
     ),
     _FaqItem(
       'Are there any fees or contracts to work with SnowServ?',
