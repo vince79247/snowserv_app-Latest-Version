@@ -451,6 +451,19 @@ List<_FaqSection> get _providerSections {
       'You keep $keep% of the total job price. The remaining $comm% covers platform fees, payment processing, insurance, and app maintenance.\n\nPrices are set per service area, so what a job pays depends on where it is — an area with bigger properties is priced higher, and your $keep% scales with it. As an example, on a \$100 job you\'d keep \$${(100 * f).toStringAsFixed(2)}.\n\nThe exact pay for every job is shown on the offer before you accept it.',
     ),
     _FaqItem(
+      // Added 2026-08-20, before sales tax ever goes live, deliberately. Tax is
+      // EXCLUSIVE: the customer pays the job price plus tax, so a $160 job bills
+      // $174.20 in Yonkers. providerPay() and process-payout both use
+      // final_price, which is the PRE-TAX amount, so a provider's cut is already
+      // correct and they are never shown the tax-inclusive figure. The risk is
+      // purely perceptual — a provider who hears the customer paid $174.20 and
+      // divides their $120 by it gets 69%, not the 75% we recruit on, and
+      // concludes they are being skimmed. Much cheaper to answer here now than
+      // to rebut an accusation later.
+      'Does sales tax come out of my pay?',
+      'No. Where sales tax applies, it is added to the customer\'s bill on top of the job price and sent to the state. It is never part of the job price and it never reduces your share.\n\nYou keep $keep% of the job price, every time. On a \$100 job you are paid \$${(100 * f).toStringAsFixed(2)}, and any sales tax the customer paid on top of that goes straight to the state — SnowServ keeps none of it either. If a customer ever mentions paying more than the job price, that difference is tax, not a deduction from your pay.',
+    ),
+    _FaqItem(
       'Are there any fees or contracts to work with SnowServ?',
       'No. There are no sign-up fees, no monthly or subscription fees, and no contract locking you in. You keep $keep% of every job; the only deduction is the $comm% platform commission, shown upfront, which covers payment processing, insurance, and app maintenance. Work as much or as little as you want.',
     ),
