@@ -44,6 +44,28 @@ the application date. So applying in August created **no** extra $0 returns —
 the "wait until September to avoid empty filings" reasoning was solving a problem
 that did not exist, and cost three months of schedule risk for nothing.
 
+## ✅ TAX PROVEN END-TO-END 2026-08-21 (test mode)
+
+A real test order to a Yonkers address returned **8.875% = $14.20 on a $160
+bundle, total $174.20**. That is the YONKERS COMBINED rate, not the 4% state rate,
+which proves service-address sourcing works and not just "some tax appeared".
+Provider pay stayed **$120** (75% of the pre-tax $160), confirmed in code across
+`providerPay()`, the provider job card, job history and `process-payout` — all
+compute from `final_price`, which is pre-tax. No provider screen ever renders
+`jobs.tax_amount`.
+
+Done in Stripe:
+- NY registration added (test mode), sales tax ID = the EIN, 9 digits NO DASH
+  (the dash silently disables the Next button).
+- Preset product category changed from "General - Services" to **Landscaping**,
+  so the account fallback matches the txcd_20070007 the code sends explicitly.
+- Stripe Tax bills nothing until you actually start collecting.
+
+⚠️ STILL OPEN — **the live-mode registration**. Registrations do NOT carry from
+test to live. Live needs New York with start date **11/15/2026**. The test-mode
+one is currently BACKDATED (start 2026-08-20) so it would calculate tax on test
+orders; reset it if untaxed test orders are wanted.
+
 ### When the certificate arrives
 1. Stripe → **Tax** → **Registrations** → add New York.
 2. The sales-tax code (create-checkout-session + stripe-webhook `tax_amount`) is
