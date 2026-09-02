@@ -17,15 +17,15 @@ pasting. Fields marked **[YOU]** need something only Vince can provide.
 ```
 Snow removal, on demand.
 
-SnowServ connects you with vetted local snow-removal pros — so you can skip the shovel
-and book help in a couple of taps. Driveway buried? Walkway iced over? Request service
-from your phone and a nearby provider takes care of it.
+SnowServ sends a local pro to clear your snow — so you can skip the shovel and book help
+in a couple of taps. Driveway buried? Walkway iced over? Request service from your phone
+and a nearby provider takes care of it.
 
 HOW IT WORKS
 • Enter your address and pick what you need — driveway, walkway, or both, plus optional
   de-icing/salting.
 • See your price upfront before you book. No surprises.
-• A vetted local provider is dispatched to you.
+• A local provider is dispatched to you.
 • Track your job and get notified when it's done. Rate your provider when it's complete.
 
 UPFRONT, HONEST PRICING
@@ -36,7 +36,7 @@ UPFRONT, HONEST PRICING
   provider actually starts the work. Cancel before that and the hold is released.
 
 WHY SNOWSERV
-• Vetted, local providers.
+• Local providers, reviewed and approved before they can take jobs.
 • No contracts. No monthly fees. No hidden fees.
 • Secure payment powered by Stripe (Apple Pay supported where available).
 • Real-time updates and notifications from request to completion.
