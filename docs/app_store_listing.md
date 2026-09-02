@@ -10,8 +10,11 @@ pasting. Fields marked **[YOU]** need something only Vince can provide.
 - **Subtitle** (30 char max): `On-demand snow removal`
 
 ## 2. Promotional text (170 char max — editable anytime, no review)
-> Winter's here. Book a vetted local pro to clear your driveway, walkway, or salt the
+> Snow in the forecast? Book a local pro to clear your driveway, walkway, or salt the
 > ice — right from your phone. Upfront pricing, no contracts, no hidden fees.
+
+(159 chars. Was "Winter's here. Book a **vetted** local pro…" — "vetted" is a
+background-check claim we cannot back, and "Winter's here" rots every spring.)
 
 ## 3. Description (App Store body)
 ```
@@ -104,7 +107,7 @@ Ordering also works by entering an address manually.
 
 TWO ROLES
 The app has a customer side and a provider (contractor) side, chosen at sign-up.
-Providers are vetted and approved before they can accept work (like a driver app).
+Providers are reviewed and approved before they can accept work (like a driver app).
 Reviewers only need the customer flow above to see core functionality. A provider demo
 account can be supplied on request if you'd like to see the accept/complete side.
 
