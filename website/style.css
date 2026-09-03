@@ -118,3 +118,12 @@ footer .fine { width: 100%; margin-top: 20px; border-top: 1px solid rgba(255,255
   .steps, .two-col, .field.row2 { grid-template-columns: 1fr; }
   nav { display: none; }
 }
+
+/* Store badges under the hero CTAs. Apple's badge SVG has its own internal
+   padding, so it is sized by height and left-aligned to match the buttons
+   above it rather than being centered independently. */
+.store-row { margin-top: 18px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.store-badge { display: inline-block; line-height: 0; transition: opacity .15s ease; }
+.store-badge:hover { opacity: .82; }
+.store-badge img { height: 50px; width: auto; display: block; }
+@media (max-width: 640px) { .store-badge img { height: 44px; } }
