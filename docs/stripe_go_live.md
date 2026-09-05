@@ -1,6 +1,42 @@
 # Stripe go-live runbook
 
-**Status:** not started. Written 2026-09-05, to be executed in one focused session.
+**Status: HALF DONE — paused 2026-09-05 evening, resuming when Vince is back.**
+
+### ✅ Done 2026-09-05
+- Live webhook endpoint created: **"SnowServ production — creates jobs"**,
+  destination `we_1UCDF9BYwOCAVVcUkY5RSJxO`, listening to
+  `checkout.session.completed` only, API version 2026-05-27.dahlia, pointed at
+  `.../functions/v1/stripe-webhook`.
+- **`STRIPE_WEBHOOK_SECRET` swapped** to that endpoint's new `whsec_`.
+- **`STRIPE_SECRET_KEY` swapped** to the live `sk_live_`.
+
+### ⚠️ THEREFORE: TEST MODE IS DEAD AS OF NOW
+Card `4242 4242 4242 4242` no longer works. The `claude.test.*` accounts cannot
+transact. Every payment test from here is a real card. (Orders are an
+authorization HOLD, not a charge — capture only happens when a provider taps
+Start — so a test order + cancel moves no money.)
+
+### ❌ Still to do
+- Payouts → **MANUAL** (step 5)
+- **Live NY tax registration**, start 11/15/2026 (step 6)
+- **Clear the two dead test Connect rows** (step 1b)
+- **All verification** (§2) — nothing has been tested on live keys yet
+
+### ⚠️ UNCONFIRMED: is the Yonkers zone off?
+Asked repeatedly on 2026-09-05, never confirmed. **Check this first.** With the
+zone on and zero providers, a real customer can now place a real hold on a real
+card and have nobody ever come. (Before the key swap the failure was a declined
+card; now it is a stranded order, which is worse for the customer.)
+
+### Note for whoever resumes
+Stripe's Workbench UI has **no "Send test event"** on a destination — the ⋯ menu
+offers only Disable / Roll secret / Delete. Do not go looking for it. Verify with
+a real order instead (§2), which proves more anyway.
+⚠️ Never click **Roll secret** — it invalidates the `whsec_` now in Supabase.
+
+---
+
+Written 2026-09-05, to be executed in one focused session.
 
 **Why this has to happen before recruiting, not after.** The provider path is what
 breaks in test mode, and recruiting is what drives people down it. With the test
