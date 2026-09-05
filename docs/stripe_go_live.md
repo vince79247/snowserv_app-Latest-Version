@@ -52,6 +52,27 @@ create jobs — money in, nothing to show for it, and the customer sees nothing.
    Confirm the "Confirm your tax rates" screen does NOT show 0% / exempt — the
    preset product category must be **Landscaping**, not "General - Services".
 
+## 1b. Clear the dead test Connect IDs
+
+Reconnaissance 2026-09-05 found **two** test-mode connected accounts, both OURS:
+`alfonsocitarella1@yahoo.com` (Alfonso, flagged `users.is_test`) and "A c" — the
+July/August payout verification, which is where the $90 volume on each comes
+from. **No real provider onboarded into the sandbox**; Isaiah is not among them,
+so nobody has to redo anything.
+
+But after the switch their `providers.stripe_connect_id` values point at test
+accounts that live mode does not know, while `payouts_enabled` may still read
+true — a row that claims it can be paid and cannot. Null both columns on those
+rows during the switch so nothing reports a false "payouts ready":
+
+```sql
+UPDATE providers SET stripe_connect_id = NULL, payouts_enabled = false
+WHERE user_id IN (SELECT id FROM users WHERE is_test);
+```
+
+Harmless today because the readiness counts already exclude `is_test`, but it
+removes a stale claim rather than leaving one lying around.
+
 ## 2. Verification — do not skip
 
 1. **One real order with a real card** to a Yonkers address. Confirm: job row
