@@ -92,3 +92,48 @@ Claude watches the DB + logs and records findings. Started 2026-07-12.
 | 25 | **Driver location tracking is not real** | 🔴 | Provider GPS is captured **once**, only when they flip the Online toggle (provider_home.dart:175-195: one-shot `getCurrentPosition`, no `getPositionStream`, no background location). `current_lat/current_lng` **goes stale immediately** and is never refreshed — a driver who went online at home shows their home all day. **There is no live driver tracking**, despite the admin map implying otherwise. (This is why the emulator provider read "Mountain View, CA" while completing a Yonkers job.) NOTE: the **geofence fix (#19) does NOT need live tracking** — call `getCurrentPosition()` at the moment of Start/Complete and compare to `job_lat/lng`. Live tracking (background location) is a separate, bigger feature with battery + privacy + App Store "Always" permission implications — decide if it's actually wanted. | open |
 | 26 | **Provider sees the customer's real phone number** | 🟡 | **NEEDS A DECISION — raised by Vince 2026-08-10 while answering the Play content-rating questionnaire.** The provider's active-job card (`provider_home.dart:1940-1990`) prints `name · phone` and offers **Call** and **Text** buttons (`tel:` / `sms:` handoff to the native dialer/Messages — nothing is carried in-app). Two problems: (1) it hands both sides a permanent off-platform channel, which is exactly what the **Non-Circumvention clause** of the Provider Service Agreement exists to prevent — "just text me directly next time" costs the platform the customer; (2) it discloses a customer's personal cell to a contractor they've never met, with no way to revoke it after the job. Uber/DoorDash/Lyft all solved this with **masked proxy numbers** (Twilio Proxy or Stripe-adjacent equivalent) so neither party ever sees the other's real digits, and the mask expires with the job. Options to weigh: (a) proxy numbers — correct, costs money per job and needs a Twilio account; (b) drop the phone/Call/Text entirely and rely on the address + notes — free, but a provider who can't find the gate has no recourse; (c) in-app job chat — most work, keeps everything on-platform, and it would flip the IARC "users interact" answer to **Yes** and add a moderation obligation. NOTE: today's **No** on the content-rating questionnaire is still correct precisely because the messaging is a native handoff, not in-app. **RESOLVED 2026-08-11 (Vince): option (b) — the phone number and both buttons are GONE.** *"I don't think the provider should see the customer's real phone number. If he wants to poach a customer, let him work for it. We shouldn't make it easy."* The provider card now shows the customer's NAME only, and `provider_home`'s job query no longer even SELECTs `phone`, so it never reaches the device. What replaced it: the customer's order note now asks a question ("Gate code, where to pile the snow, what to avoid") and **persists per address**, prefilled from the last order at that property, so it is typed once instead of every storm — the customer-authored twin of `address_notes`. Proxy numbers were considered and DEFERRED, not rejected: snow removal needs no rendezvous (nobody has to be home), so unlike a food delivery nothing *requires* live contact. If real storms show the note is insufficient, masked numbers are the next step — do NOT restore the raw phone. | ✅ done (build 20) |
 | 27 | **7-year retention is promised but never enforced** | 🟡 | `website/delete-account.html` publicly commits that scrubbed job and payment records "are retained for **seven (7) years** from the date of the job... after which they are deleted", and the Play Data safety declaration now links that page as the delete-data URL. **Nothing implements it.** No cron, no scheduled function, no retention job exists in `supabase/migrations/` or `supabase/functions/` — `delete-account` scrubs PII on request but nothing ever ages records out. So the deletion half of the promise is unbacked: a job row from 2026 will still be sitting there in 2040. Fix is small — a pg_cron job that deletes `jobs` (and their orphaned `addresses`) older than 7 years, same pattern as the existing dispatch/payout crons. Raised 2026-08-10 by Vince while reading the Data safety preview. Related but distinct from admin job **archiving** (a UI concern, already on the list). **DONE 2026-08-11** — migration `20260811120000_retention_purge.sql`: `purge_expired_records()` deletes disputes first (their FK is NO ACTION and would otherwise block the job delete), then jobs past the 7-year cutoff, then only those addresses left with no jobs AND no owner — a live customer's saved address is never swept up because an old job aged out. Scheduled monthly via pg_cron ('20 3 1 * *'). Verified on the live DB: dry run returned 0/0/0 (oldest job is 2026-07-29), cron active, 4 jobs and 16 addresses untouched. **Why seven survives the research:** NY Tax Law §1135 requires sales-tax records for THREE years (Department may demand longer) and the IRS baseline is three, six for substantial understatement — so 7 is longer than either floor and cannot purge something still demandable. If the number ever changes, change it in the migration AND on website/delete-account.html in the same commit. | ✅ done |
+
+---
+
+## Admin: the Areas tab shows a stale `is_active` across devices
+
+**Found 2026-09-05 by Vince.** He turned the Yonkers zone ON in the web admin,
+then opened the admin panel on his phone and it still showed the zone OFF, so he
+toggled it again there.
+
+**Not a failed write.** `_toggleAreaActive` does a real update and then calls
+`loadAll()`. The database was correct the whole time; the phone was displaying
+what it had loaded before the change.
+
+**Cause — one missing table.** `_subscribeLive()` (admin_screen.dart ~line 102)
+already gives the admin panel debounced live refresh, but only for three tables:
+
+```dart
+for (final table in ['jobs', 'providers', 'disputes']) {
+```
+
+`service_areas` is not among them, so nothing tells a second device to re-read.
+
+**Fix — add it to the list:**
+
+```dart
+for (final table in ['jobs', 'providers', 'disputes', 'service_areas']) {
+```
+
+Everything else already exists: `_scheduleRefresh()` debounces the refetch, and
+`loadAll()` re-reads `service_areas` at line 207.
+
+**Why it is worth doing.** `is_active` is the single switch that decides whether
+ANY customer can order. A stale "on" tells the admin the business is open when it
+is closed. The write is safe either way — the toggle computes from the value that
+device is showing, so the value written always matches what the operator intended
+by looking at the screen — but being misinformed about whether ordering is live is
+its own problem.
+
+**Also worth adding while in there:** a `RefreshIndicator` on the admin tabs.
+There is currently no pull-to-refresh anywhere in the admin panel, so a stale view
+has no manual escape hatch either.
+
+**Deliberately not applied 2026-09-05** — Vince was mid-test on freshly switched
+live Stripe keys, and deploying the Flutter web app is a larger action than the
+change itself. Apply it in the same pass as the next web deploy.
