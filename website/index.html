@@ -41,15 +41,22 @@
       <a class="btn btn-primary" href="https://app.snowserv.app">Get started</a>
       <a class="btn btn-ghost" href="#providers">Become a provider</a>
     </div>
-    <!-- Store badges. The App Store artwork is Apple's official SVG, SELF-HOSTED in
-         website/img/ rather than hotlinked, so the site never depends on an Apple
-         CDN staying put. Google Play's badge goes here the day the production
-         rollout is approved — until then a Play link 404s, and a dead download
-         button is worse than no button. -->
+    <!-- Store badges. Both are the platforms' OFFICIAL artwork, SELF-HOSTED in
+         website/img/ rather than hotlinked, so the site never breaks because a
+         CDN URL moved. Google Play production rollout was approved 2026-09-05,
+         which is when this second badge could finally be added — before that a
+         Play link 404'd, and a dead download button is worse than no button.
+         Google's badge PNG carries its own transparent padding, hence the
+         negative margin, or it sits visibly higher than Apple's. -->
     <div class="store-row">
       <a class="store-badge" href="https://apps.apple.com/us/app/snowserv/id6790132972"
          aria-label="Download SnowServ on the App Store">
         <img src="img/app-store-badge.svg" alt="Download on the App Store" width="150" height="50">
+      </a>
+      <a class="store-badge store-badge--play"
+         href="https://play.google.com/store/apps/details?id=com.snowserv.app"
+         aria-label="Get SnowServ on Google Play">
+        <img src="img/google-play-badge.png" alt="Get it on Google Play" width="168" height="65">
       </a>
     </div>
   </div>

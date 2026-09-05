@@ -127,3 +127,9 @@ footer .fine { width: 100%; margin-top: 20px; border-top: 1px solid rgba(255,255
 .store-badge:hover { opacity: .82; }
 .store-badge img { height: 50px; width: auto; display: block; }
 @media (max-width: 640px) { .store-badge img { height: 44px; } }
+
+/* Google's badge PNG ships with ~12% transparent padding baked in, so matching
+   Apple's 50px height visually means rendering it taller and pulling the margin
+   back in. Sized by eye against the App Store badge, not by raw pixels. */
+.store-badge--play img { height: 65px; margin: -8px -10px; }
+@media (max-width: 640px) { .store-badge--play img { height: 58px; } }
