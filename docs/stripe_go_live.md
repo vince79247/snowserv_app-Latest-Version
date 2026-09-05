@@ -46,7 +46,15 @@ Order matters. Doing 2 before 3 means payments are taken with no webhook to
 create jobs — money in, nothing to show for it, and the customer sees nothing.
 
 1. **Complete the Connect platform profile** (live mode) and enable **Express**.
-   Also turn on **1099-NEC filing**. Account-level config, not code.
+   ✅ Verified already done 2026-09-05 — no "finish your profile" prompt, Connect
+   overview loads, zero live connected accounts.
+   ⚠️ **1099-NEC filing CANNOT be turned on yet.** Connect → Tax forms says *"No US
+   connected accounts — to use Connect tax forms you must have connected accounts
+   located in the United States."* Stripe gates the whole 1099 configuration
+   behind having at least one live connected account.
+   **So it moves to after Isaiah onboards** — see step 2.3a. The window is
+   between his onboarding and the first payout, and it is easy to miss because
+   nothing prompts you.
 2. **Register the live webhook endpoint** — Stripe → Developers → Webhooks →
    Add endpoint, live mode, event `checkout.session.completed`, pointed at
    `https://swttuujhcgpcsrxgupzv.supabase.co/functions/v1/stripe-webhook`.
@@ -93,6 +101,18 @@ removes a stale claim rather than leaving one lying around.
 2. **Refund it** from the admin panel. Confirm the hold releases.
 3. **Isaiah onboards payouts** on the live account. Confirm `payouts_enabled`
    flips true and he can toggle Online.
+3a. **NOW turn on 1099-NEC filing** — Connect → Tax forms. It only becomes
+    configurable once a live connected account exists, which is why it could not
+    be done in step 1. Confirm Stripe files on your behalf and that the filer
+    details read **SnowServ LLC** with the EIN and an address matching the other
+    filings.
+    ⚠️ Must happen BEFORE the first payout. Stripe needs to track contractor
+    payments from the first dollar, and providers consent to electronic delivery
+    during onboarding. Nothing prompts you to do this — it is silent until
+    January, when it is too late.
+    Context: providers are independent contractors and SnowServ holds no TINs by
+    design (2026-08-07 — no identity documents), so Stripe is the only party that
+    CAN file these.
 4. Only then **turn the Yonkers zone back on**.
 
 ## 3. What is already proven and needs no re-testing
