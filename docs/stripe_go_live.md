@@ -17,6 +17,19 @@ That is the accepted cost of having the provider path work.
 
 ---
 
+## ⚠️ THERE ARE TWO STRIPE ACCOUNTS — use the right one
+
+| Account | What it is |
+|---|---|
+| **`acct_1TlZBgBYwOCAVVcU`** | **THE REAL ONE.** Live + its test mode. The app uses this — the publishable key in CLAUDE.md is `pk_test_51TlZBg…`, same prefix. Everything below happens here. |
+| `acct_1Tp4MgPc5sz7KTOn` | "SnowServ sandbox" — a separate, empty account. Connect was never set up in it. Ignore it. |
+
+Stripe's account switcher lists "Test mode" and "SnowServ sandbox" side by side
+and they look interchangeable. They are not. Configuring a webhook or a tax
+registration in the sandbox would appear to succeed and change nothing about the
+live app — the exact silent-success failure this project keeps hitting.
+Check the `acct_` in the URL before changing anything.
+
 ## 0. Before you start — reconnaissance (do this first)
 
 | Check | Where | Why it matters |
