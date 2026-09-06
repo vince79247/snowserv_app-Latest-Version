@@ -109,7 +109,44 @@ create jobs — money in, nothing to show for it, and the customer sees nothing.
    Confirm the "Confirm your tax rates" screen does NOT show 0% / exempt — the
    preset product category must be **Landscaping**, not "General - Services".
 
-## 1b. Clear the dead test Connect IDs
+## 1b. 🔴 CLEAR EVERY TEST-MODE STRIPE ID — THIS IS BLOCKING CHECKOUT RIGHT NOW
+
+**Proven 2026-09-05.** First live order attempt returned 400:
+
+> *No such customer: `cus_UIWNWPFEYV4XLV` — a similar object exists in test mode,
+> but a live mode key was used to make this request.*
+
+`users.stripe_customer_id` holds customer IDs minted in TEST mode. Checkout passes
+one, live mode has never heard of it, and the request dies before a session is
+ever created. **Every existing user with a stored customer ID is blocked**, not
+just test accounts — the app has only ever run in test mode until now, so every
+Stripe object ID in the database is dead.
+
+Scope measured 2026-09-05: **4 users** with `stripe_customer_id`, **1** with a
+saved card, **2 providers** with `stripe_connect_id`, **3 providers** with
+`payouts_enabled = true` — note that third number, one row claims payout-ready
+with no Connect ID at all and would be allowed to go online.
+
+**THE FIX — not yet run, awaiting Vince's go-ahead:**
+
+```sql
+UPDATE users SET
+  stripe_customer_id = NULL, card_pm_id = NULL, card_last4 = NULL,
+  card_brand = NULL, card_exp_month = NULL, card_exp_year = NULL;
+
+UPDATE providers SET
+  stripe_connect_id = NULL, payouts_enabled = false;
+```
+
+Nothing of value is lost — Stripe's own error certifies these objects do not
+exist in live mode. The app recreates them live on next use.
+
+⚠️ **This generalises: any Stripe ID persisted in our DB is mode-scoped.** The
+earlier version of this doc caught `stripe_connect_id` and missed
+`stripe_customer_id`. Before any future mode switch, grep for every column that
+stores a Stripe identifier.
+
+## 1c. Previously-noted: the dead test Connect IDs (subsumed by 1b above)
 
 Reconnaissance 2026-09-05 found **two** test-mode connected accounts, both OURS:
 `alfonsocitarella1@yahoo.com` (Alfonso, flagged `users.is_test`) and "A c" — the
