@@ -137,3 +137,93 @@ has no manual escape hatch either.
 **Deliberately not applied 2026-09-05** — Vince was mid-test on freshly switched
 live Stripe keys, and deploying the Flutter web app is a larger action than the
 change itself. Apply it in the same pass as the next web deploy.
+
+---
+
+## 🔴 Customer "Cancel request" can hang forever, silently
+
+**Hit live 2026-09-06 by Vince**, on the first real-money order. He pressed Cancel,
+confirmed "Yes, Cancel", and the screen froze. Server-side: **zero `refund-job`
+calls** in 45 minutes and the job still `requested`. He had to cancel the
+PaymentIntent by hand in the Stripe dashboard.
+
+### Why (customer_home.dart ~1599-1631)
+
+```dart
+if (confirm != true) return;
+try {
+  final job = myJobs.firstWhere((j) => j['id'].toString() == jobId, orElse: () => {});
+  if (job['payment_intent_id'] != null) {
+    final resp = await supabase.functions.invoke('refund-job', body: {'job_id': jobId});
+    ...
+  }
+  await supabase.from('jobs').update({'status': 'cancelled', ...}).eq('id', jobId);
+```
+
+Four separate problems, in severity order:
+
+1. **No timeout on the invoke.** If the network stalls the await never returns, so
+   the UI sits there forever. Nothing is shown to the user — no spinner, no error,
+   no way out. This is what Vince hit.
+2. **No loading state at all.** "Frozen" is literally accurate: the button does
+   not disable and nothing indicates work is in flight, so the user cannot tell a
+   hang from a dead button and will tap repeatedly.
+3. **The status update runs AFTER the refund and is not atomic with it.** A refund
+   that succeeds followed by a failed update leaves a released hold on a job still
+   `requested` — which `dispatch_jobs()` will happily offer to a provider, who
+   drives out and then cannot be paid because `capture-payment` has nothing to
+   capture.
+4. **`payment_intent_id` is read from the LOCAL `myJobs` list, not the database.**
+   If that list is stale the guard is false, the refund is skipped entirely, and
+   the job is marked cancelled while the hold stays live until it expires — with
+   the customer having just been told *"you were never charged."* That is the
+   inverse of what happened and arguably worse, because nobody notices.
+
+### Fix — move the whole cancel server-side
+
+Make `refund-job` do the status update itself, inside the same call: it already
+receives `job_id`, can read `payment_intent_id` from the row (authoritative, not
+stale), cancel or refund the PI, and set `status='cancelled'` — atomically. The
+client then makes ONE idempotent call it can safely retry.
+
+Client side, regardless:
+- **Timeout the invoke** (~20s) and show a real error.
+- **Disable the button and show a spinner** while in flight.
+- On failure say something true and useful — *"We couldn't cancel just now. Your
+  card has not been charged. Try again, or email support@snowserv.app"* — rather
+  than leaving a frozen screen over someone's held money.
+
+**This is the most serious defect found to date.** A customer whose cancel hangs
+sees their money held with no way out and no explanation.
+
+---
+
+## Customers will read the authorization hold as a charge
+
+**Raised 2026-09-06 by Vince**, after watching his own bank app during the live
+test: an $80 pending line appeared, then reversed.
+
+**Nothing is wrong.** An authorization hold does reduce available balance and does
+display as pending — banks have no way to render "reserved but not taken". No
+money moved.
+
+**But he built this app, knows the payment model exactly, and still asked.** A
+customer who has never heard "authorization hold" will be certain they were
+charged. That is a support email, or a one-star review, on the first order.
+
+### The copy already exists — in the wrong place
+
+The FAQ answers it, and the cancel snackbar says *"you were never charged."* Both
+are correct and both are invisible at the moment the confusion actually happens:
+an hour later, in a banking app, nowhere near SnowServ.
+
+### Fix — put it where the doubt occurs
+
+Add it to the **order confirmation** and, better, the **push notification** sent
+when the job is created. Something like:
+
+> **$80 is held on your card, not charged.** You're only charged when a provider
+> starts the job.
+
+That reaches them before they open their bank, instead of after. The order screen
+note is good but it is read *before* paying, when nobody is worried yet.
