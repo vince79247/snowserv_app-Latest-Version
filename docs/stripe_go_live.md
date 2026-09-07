@@ -1,6 +1,8 @@
 # Stripe go-live runbook
 
-**Status: HALF DONE — paused 2026-09-05 evening, resuming when Vince is back.**
+**Status: ✅ COMPLETE 2026-09-07.** Stripe is fully live and the payment chain is
+proven end to end on real money. Only 1099-NEC filing remains, and Stripe gates
+that behind having a live connected account (see 3a) — so it waits for Isaiah.
 
 ### ✅ Done 2026-09-05
 - Live webhook endpoint created: **"SnowServ production — creates jobs"**,
@@ -16,11 +18,22 @@ transact. Every payment test from here is a real card. (Orders are an
 authorization HOLD, not a charge — capture only happens when a provider taps
 Start — so a test order + cancel moves no money.)
 
-### ❌ Still to do
-- Payouts → **MANUAL** (step 5)
-- **Live NY tax registration**, start 11/15/2026 (step 6)
-- **Clear the two dead test Connect rows** (step 1b)
-- **All verification** (§2) — nothing has been tested on live keys yet
+### ✅ All done 2026-09-06/07
+- Payouts set to **MANUAL**.
+- Every test-mode Stripe ID cleared (see 1b) — this was BLOCKING checkout.
+- **Verified on real money:** live Checkout → webhook returned 200 → job created
+  (`requested`, sidewalk, $80, service_type recorded) → fresh live customer
+  `cus_VCzAldffxXJQvW` → hold placed → hold released. Nothing was ever captured.
+- **NY tax registration added, collecting IMMEDIATELY** (not 11/15/2026).
+  ⚠️ Deliberate change: the Certificate of Authority was issued 2026-08-20, so
+  collection is authorised NOW, and the app is publicly downloadable on both
+  stores. A real order before 11/15 would otherwise collect no tax on a taxable
+  service and SnowServ would owe it out of margin. Same asymmetry that decided
+  vendor-of-record: over-collecting is administrative, under-collecting costs
+  money. The "Confirm your tax rates" screen showed **Landscaping · 4% + local
+  tax** — the exact screen that read "0% / exempt in New York" in test mode
+  before the product-tax-code fix.
+  ⚠️ Consequence: test orders now carry ~8.875% tax. $80 sidewalk bills ~$87.10.
 
 ### ⚠️ UNCONFIRMED: is the Yonkers zone off?
 Asked repeatedly on 2026-09-05, never confirmed. **Check this first.** With the
