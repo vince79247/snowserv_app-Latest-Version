@@ -274,3 +274,51 @@ service areas. A `RefreshIndicator` would give a manual escape hatch for both.
 success while 401ing, the tax code previewing 0% while looking configured, the
 readiness dashboard counting test accounts, and now a load failure rendered as
 "you have no zones." Every one of them looked like a normal state.
+
+---
+
+## Add a `payout_reminder` variant to send-lead-email
+
+**Raised 2026-09-07 by Vince**, after hand-pasting the same message to Isaiah and
+frank Caragine: *"can't we automate the email so I don't have to copy and paste?"*
+
+He is right, and the gap is narrow. `send-lead-email` already builds
+`lead_new`, `stalled_signup`, `pending_review`, `approved`, `needs_attention`,
+`out_of_area` and `declined` — each picked from the row's ACTUAL state, with the
+pay table computed server-side from the live zone. The one message with no
+template is the nudge to an **approved provider who never set up payouts**, which
+is exactly the message that matters most right now.
+
+### The variant
+Condition: `registration_status = 'approved'` AND `service_agreement_signed_at IS
+NOT NULL` AND `payouts_enabled IS NOT TRUE`.
+
+Content, roughly what was sent by hand and worked:
+- Acknowledge the gap since approval rather than pretending it away — they were
+  told there was no rush because it does not snow in summer, and they believed it.
+- The app is live on both stores now (that link is new credibility; a month ago
+  there was nothing to show).
+- The one remaining step is payout setup, about five minutes on Stripe's page.
+- **No volume promise.** There are no customers yet. "First in line in Yonkers" is
+  true and enough.
+- Ask for a referral. Per docs/provider_recruiting.md, referral is how contractor
+  crews actually form, and an approved provider is the natural source.
+- Reuse `BANK_NOTE` — bank details go to Stripe, we never see them.
+- Respect `inSnowSeason()` like the approval email does, or this reads as absurd
+  in July.
+
+### Two bugs it also fixes
+1. **Wrong-name risk.** Vince pasted a message written for Isaiah into an email to
+   frank and had to ask whether he had addressed frank as "Isaiah". He had not —
+   but only because he caught it. A template takes the name from the row.
+2. **Duplicate sends.** Taj Anderson received the same `stalled_signup` twice, 38
+   seconds apart, because nothing in the UI confirmed the first send. The button
+   should show when the person was last emailed and refuse to re-send inside 30
+   days — Vince's own rule, "we can pester them once a month". The 30-day gate
+   already exists for the payout-blocked reminder; it is simply not wired to a
+   template or surfaced on the card.
+
+### Why it matters more than it looks
+Recruiting is the launch blocker, and it is a September/October job. Making the
+single most important recruiting message a copy-paste chore is what causes it not
+to get done. Every other provider email in the system is one button.
