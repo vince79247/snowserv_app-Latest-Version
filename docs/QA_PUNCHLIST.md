@@ -227,3 +227,50 @@ when the job is created. Something like:
 
 That reaches them before they open their bank, instead of after. The order screen
 note is good but it is read *before* paying, when nobody is worried yet.
+
+---
+
+## Admin swallows service_areas load failures and reports "no zones"
+
+**Found 2026-09-07 by Vince**, on his iPhone: the Live Map said *"No zones drawn"*
+and the Areas tab was empty. He asked why the zone had erased itself.
+
+**It had not.** Verified directly in the database: Yonkers, `is_active = true`,
+polygon present with **18 valid `{lat,lng}` vertices**. `parsePolygon` handles that
+shape correctly. Nothing was lost.
+
+**Cause — admin_screen.dart ~205:**
+
+```dart
+List<Map<String, dynamic>> areasList = [];
+try {
+  final areasData = await supabase.from('service_areas').select().order('name');
+  areasList = List<Map<String, dynamic>>.from(areasData);
+} catch (_) {}
+```
+
+An empty catch. Any failure — network blip, timeout, RLS — is discarded, the list
+stays empty, and every downstream screen renders a normal-looking empty state.
+`admin_map_screen` reads `widget.serviceAreas` (it does not load anything itself),
+so it faithfully reports "No zones drawn" for a zone that exists and is active.
+
+The comment says it is deliberate: resilience against a missing `service_areas`
+table before the migration was run. That was right in July. It is wrong now, on
+the one table that governs whether ANY customer can order.
+
+**Fix:**
+- Do not swallow. Catch, log, and set an error flag.
+- **Distinguish "no zones exist" from "could not load zones."** Those are opposite
+  situations and currently render identically. "No zones drawn" told Vince his
+  data was gone.
+- Same applies to the `disputes` fetch immediately below it, which has the same
+  empty catch.
+
+**Fix together with the stale `is_active` entry above** — same file, same area, and
+both are about the admin panel confidently displaying something untrue about
+service areas. A `RefreshIndicator` would give a manual escape hatch for both.
+
+**This is the recurring defect shape in this project:** the storm cron reporting
+success while 401ing, the tax code previewing 0% while looking configured, the
+readiness dashboard counting test accounts, and now a load failure rendered as
+"you have no zones." Every one of them looked like a normal state.
