@@ -35,11 +35,19 @@ Start — so a test order + cancel moves no money.)
   before the product-tax-code fix.
   ⚠️ Consequence: test orders now carry ~8.875% tax. $80 sidewalk bills ~$87.10.
 
-### ⚠️ UNCONFIRMED: is the Yonkers zone off?
-Asked repeatedly on 2026-09-05, never confirmed. **Check this first.** With the
-zone on and zero providers, a real customer can now place a real hold on a real
-card and have nobody ever come. (Before the key swap the failure was a declined
-card; now it is a stranded order, which is worse for the customer.)
+### 🔴 THE YONKERS ZONE IS ON, AND THAT IS NOW THE OPEN RISK
+Verified directly in the DB 2026-09-06: `is_active = true`. It had to be on to run
+the live test, and it was left on.
+
+**With payments fully live and ZERO providers able to work, a real customer can
+now place a real hold on a real card and have nobody ever come.** That is a worse
+outcome than the declined card they would have got before the switch, and the app
+is publicly downloadable on both stores.
+
+**Recommendation: turn the zone OFF until Isaiah completes payout onboarding and
+can actually take a job.** Contractors are unaffected — the zone check is
+customer-side only, so recruiting still works with it off.
+Turn it back on as the last step before launch (§2.4).
 
 ### Note for whoever resumes
 Stripe's Workbench UI has **no "Send test event"** on a destination — the ⋯ menu
