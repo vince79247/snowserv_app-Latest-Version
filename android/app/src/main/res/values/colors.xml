@@ -2,4 +2,5 @@
 <resources>
     <!-- FCM notification accent tint (SnowServ navy). -->
     <color name="notification_color">#0D1B2A</color>
+	<color name="ic_launcher_background">#13254C</color>
 </resources>

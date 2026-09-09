@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.1+25
+version: 1.0.2+26
 
 environment:
   sdk: ^3.12.2
@@ -58,10 +58,26 @@ dev_dependencies:
   flutter_native_splash: ^2.4.6
 
 flutter_launcher_icons:
-  android: false
+  # android was FALSE until 2026-09-09, so Android shipped whatever ic_launcher.png
+  # happened to be in res/ — never the SnowServ snowflake. The Play STORE icon is
+  # uploaded separately in the console and was correct, so the listing looked right
+  # and the installed app did not. A friend of Vince's spotted it on his phone.
+  android: true
   ios: true
   image_path: "assets/icon.png"
   remove_alpha_ios: true
+  # Adaptive icon (Android 8+). The launcher masks the outer ring to ITS OWN shape
+  # — circle, squircle, teardrop — so the two layers have to work at any mask.
+  # The foreground is the snowflake ALONE, lifted off the source art by luminance
+  # (which keeps its antialiased edges), on transparency. The tile is deliberately
+  # NOT in the foreground: the source tile is a navy GRADIENT, and a gradient
+  # square floating on a flat background shows a visible seam wherever the mask is
+  # wider than the square. Dropping it lets the background layer BE the tile, edge
+  # to edge, at every mask shape.
+  # #13254C is the midpoint of that gradient, so Android matches the iOS icon,
+  # which still carries the original tile unchanged.
+  adaptive_icon_background: "#13254C"
+  adaptive_icon_foreground: "assets/icon_foreground.png"
   # Web PWA + favicon — regenerates web/icons/* + web/favicon.png from the real
   # SnowServ snowflake (they were still the default Flutter logo). Colors match
   # the navy icon background.
