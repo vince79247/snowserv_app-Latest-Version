@@ -1576,6 +1576,11 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
     );
   }
 
+  // Which job is mid-cancel, so the button can show a spinner and refuse a second
+  // tap. Its absence is why "Cancel Request" looked like a dead button: nothing
+  // changed on screen, so the natural response was to press it again.
+  String? _cancellingJobId;
+
   Future<void> cancelJob(String jobId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -1596,21 +1601,28 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
       ),
     );
     if (confirm != true) return;
+    if (_cancellingJobId != null) return; // already in flight
+    setState(() => _cancellingJobId = jobId);
     try {
-      final job = myJobs.firstWhere((j) => j['id'].toString() == jobId, orElse: () => {});
-      String? refundAction;
-      if (job['payment_intent_id'] != null) {
-        final resp = await supabase.functions.invoke('refund-job', body: {'job_id': jobId});
-        final data = resp.data;
-        if (data is Map && data['action'] is String) {
-          refundAction = data['action'] as String;
-        }
-      }
-      await supabase.from('jobs').update({
-        'status': 'cancelled',
-        'dispatched_to': null,
-        'dispatched_at': null,
-      }).eq('id', jobId);
+      // ONE call. refund-job now releases or refunds the money AND marks the job
+      // cancelled, server-side and atomically.
+      //
+      // It used to be three steps here: check the LOCAL copy of the job for a
+      // payment_intent_id, maybe call refund-job, then update the row ourselves.
+      // Both halves failed live. The invoke had no timeout, so a stalled network
+      // hung forever with no spinner and no error — the customer sat looking at a
+      // frozen screen with money held. And when the local copy was stale the
+      // refund was skipped entirely, marking the job cancelled while the hold
+      // stayed live, under a message telling them they were never charged.
+      //
+      // The timeout matters as much as the move: silence over someone's held
+      // money is the worst thing this screen can do.
+      final resp = await supabase.functions
+          .invoke('refund-job', body: {'job_id': jobId})
+          .timeout(const Duration(seconds: 20));
+      final data = resp.data;
+      final refundAction =
+          (data is Map && data['action'] is String) ? data['action'] as String : null;
       supabase.functions.invoke('notify-provider', body: {'job_id': jobId, 'status': 'cancelled'});
       loadMyJobs();
       if (mounted) {
@@ -1623,11 +1635,28 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
           SnackBar(content: Text(message)),
         );
       }
+    } on TimeoutException {
+      // Say the true, reassuring thing rather than nothing. The customer's money
+      // is held, not taken — capture only happens when a provider starts — so
+      // "not charged" is accurate even when we could not reach the server.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: Duration(seconds: 8),
+          content: Text(
+              "We couldn't reach the server just now. Your card has NOT been "
+              'charged. Please try again, or email support@snowserv.app.'),
+        ));
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text("Couldn't cancel: $e\nYour card has not been charged. "
+              'Try again, or email support@snowserv.app.'),
+        ));
       }
+    } finally {
+      if (mounted) setState(() => _cancellingJobId = null);
     }
   }
 
@@ -1829,9 +1858,21 @@ class _CustomerHomeState extends State<CustomerHome> with WidgetsBindingObserver
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed: () => cancelJob(job['id'].toString()),
-                              icon: const Icon(Icons.cancel_outlined, size: 16),
-                              label: const Text('Cancel Request'),
+                              // Disabled while in flight, so a customer who sees
+                              // nothing happen cannot fire a second cancel.
+                              onPressed: _cancellingJobId != null
+                                  ? null
+                                  : () => cancelJob(job['id'].toString()),
+                              icon: _cancellingJobId == job['id'].toString()
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.cancel_outlined, size: 16),
+                              label: Text(_cancellingJobId == job['id'].toString()
+                                  ? 'Cancelling…'
+                                  : 'Cancel Request'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.red,
                                 side: const BorderSide(color: Colors.red),

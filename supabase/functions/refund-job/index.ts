@@ -20,6 +20,35 @@ function decodeCaller(auth: string | null): { sub?: string; role?: string } {
   }
 }
 
+// Mark the job cancelled HERE, not in the client.
+//
+// It used to be the caller's job: the app invoked this function, then issued its
+// own .update() to set status='cancelled'. Two ways that bit us, both seen live:
+//   * The invoke hung (no timeout) so the update never ran — the hold was released
+//     or not, and the job stayed 'requested', still dispatchable to a provider who
+//     could then never be paid.
+//   * The client skipped this call entirely when its LOCAL copy of the job had no
+//     payment_intent_id, marked the job cancelled, and told the customer "you were
+//     never charged" while the hold stayed live until it expired.
+// Doing it server-side, after the money is settled, makes cancel ONE idempotent
+// call the client can safely retry.
+async function cancelJob(url: string, key: string, jobId: string): Promise<void> {
+  await fetch(`${url}/rest/v1/jobs?id=eq.${jobId}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      status: 'cancelled',
+      dispatched_to: null,
+      dispatched_at: null,
+    }),
+  })
+}
+
 async function isAdmin(url: string, key: string, userId?: string): Promise<boolean> {
   if (!userId) return false
   try {
@@ -47,7 +76,7 @@ Deno.serve(async (req: Request) => {
 
     // Look up the payment intent + who the job belongs to.
     const jobRes = await fetch(
-      `${supabaseUrl}/rest/v1/jobs?id=eq.${job_id}&select=payment_intent_id,customer_id`,
+      `${supabaseUrl}/rest/v1/jobs?id=eq.${job_id}&select=payment_intent_id,customer_id,status`,
       {
         headers: {
           apikey: supabaseKey,
@@ -56,11 +85,10 @@ Deno.serve(async (req: Request) => {
       }
     )
     const jobs = await jobRes.json()
-    const paymentIntentId = jobs?.[0]?.payment_intent_id
-
-    if (!paymentIntentId) {
-      return new Response(JSON.stringify({ error: 'No payment intent on file for this job' }), { status: 400, headers: cors })
+    if (!jobs?.[0]) {
+      return new Response(JSON.stringify({ error: 'Job not found' }), { status: 404, headers: cors })
     }
+    const paymentIntentId = jobs[0].payment_intent_id
 
     // AUTHORIZATION: only the job's own customer (or an admin / internal service
     // call) may refund/release — otherwise any logged-in user could refund or
@@ -76,6 +104,19 @@ Deno.serve(async (req: Request) => {
           { status: 403, headers: cors }
         )
       }
+    }
+
+    // No payment intent on the job — nothing to reverse, but the customer still
+    // asked to cancel, so honour it. This used to 400, and the CLIENT worked
+    // around it by skipping the call and cancelling locally, which is how a hold
+    // could survive a "cancelled" job. There is no money here: a job only gets a
+    // payment_intent_id from the webhook, so a job without one was never paid.
+    if (!paymentIntentId) {
+      await cancelJob(supabaseUrl, supabaseKey, job_id)
+      return new Response(
+        JSON.stringify({ action: 'none', status: 'cancelled' }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Issue full refund via Stripe
@@ -113,6 +154,7 @@ Deno.serve(async (req: Request) => {
       if (canceled.error) {
         return new Response(JSON.stringify({ error: canceled.error.message }), { status: 400, headers: cors })
       }
+      await cancelJob(supabaseUrl, supabaseKey, job_id)
       return new Response(
         JSON.stringify({ action: 'released', status: canceled.status }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
@@ -121,6 +163,7 @@ Deno.serve(async (req: Request) => {
 
     // Hold was already released — nothing owed.
     if (pi.status === 'canceled') {
+      await cancelJob(supabaseUrl, supabaseKey, job_id)
       return new Response(
         JSON.stringify({ action: 'released', status: 'canceled', already: true }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
@@ -140,6 +183,7 @@ Deno.serve(async (req: Request) => {
       ? pi.latest_charge
       : null
     if (charge?.refunded === true) {
+      await cancelJob(supabaseUrl, supabaseKey, job_id)
       return new Response(
         JSON.stringify({ action: 'refunded', status: 'succeeded', already: true }),
         { headers: { ...cors, 'Content-Type': 'application/json' } }
@@ -167,6 +211,7 @@ Deno.serve(async (req: Request) => {
       // (straight from the Stripe dashboard, which is exactly what an admin
       // does when the button is broken). Still the desired end state.
       if (refund.error.code === 'charge_already_refunded') {
+        await cancelJob(supabaseUrl, supabaseKey, job_id)
         return new Response(
           JSON.stringify({ action: 'refunded', status: 'succeeded', already: true }),
           { headers: { ...cors, 'Content-Type': 'application/json' } }
@@ -175,6 +220,7 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: refund.error.message }), { status: 400, headers: cors })
     }
 
+    await cancelJob(supabaseUrl, supabaseKey, job_id)
     return new Response(
       JSON.stringify({ action: 'refunded', refund_id: refund.id, status: refund.status }),
       { headers: { ...cors, 'Content-Type': 'application/json' } }
