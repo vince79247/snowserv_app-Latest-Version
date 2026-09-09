@@ -1,8 +1,22 @@
 # Stripe go-live runbook
 
-**Status: ✅ COMPLETE 2026-09-07.** Stripe is fully live and the payment chain is
-proven end to end on real money. Only 1099-NEC filing remains, and Stripe gates
-that behind having a live connected account (see 3a) — so it waits for Isaiah.
+**Status: ✅ FULLY COMPLETE 2026-09-09.** Stripe is live, the payment chain is
+proven end to end on real money, and 1099-NEC reporting is configured.
+
+1099 settings as filed: form **1099-NEC**, totals **"payments excluding fees"**
+(reports the provider's 75% transfer, and by construction cannot overstate their
+income — overstating makes a contractor pay tax on money they never received),
+electronic delivery ON, postal **Optional** (mails only to those who did not
+consent, which is the IRS furnishing floor without paying to mail everyone),
+state filing **skipped** (NY requires no 1099-NEC filing where no state tax was
+withheld, and SnowServ withholds none).
+
+⚠️ **The payer identity had to be overridden.** Stripe's default was
+**"Vincent Citarella"** with a TIN ending 1945 — his personal ID, not the EIN
+(which ends 3964). Left alone, every provider's 1099 would have carried his SSN.
+"Use default tax identity" was toggled OFF and set to **SnowServ LLC + the EIN**.
+That fixes the FORMS; the underlying Stripe account is still registered to him
+personally — see the punchlist, to be fixed alongside the Apple conversion.
 
 ### ✅ Done 2026-09-05
 - Live webhook endpoint created: **"SnowServ production — creates jobs"**,
