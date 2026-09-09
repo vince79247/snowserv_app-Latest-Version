@@ -322,3 +322,49 @@ Content, roughly what was sent by hand and worked:
 Recruiting is the launch blocker, and it is a September/October job. Making the
 single most important recruiting message a copy-paste chore is what causes it not
 to get done. Every other provider email in the system is one button.
+
+---
+
+## 🔴 The Stripe account is registered to Vincent Citarella personally, not SnowServ LLC
+
+**Found 2026-09-09**, in the Connect 1099 setup, on the Business information step:
+
+> Legal business name: **Vincent Citarella**
+> Business tax identification number: **••••1945**
+
+That TIN is **not the EIN**. The EIN used for the NY sales tax registration ends
+**964**. A different number ending 1945 means the Stripe account was created under
+Vince personally — almost certainly with his SSN — before SnowServ LLC existed
+(formed 2026-07-09). Same pattern as the Apple Developer account, which is also
+enrolled as an Individual and is mid-conversion.
+
+The Hamden address and the (914) phone on the account are correct. Only the
+identity is wrong.
+
+### Why it matters more than the Apple one
+1. **Every 1099-NEC would name Vincent Citarella as the payer and carry his
+   personal tax ID.** Frank Caragine, and every provider after him, would receive
+   a tax form with Vince's SSN on it.
+2. **It breaks the chain built deliberately over two weeks.** The Certificate of
+   Authority says SnowServ LLC collects the sales tax. The Provider Service
+   Agreement says SnowServ LLC engages the contractor. The Terms say SnowServ LLC
+   sells the service. But the money would be received, paid out, and reported by
+   an individual.
+3. **It undercuts the liability separation the LLC exists for.** Revenue flowing
+   through a personal Stripe account is the same category of problem as running it
+   through a personal checking account.
+
+### Mitigation applied 2026-09-09
+On the 1099 setup, "Use default tax identity" was toggled OFF and the payer set
+manually to **SnowServ LLC + the EIN**. That fixes the tax FORMS. It does not fix
+the underlying account.
+
+### The real fix
+**Settings → Business details** — change the account entity to SnowServ LLC with
+the EIN. Stripe will re-verify, as Apple is doing. Do it alongside the Apple
+Individual → Organization conversion; they are the same problem in two places, and
+the D-U-N-S and entity paperwork are already assembled.
+
+⚠️ Sequence carefully — the account holds live keys, a live webhook, an active NY
+tax registration and frank's connected account. Verify payments still work after,
+the same way the go-live was verified: one real order, hold placed, hold released.
