@@ -368,3 +368,32 @@ the D-U-N-S and entity paperwork are already assembled.
 ⚠️ Sequence carefully — the account holds live keys, a live webhook, an active NY
 tax registration and frank's connected account. Verify payments still work after,
 the same way the go-live was verified: one real order, hold placed, hold released.
+
+---
+
+## Enable Supabase's breached-password check IF/WHEN moving to Pro
+
+**Found 2026-09-09.** Google Password Checkup flagged a saved `snowserv.app`
+login using `123456`. That account is the "joe blow" test user and predates the
+6→8 character minimum raised 2026-08-12, so it is harmless in itself.
+
+What it exposed is the copy. The auth screen told users:
+
+> *"Password must be at least 8 characters, **and cannot be one found in a known
+> data breach**."*
+
+Supabase's breached-password check is a **Pro-plan feature** — it returns 402 on
+the free plan, so it never ran. The app was claiming a protection it did not have,
+and **`12345678` passes today**: eight characters, and in every breach list.
+
+**Fixed 2026-09-09 by making the copy honest** — it now states only the 8-character
+minimum, which is what is actually enforced.
+
+**Vince declined Pro for now** ("let's make some money first"), which is the right
+call at zero revenue — $25/mo against no income, for a check that matters most
+once there are real customers.
+
+⚠️ **When Pro is turned on** (it also brings daily backups and no idle pausing —
+decide as ONE call), enable the breached-password check AND restore the fuller
+sentence. The copy and the mechanism must match; that mismatch is what this entry
+exists to prevent recurring.

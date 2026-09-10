@@ -258,7 +258,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         userMessage = 'Incorrect email or password.\n'
             'Signing in as ${emailController.text.trim()}';
       } else if (message.contains('Password') || message.contains('at least')) {
-        userMessage = 'Password must be at least 8 characters, and cannot be one found in a known data breach.';
+        // Says ONLY what is actually enforced. This used to add "and cannot be
+        // one found in a known data breach" — but Supabase's breached-password
+        // check is a PRO-plan feature and returns 402 on the free plan, so the
+        // app was claiming a protection it does not have. Today "12345678"
+        // passes: eight characters, and in every breach list ever published.
+        // ⚠️ If SnowServ ever moves to Supabase Pro, turn that check on AND put
+        // the sentence back — the copy and the mechanism have to match.
+        userMessage = 'Password must be at least 8 characters.';
       } else {
         userMessage = 'Something went wrong. Please try again.';
       }
