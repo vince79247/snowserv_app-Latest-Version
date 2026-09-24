@@ -130,6 +130,10 @@ Deno.serve(async (req: Request) => {
     let firstName = ''
     let leadStatus: string | null = null
     let regStatus: string | null = null
+    let providerUserId = ''
+    // Assume confirmed. Only the provider path can prove otherwise, and a lead
+    // has no auth account at all, so "confirmed" is the correct default there.
+    let emailConfirmed = true
 
     if (lead_id) {
       const rows = await (await fetch(
@@ -142,13 +146,42 @@ Deno.serve(async (req: Request) => {
       leadStatus = (lead.status ?? 'new').toString()
     } else {
       const rows = await (await fetch(
-        `${supabaseUrl}/rest/v1/providers?id=eq.${provider_id}&select=id,registration_status,users!inner(name,email)`,
+        `${supabaseUrl}/rest/v1/providers?id=eq.${provider_id}&select=id,user_id,registration_status,users!inner(name,email)`,
         { headers: svc })).json()
       const prov = Array.isArray(rows) ? rows[0] : null
       if (!prov) return json({ error: 'Provider not found' }, 404)
       to = (prov.users?.email ?? '').toString().trim()
       firstName = (prov.users?.name ?? '').toString().trim().split(/\s+/)[0] ?? ''
       regStatus = (prov.registration_status ?? '').toString()
+      providerUserId = (prov.user_id ?? '').toString()
+
+      // "Incomplete" hides TWO different people, and until 2026-09-24 we mailed
+      // them both the same thing. Three of the five real stalled providers had
+      // never confirmed their email and had last_sign_in_at = null — email
+      // confirmation is required to log in, so they were locked out of the
+      // account they had just created. Every one of them was sent "Finishing
+      // your SnowServ provider account", which asks them to go do the one thing
+      // they cannot do, and carries no confirmation link. Read the auth record
+      // so the variant can tell "locked out" from "genuinely stalled".
+      // auth.users is not exposed through PostgREST; the Admin API is the way in.
+      if (providerUserId) {
+        try {
+          const au = await (await fetch(
+            `${supabaseUrl}/auth/v1/admin/users/${providerUserId}`,
+            { headers: svc })).json()
+          // ⚠️ GoTrue OMITS email_confirmed_at from the JSON entirely when the
+          // address was never confirmed — it does not send null. So absence of
+          // the field IS the unconfirmed signal, and testing `'x' in au` reads
+          // every unconfirmed user as confirmed. (That exact mistake shipped
+          // here first and was caught only by running it against a real
+          // unconfirmed account.) Gate on having got the RIGHT USER back
+          // instead: a 404 or an error body has no matching id, so a failed
+          // lookup still falls through to the safe default.
+          if (au && typeof au === 'object' && au.id === providerUserId) {
+            emailConfirmed = !!au.email_confirmed_at
+          }
+        } catch (_) { /* leave emailConfirmed = true */ }
+      }
     }
     if (!to) return json({ error: 'No email address on file' }, 400)
 
@@ -165,8 +198,13 @@ Deno.serve(async (req: Request) => {
     // reading it from the row could catch the value before it lands.
     const fixNote = (review_note ?? '').toString().trim()
     const needsFix = !lead_id && fixNote.length > 0
-    const isStalledSignup =
+    const isStalledSignupRaw =
       !lead_id && !isPendingReview && !isApproved && !isDeclined && !needsFix
+    // Deliberately narrow: only the stalled case splits. Every other status
+    // (pending_review, approved, needs-fix) is unreachable without having
+    // logged in at least once, so it cannot describe somebody locked out.
+    const isUnconfirmed = isStalledSignupRaw && !emailConfirmed
+    const isStalledSignup = isStalledSignupRaw && emailConfirmed
 
     // --- live pay figures --------------------------------------------------
     const zones = await (await fetch(
@@ -195,6 +233,42 @@ Deno.serve(async (req: Request) => {
       add('Sidewalk + driveway', zone.price_both)
     }
 
+    // --- a way back in, for somebody who is locked out ---------------------
+    // A magic link rather than a re-sent confirmation email, for two reasons:
+    // clicking it CONFIRMS the address and SIGNS THEM IN in one step, and it
+    // needs no password — which matters, because these people set a password
+    // one to three weeks ago on an account they were never able to use, and
+    // "log in with the password you chose" is a second wall behind the first.
+    // ⚠️ The link expires after auth's mailer_otp_exp (currently 3600s = ONE
+    // HOUR). That is short for cold recruiting mail, so the copy states it
+    // plainly and offers a reply — better than a silent dead end. Do NOT raise
+    // the global expiry to paper over this; it also governs password resets.
+    // Re-sending is one click in the admin panel, which is the intended fix.
+    let magicLink = ''
+    if (isUnconfirmed) {
+      try {
+        const lr = await fetch(`${supabaseUrl}/auth/v1/admin/generate_link`, {
+          method: 'POST',
+          headers: { ...svc, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'magiclink',
+            email: to,
+            options: { redirect_to: SIGNUP_URL },
+          }),
+        })
+        const lj = await lr.json()
+        // GoTrue has moved this between the top level and .properties across
+        // versions; accept either rather than depending on which one we are on.
+        magicLink = (lj?.action_link ?? lj?.properties?.action_link ?? '').toString()
+      } catch (_) { /* handled below */ }
+      // Without the link this email has no purpose — it would be a message
+      // telling a locked-out person that they are locked out. Fail loudly so
+      // the admin sees it and nothing is written to email_log.
+      if (!magicLink) {
+        return json({ error: 'Could not generate a sign-in link for this provider' }, 502)
+      }
+    }
+
     // --- the message -------------------------------------------------------
     const first = esc(firstName)
     const pct = Math.round(providerPct * 100)
@@ -214,6 +288,8 @@ Deno.serve(async (req: Request) => {
       ? (first ? `You're approved, ${first}` : "You're approved")
       : isPendingReview
       ? (first ? `Hi ${first} — we have your application` : 'We have your application')
+      : isUnconfirmed
+        ? (first ? `Hi ${first} — let's get you in` : 'Let\'s get you in')
       : isStalledSignup
         ? (first ? `Hi ${first} — you're almost done` : 'You\'re almost done')
         : outOfArea
@@ -316,6 +392,45 @@ Deno.serve(async (req: Request) => {
             'notification. That is when you go online.'),
           p('Welcome aboard. Reply to this email any time — a real person reads it.'),
         ]).join(''))
+      // Locked out, not disinterested. They signed up and never got in, because
+      // the account needs its email confirmed before it will accept a login and
+      // that step did not happen. Own it in the first line — this reads as our
+      // problem because it is one — then hand them a single button that both
+      // confirms the address and signs them in, with no password in the way.
+      : isUnconfirmed
+      ? shell(heading, [
+          p('You signed up to clear snow with SnowServ, but your account was ' +
+            'never finished activating — so if you tried to log in, it would ' +
+            'not have let you. That is our end, not yours, and I am sorry you ' +
+            'were left sitting outside it.'),
+          p('<b>The button below fixes it in one tap.</b> It activates your ' +
+            'account and signs you straight in — you do not need to remember a ' +
+            'password.'),
+          button(magicLink, 'Activate my account'),
+          p('<span style="font-size:13px;color:#5A7184;">That link is good for ' +
+            'one hour. If it has already expired by the time you get to it, ' +
+            'just reply to this email and I will send you a fresh one — it ' +
+            'takes me a second.</span>'),
+          rows.length
+            ? p(`<b>You keep ${pct}% of every job.</b> Here is what that works ` +
+                'out to per job in Yonkers:')
+            : p(`<b>You keep ${pct}% of every job.</b>`),
+          rows.length ? payTable(rows) : '',
+          rows.length
+            ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
+                'column is your money — that is what lands in your bank, not a ' +
+                'figure you take a cut out of. Deicer pays extra on top.</span>')
+            : '',
+          p('Once you are in there is about five minutes left: your equipment, ' +
+            'the agreement, and a bank account for payouts.'),
+          p(BANK_NOTE),
+          p(inSnowSeason()
+            ? 'Finish those and you can go online and start taking jobs.'
+            : 'No rush on the timing — it does not snow yet. We will email you ' +
+              'before the first storm, and that is when the work starts.'),
+          p('Just reply to this email if anything looks off — a real person ' +
+            'reads it.'),
+        ].join(''))
       : isPendingReview
       ? shell(heading, [
           p('Thanks for finishing your SnowServ registration. We have it, and ' +
@@ -371,6 +486,8 @@ Deno.serve(async (req: Request) => {
       ? 'approved'
       : isPendingReview
         ? 'pending_review'
+        : isUnconfirmed
+          ? 'unconfirmed_email'
         : isStalledSignup
           ? 'stalled_signup'
           : outOfArea
@@ -385,6 +502,8 @@ Deno.serve(async (req: Request) => {
       ? "You're approved to work with SnowServ"
       : isPendingReview
         ? 'We have your SnowServ application'
+        : isUnconfirmed
+          ? 'Your SnowServ account is one tap from being active'
         : isStalledSignup
           ? 'Finishing your SnowServ provider account'
           : outOfArea
@@ -424,7 +543,11 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           to_email: to,
           subject,
-          body: html,
+          // The magic link is a working credential — anyone reading it is signed
+          // in as that provider. email_log is admin-only and the link dies in an
+          // hour, but the log exists so Vince can re-read what he promised
+          // somebody, and a sign-in token is no part of that. Strip it.
+          body: magicLink ? html.split(magicLink).join('[sign-in link removed]') : html,
           lead_id: lead_id ?? null,
           provider_id: provider_id ?? null,
           template,

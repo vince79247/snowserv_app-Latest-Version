@@ -245,6 +245,15 @@ lib/
   entry for standalone driveway snow plowing. NOT 561730 (that is plowing combined
   with landscaping) and NOT 513210 Software Publishers (we publish no software;
   100% of revenue is a cut of snow-removal jobs).
+- **Apple Developer Program: enrolled as ORGANIZATION** since 2026-09-24 (migrated
+  from Individual, support case 102956150995). Entity name **SnowServ LLC**, Team ID
+  **X2F6N346P8** (unchanged by the migration), address Hamden. The App Store contract
+  is with the LLC, not with Vince personally. Accepting the updated Program License
+  Agreement was the final step of the migration.
+- ⚠️ **Stripe is the remaining account still registered to Vincent Citarella
+  personally** — the entity conversion is on the QA punchlist. The 1099-NEC payer
+  was already overridden to SnowServ LLC + EIN, so provider 1099s are correct, but
+  the underlying account entity is not.
 - Recurring: **NY Biennial Statement** every 2 years, $9, due in the formation
   month — first one **July 2028**.
 
