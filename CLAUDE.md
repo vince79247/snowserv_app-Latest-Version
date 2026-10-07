@@ -254,6 +254,15 @@ lib/
   personally** — the entity conversion is on the QA punchlist. The 1099-NEC payer
   was already overridden to SnowServ LLC + EIN, so provider 1099s are correct, but
   the underlying account entity is not.
+- ⚠️ **STRIPE HAS NO BACKUP CODES AND NO AUTHENTICATOR — SMS-ONLY 2FA.** The
+  September 2026 security pass covered Cloudflare, Zoho and Google and MISSED
+  Stripe, which is the account holding the money. On 2026-10-07 a dead cell signal
+  meant no sign-in code could arrive (a voice call fails for the same reason), and
+  recovery required uploading a driver's license front and back plus a selfie —
+  **up to 12 hours locked out of payments, payouts and tax filing.**
+  FIX WHEN BACK IN: add an authenticator app (TOTP is generated on-device and works
+  with no signal at all) AND generate backup codes, stored on paper with the other
+  three sets. Never screenshot the TOTP QR or setup key.
 - Recurring: **NY Biennial Statement** every 2 years, $9, due in the formation
   month — first one **July 2028**.
 
