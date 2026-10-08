@@ -261,7 +261,15 @@ lib/
   way), and recovery took a driver's license front and back plus a selfie —
   **~12 hours locked out of payments, payouts and tax filing.**
   Now on the iPhone authenticator (TOTP is generated on-device, so no signal is
-  needed) plus **ONE** backup code, written on paper with the other three sets.
+  needed) plus **ONE** backup code, written on paper with the other three sets, and
+  a **backup email at support@snowserv.app** — deliberately a Zoho mailbox, NOT a
+  second Yahoo address, so one provider outage or compromise cannot take both the
+  primary and the recovery channel (same reasoning as the Google recovery address).
+  ⚠️ Changing account settings re-verifies identity. Take **"Verify by email"**, and
+  do the whole thing in ONE desktop browser window — clicking the emailed link on a
+  phone (Yahoo's in-app browser) or using any but the NEWEST link fails with
+  "We couldn't verify your identity". Never take the identity-document option for a
+  routine settings change; that is the 12-hour path.
   ⚠️ **Stripe issues a SINGLE backup code, not a list like Google's ten.** It is
   single-use — if it is ever spent, generate a replacement the same day or the
   fallback is gone again. Never screenshot a TOTP QR or setup key.
