@@ -11,6 +11,39 @@ consent, which is the IRS furnishing floor without paying to mail everyone),
 state filing **skipped** (NY requires no 1099-NEC filing where no state tax was
 withheld, and SnowServ withholds none).
 
+## ⚠️ TAX FORM SETTINGS ARE PER TAX YEAR — this bit us
+Configuring 1099s once does NOT cover later years. In September 2026 only the
+**2025** year was configurable, so that is where the settings landed — the year
+with ZERO activity (the LLC formed July 2026; Frank connected September 2026).
+The **2026** year only opened in October 2026, announced by a Stripe email
+("You can now access your 1099 tax forms settings for the 2026 tax year").
+Until 2026-10-08 it sat completely unconfigured while these notes said "1099
+reporting configured", because the note never said WHICH YEAR.
+**2026 CONFIRMED CONFIGURED 2026-10-08**, verified on the review screen:
+1099-NEC · payments excluding fees · **SnowServ LLC · TIN ••••3964** ·
+3479 County Highway 26, Hamden NY 13782 · electronic delivery ON ·
+**Optional** postal · state filing not applicable.
+**HOW TO CHECK ANY YEAR:** Stripe Dashboard → Tax forms → pick the year top-right.
+A CONFIGURED year shows the toolbar (Filter / Export / Import / **File**). An
+UNCONFIGURED year shows a checklist starting "Select tax form settings" with the
+remaining steps locked. That visual difference is the fastest tell.
+➡️ **Do this again for 2027** when Stripe opens it, around October 2027.
+
+## 📌 REMINDER VINCE ASKED FOR (2026-10-08): collect-tax-info, flip ON as we grow
+Delivery preferences currently say **"Don't have Stripe collect tax information
+from connected accounts"** — i.e. SnowServ is responsible for providers' tax
+details. That is correct AT ONE PROVIDER: Frank came through Connect Express, so
+Stripe already verified his legal name, address and SSN during KYC. Nothing to
+collect.
+**Why to flip it on later:** Stripe emailing each connected account is also how it
+gathers their **consent to electronic delivery**. No consent means a paper form
+has to be mailed. One person is a stamp; twenty is a chore.
+**TRIGGER — check it, don't guess.** Run:
+`select count(*) from providers where stripe_connect_id is not null;`
+**More than 2 → raise it with Vince.** Also re-evaluate every January at the
+filing review regardless of count. He explicitly asked to be reminded, so surface
+it rather than waiting to be asked.
+
 ⚠️ **The payer identity had to be overridden.** Stripe's default was
 **"Vincent Citarella"** with a TIN ending 1945 — his personal ID, not the EIN
 (which ends 3964). Left alone, every provider's 1099 would have carried his SSN.
