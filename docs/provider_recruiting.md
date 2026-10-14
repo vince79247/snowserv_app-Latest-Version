@@ -73,7 +73,7 @@ category gets flagged.
 >
 > **How it pays**
 > No signup fee, no monthly fee, no lead fee, no charge for the app. You're paid 75% of
-> every job — here's exactly what that looks like:
+> every job, wherever you're working. Here's exactly what that looks like in Yonkers:
 >
 > - Sidewalk: customer pays $80 &rarr; **you get $60**
 > - Driveway: customer pays $120 &rarr; **you get $90**
@@ -82,6 +82,9 @@ category gets flagged.
 >
 > Deicer is an add-on — it pays you extra on top of any of these. Deep snow pays more too:
 > pricing scales with depth, up to double in a big storm.
+>
+> Prices are set per area, so as we open new towns the dollar amounts will differ — your
+> 75% doesn't, and every job shows exactly what it pays before you accept it.
 >
 > Paid by direct deposit, weekly. The customer's card is authorized before the job is sent
 > to you, so you're not chasing anyone for money.
@@ -93,17 +96,20 @@ category gets flagged.
 > **What you need**
 > - Your own equipment (shovel, snowblower, or plow — plow/blower gets you the bigger jobs)
 > - A smartphone
-> - A driver's license for the file
 > - Liability insurance IF you plow with a truck. Shoveling or running a snowblower?
 >   Recommended, but not required.
 > - To work as an independent contractor (1099)
+>
+> We don't ask you to upload an ID. Stripe handles identity and your bank details on their
+> own secure page when you set up payouts — we never see your Social Security number or
+> your account.
 >
 > **Being straight with you:** we're brand new and haven't launched yet, so nobody can
 > promise you a certain number of jobs. What we can promise is that the early contractors
 > get first pick as customers come in, and that you'll be paid on time and in full.
 >
-> Interested? Read the details and leave your info here: https://app.snowserv.app
-> Tap "Plow with us" — takes about a minute, no account needed.
+> Interested? Get the app here: https://snowserv.app/get
+> Install it, then tap "Plow with us" — takes about a minute, no account needed.
 >
 > Or reply to this post if you'd rather ask a question first.
 
@@ -111,8 +117,9 @@ category gets flagged.
 
 A separate short field on the posting form, rendered near the top of the post:
 
-> Your take-home: $60 sidewalk, $90 driveway, $120 both, $187.50 both + deicer. That's your
-> cut after our 25% — no other fees. Paid weekly by direct deposit.
+> Your take-home in Yonkers: $60 sidewalk, $90 driveway, $120 both, $187.50 both + deicer.
+> That's your cut after our 25% — no other fees, and the 75% is the same in every area we
+> open. Paid weekly by direct deposit.
 
 **Show both numbers — customer price AND take-home.** Vince flagged that "75% of every job —
 $60 sidewalk, $90 driveway" is ambiguous: the reader can't tell whether $60 is the job price
@@ -149,8 +156,12 @@ would rather ask a human before typing anything.
   October, that needs a per-channel source before the posts go up.
 
 **On formatting:** CL supports `<a href>` only in certain paid categories, so in gigs expect
-a bare, possibly non-clickable URL. `app.snowserv.app` is short enough to type from a phone,
-which is the whole reason the custom domain was worth setting up.
+a bare, possibly non-clickable URL. `snowserv.app/get` is short enough to type from a phone,
+which is the whole reason the custom domain was worth setting up — and it routes iPhone to
+the App Store and Android to Play by itself, so one line serves both.
+⚠️ **Never point recruiting at `app.snowserv.app`.** That is the browser build: it cannot
+receive push job offers and cannot take the camera-only completion photo, so a contractor
+who lands there registers successfully and then cannot work a job.
 
 ---
 
@@ -251,8 +262,8 @@ Keep it short. The goal is one link, not a pitch.
 > your own equipment and a smartphone — a shovel or snowblower is fine, and insurance is
 > only required if you plow with a truck. No fees to join.
 >
-> Sign-up is here: https://app.snowserv.app (tap "Plow with us"). Takes a few minutes.
-> Any questions, just ask — happy to talk it through.
+> Get the app here: https://snowserv.app/get (install it, then tap "Plow with us"). Takes a
+> few minutes. Any questions, just ask — happy to talk it through.
 
 ---
 
@@ -279,7 +290,13 @@ No. Decline anything, any time, no penalty. The job goes to the next contractor.
 **"Do I need insurance?"**
 Only if you plow with a truck — then yes, and you upload it at signup. If you're shoveling
 or running a snowblower it's recommended but not required; you just acknowledge you don't
-carry it. Either way we need a driver's license on file.
+carry it.
+⚠️ **No driver's license, and no ID document of any kind.** This answer used to end "either
+way we need a driver's license on file" — obsolete since 2026-08-07, when the identity step
+was removed entirely (see CLAUDE.md: dl_* columns deprecated, storage purged, and a test
+that fails if an ID upload returns). Stripe Connect does the identity check during payout
+onboarding. Asking for a licence we never collect is pure friction on the easiest person to
+recruit.
 
 ⚠️ **Don't overstate this.** The copy used to say "insurance and a license" flatly, which
 turns away the single easiest person to recruit — the person with a snowblower and no
