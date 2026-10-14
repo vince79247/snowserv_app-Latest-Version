@@ -115,7 +115,12 @@ category gets flagged.
 > certain number of jobs. What we can promise is that the early contractors get first pick
 > as customers come in, and that you'll be paid on time and in full.
 >
-> Interested? Get the app here: https://snowserv.app/get
+> **HOW TO SIGN UP**
+>
+> https://snowserv.app/get
+>
+> Or just search SnowServ in the App Store or Google Play.
+>
 > Install it, then tap "Plow with us" — takes about a minute, no account needed.
 >
 > Or reply to this post if you'd rather ask a question first.
@@ -161,6 +166,13 @@ would rather ask a human before typing anything.
 - **The form hardcodes `source: 'website form'`**, so Craigslist, Facebook and word-of-mouth
   leads are indistinguishable. If channel attribution matters for deciding where to spend
   October, that needs a per-channel source before the posts go up.
+
+⚠️ **Assume the URL is NOT clickable.** Free gig categories strip HTML, so the link
+usually renders as plain text. Two mitigations are now baked into the body: the URL sits
+ALONE on its own line (easy to see, select and copy), and "or just search SnowServ in the
+App Store or Google Play" gives a path that needs no typing at all — which on a gig ad read
+from a phone is what most people will actually do. Also prefer plain commas over arrows
+(→) and other decorative characters; they render unpredictably on CL.
 
 **On formatting:** CL supports `<a href>` only in certain paid categories, so in gigs expect
 a bare, possibly non-clickable URL. `snowserv.app/get` is short enough to type from a phone,
