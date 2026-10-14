@@ -271,7 +271,22 @@ deadline and its **$50 minimum penalty**.
 
 ➡️ **Create the Online Services account now, not in December.**
 
-🔑 **The PIN itself is deliberately NOT in this repo.**
+### One NY.gov ID, several service portals
+New York uses a single sign-on identity with separate SERVICE portals attached, so
+adding a service is NOT creating an account — which is why this feels repetitive:
+- **NY.gov ID** — the login itself (username recorded in Claude's local memory, not
+  here; see below)
+- **NY Business Express** (businessexpress.ny.gov) — where the CoA was filed
+  2026-08-20. A service on that login.
+- **Tax Online Services** (ols.tax.ny.gov) — sales tax filing. The SAME login,
+  service added 2026-10-14.
+
+⚠️ **Do not create a second NY.gov ID.** Two IDs on one business is a support
+ticket to untangle. The real risks are a duplicate ID, and choosing an
+**Individual** rather than **Business** account — an Individual account cannot file
+sales tax for an LLC.
+
+🔑 **The PIN and the NY.gov username are deliberately NOT in this repo.**
 `vince79247/snowserv_app-Latest-Version` is **PUBLIC** — verified 2026-10-14, the
 unauthenticated GitHub API returns HTTP 200 for it. The PIN lives in Claude's local
 memory (`reference-ny-sales-tax-web-file`) and on the paper letter. Do not paste it
