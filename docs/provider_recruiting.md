@@ -185,19 +185,35 @@ or a blower; a flyer on that counter beats a post in a group that doesn't exist.
 > contractors to work it.
 >
 > Simple setup: customer orders from their phone, the job goes to the closest available
-> contractor, you keep 75%. Driveway pays you $90, driveway + sidewalk $120, more when
-> the snow's deep. Direct deposit weekly, card authorized before the job's sent out so
-> you're never chasing payment.
+> contractor, and you keep 75% of every job wherever you're working. In Yonkers that's $90
+> for a driveway, $120 for driveway + sidewalk, more when the snow's deep. Prices are set
+> per area, so the dollar amounts will differ as we expand — your 75% doesn't, and every
+> job shows exactly what it pays before you accept it. Direct deposit weekly, card
+> authorized before the job's sent out so you're never chasing payment.
 >
 > You need your own equipment. A shovel or snowblower is fine — that's the sidewalks and
 > smaller driveways, and there's plenty of it. A plow just gets you first crack at the big
 > ones. Insurance is only required if you're plowing with a truck.
 >
 > Straight up: we launch in November and I'm building the crew now, so I can't tell you how
-> many jobs there'll be. Early guys get first pick.
+> many jobs there'll be. Early sign-ups get first pick.
 >
-> Details and sign-up: app.snowserv.app — tap "Plow with us." There's an FAQ there covering
-> pay, equipment, and how jobs get sent out. Questions welcome in the comments.
+> Download: snowserv.app/get — install it, then tap "Plow with us." There's an FAQ in the
+> app covering pay, equipment, and how jobs get sent out. Questions welcome in the comments.
+
+⚠️ **THREE RULES THIS AD NOW ENCODES — keep them in anything that replaces it.**
+1. **Never gendered.** "Early guys get first pick" was fixed to "Early sign-ups" on
+   2026-10-14. This is employment advertising: Meta forces Special Ad Category
+   EMPLOYMENT on these for a reason, gendered wording is evidence under Title VII
+   and NY Human Rights Law, and it quietly tells women on the list (rosa ramirez,
+   stardashia bowles) that the work is not for them — while supply is the launch
+   blocker.
+2. **Percentage portable, dollars local.** 75% is one global setting and is true
+   in every town. Dollar figures belong to one priced zone. Lead with the percent,
+   label the dollars as Yonkers, and say the amounts differ by area.
+3. **Link to `snowserv.app/get`, never `app.snowserv.app`.** The browser build
+   cannot receive push offers and cannot take the camera-only completion photo, so
+   a recruit who lands there registers successfully and then cannot work a job.
 
 **Link in the post, not "DM me for the link."** The original said the latter, which recreates
 exactly the inbox work the Craigslist CTA was rewritten to avoid — and every DM is a lead
@@ -266,7 +282,7 @@ or running a snowblower it's recommended but not required; you just acknowledge 
 carry it. Either way we need a driver's license on file.
 
 ⚠️ **Don't overstate this.** The copy used to say "insurance and a license" flatly, which
-turns away the single easiest person to recruit — the guy with a snowblower and no
+turns away the single easiest person to recruit — the person with a snowblower and no
 commercial policy, who is also who covers the sidewalk jobs. The app has always been
 correct here (`provider_registration_screen`: required when `_hasVehicle`, optional
 otherwise); only the marketing was wrong. The low barrier is a SELLING POINT — lead with it.
