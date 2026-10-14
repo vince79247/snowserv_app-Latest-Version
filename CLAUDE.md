@@ -233,6 +233,11 @@ lib/
   price SHOWN equals the price CHARGED.
 - First NY return is due **2026-12-20** (period Sep 1 – Nov 30), mandatory even at
   zero sales, $50 minimum penalty.
+- ⚠️ **The Web File PIN expires 2026-11-26 — 24 days BEFORE that return is due.**
+  NYS mailed form TR-398-NR on 2026-08-28 with a one-time PIN for creating the
+  Online Services account; it is good for 90 days. Register BEFORE the PIN dies or a
+  replacement has to come by mail and the filing deadline is at risk. The PIN is NOT
+  in this repo (it is public) — see `docs/ny_certificate_of_authority.md`.
 
 ## Company & legal records (not in this repo's code path)
 - **SnowServ LLC** — NY domestic LLC, DOS ID **7962382**, formed **2026-07-09**,

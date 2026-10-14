@@ -249,3 +249,39 @@ it by hand** — do not paste. Only letters, spaces, commas, periods. Max 200 ch
   Until a registration exists, Stripe Tax calculates **$0** and the checkout is unchanged.
 - The sales-tax code (create-checkout-session + stripe-webhook `tax_amount`) is already
   written and staged in the repo; it stays inert until that registration is live.
+
+---
+
+## ⚠️ ONLINE FILING PIN — TWO DEADLINES, AND THE EARLIER ONE IS THE TRAP
+
+NYS Tax & Finance mailed form **TR-398-NR** on **2026-08-28** to SnowServ LLC at the
+Hamden address. It carries a one-time PIN used to create the **Online Services**
+account for **Sales Tax Web File**.
+
+| | Date | |
+|---|---|---|
+| PIN issued | 2026-08-28 | |
+| **PIN EXPIRES (90 days)** | **2026-11-26** | ← register before this |
+| First return due | 2026-12-20 | period Sep 1 – Nov 30 |
+
+**The PIN dies 24 days BEFORE the return is due.** Every earlier note in this repo
+tracked only 2026-12-20. Waiting until December to "deal with sales tax" means
+finding a dead PIN, requesting a replacement **by mail**, and risking the filing
+deadline and its **$50 minimum penalty**.
+
+➡️ **Create the Online Services account now, not in December.**
+
+🔑 **The PIN itself is deliberately NOT in this repo.**
+`vince79247/snowserv_app-Latest-Version` is **PUBLIC** — verified 2026-10-14, the
+unauthenticated GitHub API returns HTTP 200 for it. The PIN lives in Claude's local
+memory (`reference-ny-sales-tax-web-file`) and on the paper letter. Do not paste it
+into any tracked file, including this one.
+
+### Filing facts from the notice
+- The return is **mandatory even with zero sales** — the notice says so in as many
+  words: file "even if you do not have any taxable sales, taxable purchases, or
+  credits to report."
+- **E-filing is required** if you prepare the return on a computer with broadband.
+- A due date falling on a weekend or legal holiday moves to the next business day.
+- File at **www.tax.ny.gov** → Online Services → Sales Tax Web File.
+- Step-by-step signup instructions are on **page 2 of the paper notice**.
