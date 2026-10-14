@@ -292,6 +292,27 @@ unauthenticated GitHub API returns HTTP 200 for it. The PIN lives in Claude's lo
 memory (`reference-ny-sales-tax-web-file`) and on the paper letter. Do not paste it
 into any tracked file, including this one.
 
+### How to actually file (page 2 of TR-398-NR, authoritative)
+**Create the Business Online Services account:** tax.ny.gov → Log in | Create
+account → **Create Tax Online Services account** → **My business** → **Select**
+next to *Business Online Services account* → Captcha → enter the **EIN**
+("including any letters") → "received a PIN?" **Yes** → enter PIN → Continue.
+**File the return:** log in → **≡ Services** → **Sales tax – file and pay** →
+**Sales tax web file**.
+**Phone: 518-485-2889.**
+
+⚠️ A Business tax account **cannot** be attached to an existing NY.gov ID — NY
+requires a separate Tax Business Online Services account with its own username.
+⚠️ Logging out of the tax portal does NOT clear the my.ny.gov SSO session; "create
+an account" loops back to the dashboard. Use a different browser with no ny.gov
+cookies.
+⚠️ Two different **Select** buttons exist. The one under *Add Tax Online Services*
+on an existing NY.gov ID creates an **Individual** account — wrong. The correct one
+sits beside *Business Online Services account* under **My business**.
+✅ **Fallback verification if the PIN expires:** the flow also accepts confirming
+the business has filed no NY corporation, sales or withholding returns in the last
+12 months — true for SnowServ, and it does not depend on the PIN.
+
 ### Filing facts from the notice
 - The return is **mandatory even with zero sales** — the notice says so in as many
   words: file "even if you do not have any taxable sales, taxable purchases, or
