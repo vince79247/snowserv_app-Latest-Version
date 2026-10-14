@@ -380,6 +380,26 @@ lib/
   for is_admin users → opens AdminPanelScreen directly.
 - admin-doc-url (and future admin-only server actions) verify the caller's login
   token maps to an is_admin profile. To grant admin: set profiles.is_admin=true.
+  (An earlier note here said admin-doc-url checks an ADMIN_PASSWORD secret — it does
+  NOT, and no ADMIN_PASSWORD remains anywhere in the code. There is exactly ONE way
+  into the admin panel: profiles.is_admin. No shared password, no second route.)
+- ⚠️ **RLS IS ROW-SCOPED, NOT COLUMN-SCOPED — this bit us hard (2026-10-14).**
+  `(id = auth.uid()) OR is_admin()` says "you may touch this row", never "you may
+  touch this column". Any signed-up user could PATCH their own row and set
+  `profiles.is_admin = true` — full admin panel, one HTTP request, using the PUBLIC
+  anon key. Same for `providers.registration_status='approved'`,
+  `providers.payouts_enabled=true`, and `users.is_suspended=false`. All four were
+  confirmed by running them against production.
+  FIXED by `guard_privileged_columns()` + BEFORE UPDATE triggers on profiles,
+  providers and users (migration 20261014100000), which restore privileged columns
+  for unprivileged callers. A provider may still set their own status to
+  `pending_review`; everything else is frozen.
+  ⚠️ That trigger function MUST stay **SECURITY INVOKER**. The first version was
+  DEFINER and was a total no-op — inside a DEFINER function `current_user` is the
+  function's OWNER, so the privileged-role bypass fired for attackers too. It
+  applied cleanly and blocked nothing.
+  ⚠️ **Any new privileged column needs adding to that guard.** RLS will not protect
+  it.
 - RLS lockdown STAGE 1 done (2026-07-14, migration 20260714120000_rls_lockdown_stage1):
   the public/anon-key READ leak is closed (anon now reads 0 rows from jobs/addresses/
   users/providers; service_areas stays public for the quote). SELECT policies are scoped
