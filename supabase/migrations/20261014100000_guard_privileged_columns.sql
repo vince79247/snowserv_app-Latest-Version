@@ -59,6 +59,16 @@ BEGIN
   IF TG_TABLE_NAME = 'profiles' THEN
     -- There is no legitimate client write to is_admin anywhere in lib/.
     NEW.is_admin := OLD.is_admin;
+    -- ⚠️ role IS A SECOND DOOR. main.dart's RoleRouter reads
+    --   `if (isAdmin || role == 'admin') return const AdminPanelScreen();`
+    -- so setting role='admin' routes a user straight to the admin screen even
+    -- with is_admin false. RLS still starved it of data (the attacker saw 1 of 20
+    -- users and 0 of 7 jobs), so it was a UI bypass rather than a breach — but it
+    -- is one RLS slip away from being real. role is only ever written at SIGNUP,
+    -- which is an INSERT, and this trigger is UPDATE-only, so freezing it here
+    -- costs nothing. Found 2026-10-14 immediately after the is_admin fix, by
+    -- reading what else the router trusts.
+    NEW.role := OLD.role;
 
   ELSIF TG_TABLE_NAME = 'providers' THEN
     -- A provider MAY submit their own application (provider_registration_screen
