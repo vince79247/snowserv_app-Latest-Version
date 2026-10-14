@@ -53,7 +53,13 @@ buys more credibility than any adjective.
 
 ---
 
-## Craigslist — Westchester → gigs → labor/moving
+## Craigslist — New York → westchester → gigs → labor/moving
+
+⚠️ **Westchester is NOT its own Craigslist site.** `westchester.craigslist.org` does not
+resolve — Westchester is a SUBREGION of the New York City site. Post from
+**https://post.craigslist.org/c/wst** (verified live, goes straight into the flow and asks
+you to confirm the area), or **https://newyork.craigslist.org** → "create a posting" →
+westchester → gigs → labor/moving.
 
 Post as a **gig**, not a job. They're 1099 contractors, not employees, and the wrong
 category gets flagged.
@@ -104,9 +110,10 @@ category gets flagged.
 > own secure page when you set up payouts — we never see your Social Security number or
 > your account.
 >
-> **Being straight with you:** we're brand new and haven't launched yet, so nobody can
-> promise you a certain number of jobs. What we can promise is that the early contractors
-> get first pick as customers come in, and that you'll be paid on time and in full.
+> **Being straight with you:** the app is live on the App Store and Google Play, but the
+> season hasn't started and we're still building the crew — so nobody can promise you a
+> certain number of jobs. What we can promise is that the early contractors get first pick
+> as customers come in, and that you'll be paid on time and in full.
 >
 > Interested? Get the app here: https://snowserv.app/get
 > Install it, then tap "Plow with us" — takes about a minute, no account needed.
