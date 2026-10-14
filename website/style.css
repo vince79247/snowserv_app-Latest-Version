@@ -133,3 +133,9 @@ footer .fine { width: 100%; margin-top: 20px; border-top: 1px solid rgba(255,255
    back in. Sized by eye against the App Store badge, not by raw pixels. */
 .store-badge--play img { height: 65px; margin: -8px -10px; }
 @media (max-width: 640px) { .store-badge--play img { height: 58px; } }
+
+/* Store badges inside the navy For Providers panel. The hero's .store-row has a
+   top margin tuned to sit under the CTA buttons; in the panel it follows a
+   full-width button, so it needs less. Left-aligned to match the panel's list,
+   not centred like the hero. */
+.store-row--panel { margin-top: 14px; }

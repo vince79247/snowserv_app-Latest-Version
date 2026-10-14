@@ -110,8 +110,28 @@
           <li>Fast rolling payouts to your bank</li>
           <li>No sign-up fees, no monthly fees, no contract</li>
         </ul>
-        <a class="btn btn-primary" href="https://app.snowserv.app">Apply to plow with us</a>
-        <p class="panel-note">Takes about a minute — no account needed. Tap “Plow with us”.</p>
+        <!-- Providers get the STORE, not the browser build. Raised by Vince
+             2026-10-06: "I'm trying to encourage the guys to download the app.
+             And you seem to be sending them to the website." This CTA used to
+             point at app.snowserv.app, so every recruit from Craigslist, the
+             Meta ad or a text landed in a browser — where job offers (push) and
+             the required camera-only completion photo do not work. They would
+             register successfully and then be unable to take a job.
+             Customers keep the web link below; a customer can order fine in a
+             browser. Only providers are gated on native. -->
+        <a class="btn btn-primary" href="/get">Get the app to start</a>
+        <div class="store-row store-row--panel">
+          <a class="store-badge" href="https://apps.apple.com/us/app/snowserv/id6790132972"
+             aria-label="Download SnowServ on the App Store">
+            <img src="img/app-store-badge.svg" alt="Download on the App Store" width="150" height="50">
+          </a>
+          <a class="store-badge store-badge--play"
+             href="https://play.google.com/store/apps/details?id=com.snowserv.app"
+             aria-label="Get SnowServ on Google Play">
+            <img src="img/google-play-badge.png" alt="Get it on Google Play" width="168" height="65">
+          </a>
+        </div>
+        <p class="panel-note">Install it, then tap “Plow with us”. About a minute — no account needed to start.</p>
       </div>
     </div>
   </div>

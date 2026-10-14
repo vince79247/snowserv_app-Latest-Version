@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get the SnowServ app</title>
+<!-- Not indexed: this is a routing page, not content. Letting Google rank it
+     above the real pages would send searchers to a redirect. -->
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<!-- One link for every recruiting message. Providers NEED the native app — job
+     offers arrive by push and the completion photo is camera-only — so sending
+     them to the browser build produces somebody who registers successfully and
+     then cannot work a job. Two store links in a text also means half the
+     recipients tap the wrong one.
+
+     Runs in <head>, before paint, so a phone never sees this page at all.
+     location.replace (not .href) so Back does not bounce them into the redirect
+     again. Desktop deliberately does NOT redirect — a store page on a laptop is
+     a dead end; it gets both badges instead, below. -->
+<script>
+(function () {
+  var ua = navigator.userAgent || '';
+  var IOS  = 'https://apps.apple.com/us/app/snowserv/id6790132972';
+  var PLAY = 'https://play.google.com/store/apps/details?id=com.snowserv.app';
+  if (/iPhone|iPod|iPad/i.test(ua))      { location.replace(IOS); }
+  else if (/Android/i.test(ua))          { location.replace(PLAY); }
+  // Everything else (incl. iPadOS 13+, which reports as Macintosh) falls
+  // through to the page body and picks a store by hand.
+})();
+</script>
+<style>
+  .get { max-width: 560px; margin: 0 auto; padding: 72px 24px 90px; text-align: center; }
+  .get h1 { font-size: 32px; color: var(--navy); font-weight: 800; letter-spacing: -0.3px; }
+  .get p { color: var(--ink-soft); margin: 14px 0 0; font-size: 17px; }
+  .get .store-row { justify-content: center; margin-top: 30px; }
+  .get .fine { margin-top: 34px; font-size: 14px; color: var(--ink-soft); }
+  .get .back { display: inline-block; margin-top: 30px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="get">
+  <h1>Get SnowServ</h1>
+  <p>Clear your driveway, or get paid to clear someone else’s. Choose your phone:</p>
+
+  <div class="store-row">
+    <a class="store-badge" href="https://apps.apple.com/us/app/snowserv/id6790132972"
+       aria-label="Download SnowServ on the App Store">
+      <img src="/img/app-store-badge.svg" alt="Download on the App Store" width="150" height="50">
+    </a>
+    <a class="store-badge store-badge--play"
+       href="https://play.google.com/store/apps/details?id=com.snowserv.app"
+       aria-label="Get SnowServ on Google Play">
+      <img src="/img/google-play-badge.png" alt="Get it on Google Play" width="168" height="65">
+    </a>
+  </div>
+
+  <p class="fine">
+    Plowing with us? Install the app, then tap <strong>“Plow with us”</strong>.
+    Takes about a minute — no account needed to start.
+  </p>
+
+  <a class="back" href="/">← Back to SnowServ</a>
+</div>
+
+</body>
+</html>
