@@ -3863,8 +3863,60 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // The durable answer to "did I already write to this person?". A snackbar
   // says so for four seconds and then the record is gone — which is exactly
   // how the same person got emailed twice.
+  /// Turns a sent email's HTML back into something readable in a dialog.
+  /// The stored body is the real message we mailed, built from <p> blocks and a
+  /// table-based button, so block ends become newlines and everything else is
+  /// stripped. Entities are unescaped last, or an escaped "&lt;b&gt;" would be
+  /// re-stripped as if it were a tag.
+  static String _emailPlainText(String html) {
+    var t = html
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(
+            RegExp(r'</(p|div|tr|h1|h2|li)>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<[^>]+>'), '');
+    const ents = {
+      '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"',
+      '&#39;': "'", '&mdash;': '—', '&ndash;': '–', '&ldquo;': '\u201C',
+      '&rdquo;': '\u201D', '&lsquo;': '\u2018', '&rsquo;': '\u2019',
+    };
+    ents.forEach((k, v) => t = t.replaceAll(k, v));
+    return t
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .replaceAll(RegExp(r'\n[ \t]+'), '\n')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+  }
+
+  /// Bodies are deliberately NOT part of the list query that builds `mail`:
+  /// that one pulls 500 rows on every admin refresh, and dragging ~1KB of HTML
+  /// per row through it would cost real time on every load to show a date and a
+  /// subject. They are fetched only when somebody actually opens the history,
+  /// for just the handful of ids in this dialog.
+  Future<Map<String, String>> _fetchMailBodies(
+      List<Map<String, dynamic>> mail) async {
+    final ids = mail
+        .map((m) => m['id']?.toString())
+        .whereType<String>()
+        .toList(growable: false);
+    if (ids.isEmpty) return <String, String>{};
+    try {
+      final rows = await supabase
+          .from('email_log')
+          .select('id, body')
+          .inFilter('id', ids);
+      return {
+        for (final r in List<Map<String, dynamic>>.from(rows))
+          r['id'].toString(): (r['body'] ?? '').toString(),
+      };
+    } catch (_) {
+      // The dialog still shows dates and subjects; only the bodies are lost.
+      return <String, String>{};
+    }
+  }
+
   Future<void> _showMailHistory(
       String label, List<Map<String, dynamic>> mail) async {
+    final bodiesFuture = _fetchMailBodies(mail);
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -3873,7 +3925,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
           width: 520,
           child: mail.isEmpty
               ? const Text('Nothing sent yet.')
-              : SingleChildScrollView(
+              : FutureBuilder<Map<String, String>>(
+                  future: bodiesFuture,
+                  builder: (context, snap) {
+                    final bodies = snap.data ?? const <String, String>{};
+                    final loading =
+                        snap.connectionState == ConnectionState.waiting;
+                    return SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -3896,11 +3954,47 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
                                       fontSize: 13.5,
                                       fontWeight: FontWeight.w600,
                                       color: SnowServColors.navy)),
+                              // The whole point of storing the body: re-reading
+                              // what we actually promised somebody.
+                              Builder(builder: (_) {
+                                final raw = bodies[m['id']?.toString()] ?? '';
+                                if (loading) {
+                                  return const Padding(
+                                    padding: EdgeInsets.only(top: 6),
+                                    child: Text('Loading message…',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            fontStyle: FontStyle.italic,
+                                            color: SnowServColors.inkSoft)),
+                                  );
+                                }
+                                if (raw.trim().isEmpty) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(top: 6),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0F6FF),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: SelectableText(
+                                    _emailPlainText(raw),
+                                    style: const TextStyle(
+                                        fontSize: 12.5,
+                                        height: 1.45,
+                                        color: SnowServColors.navy),
+                                  ),
+                                );
+                              }),
                             ],
                           ),
                         ),
                     ],
                   ),
+                    );
+                  },
                 ),
         ),
         actions: [
