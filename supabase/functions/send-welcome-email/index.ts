@@ -18,7 +18,15 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const FROM = 'SnowServ <noreply@send.snowserv.app>'
+// ⚠️ NEVER put "noreply" back in this address. It is the FROM line a human
+// reads, and it overrides whatever the body asks them to do. Isaiah sat
+// approved and unable to work from 2026-08-09 to 2026-10-15; two of the five
+// emails he got asked him to "just hit reply" and he never did — he answered
+// the moment Vince texted him from a real phone number. reply_to has always
+// pointed at support@snowserv.app (verified receiving 2026-10-15: all five
+// BCCs present, plus a direct inbound test), so replies were always going to
+// land. The sender address was telling people not to try.
+const FROM = 'Vince at SnowServ <vince@send.snowserv.app>'
 const REPLY_TO = 'support@snowserv.app'
 
 // Copy + HTML live in emails.ts so the preview script renders the REAL message.

@@ -389,6 +389,20 @@ lib/
   service key. ⚠️ Edge functions see the **`sb_secret_`** key in
   SUPABASE_SERVICE_ROLE_KEY — the legacy `service_role` JWT in the dashboard is a
   DIFFERENT string and 401s; `dispatch_jobs_service_key()` returns the right one.
+- ⚠️ **SENDER ADDRESS — never "noreply" again (2026-10-15).** All four mailers
+  (send-lead-email, send-admin-email, send-welcome-email, send-dispute-email)
+  send `From: Vince at SnowServ <vince@send.snowserv.app>` with
+  `Reply-To: support@snowserv.app`. It was `noreply@send.snowserv.app` until
+  2026-10-15, and that word in the FROM line overrode everything the body said:
+  Isaiah sat approved-but-unable-to-work for ten weeks, ignored two emails that
+  explicitly asked him to "just hit reply", and answered within hours of a text
+  from a real phone number. The headers were always correct — support@ is
+  verified receiving (all five BCCs present + a direct inbound test) — so every
+  reply would have landed. People just don't write to a mailbox labeled noreply.
+  ⚠️ Mail TO `vince@send.snowserv.app` BOUNCES (that subdomain's MX is the SES
+  feedback handler, not an inbox). Replies work because every mail client honors
+  Reply-To; only someone hand-copying the From address would miss. Verified
+  end-to-end 2026-10-15: a real send from the new address was accepted by Resend.
 - send-admin-email: free-form subject+body from the admin panel, sent AS SnowServ.
   Admin-gated. Takes a user_id and resolves the address server-side — there is
   deliberately NO `to` parameter, so a stolen admin session can only mail people
