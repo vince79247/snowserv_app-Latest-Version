@@ -352,12 +352,34 @@ lib/
   Takes {lead_id} or {provider_id} (+ optional review_note) and picks the variant
   from the row's actual state — NEVER from which id you passed:
     lead_new · out_of_area (suppresses ALL dollar figures — a lead outside our
-    priced zone must not be quoted Yonkers rates) · stalled_signup · pending_review ·
-    approved · needs_attention (carries the fix) · declined.
+    priced zone must not be quoted Yonkers rates) · stalled_signup ·
+    unconfirmed_email (magic link for somebody locked out of their own account) ·
+    pending_review · approved · payout_reminder · needs_attention (carries the
+    fix) · declined.
+  Accepts an admin JWT **or the service-role key** (the nightly chaser);
+  `sent_by` is NULL for automated sends.
+  ⚠️ **payouts_enabled=false means they cannot go online AT ALL** — the provider
+  home blocks the toggle. Every variant says so via PAYOUT_GATE. The old copy
+  called it a convenience ("your call"), which is the likeliest reason Isaiah sat
+  approved and unable to work for ten weeks.
+  ⚠️ **seasonPhase() has THREE values**, not a boolean: 'in' (Nov–Mar), 'pre'
+  (October — snow is weeks away, highest-urgency month for payout setup) and
+  'off' (Apr–Sep). A boolean told an October signup "it does not snow in the
+  summer".
   Prices are computed SERVER-SIDE from the live zone × app_settings.commission_pct,
   never typed into a template or passed by the client. The pay table shows BOTH
   "customer pays" and "you take home" — one column alone reads as "is $60 the job or
   my cut?" and a contractor who guesses low just doesn't reply.
+- chase-providers: **nightly lifecycle chaser** (pg_cron `chase-providers`, 14:00
+  UTC). Reads `providers_needing_nudge()` — a SECURITY DEFINER SQL function,
+  because the candidate query joins `auth.users`, which PostgREST cannot reach —
+  then calls send-lead-email per person. It decides nothing about copy; the
+  variant comes from the row's own state. Guards: 30-day quiet period per person,
+  lifetime cap of 4 contacts, skip accounts >120 days old with no progress.
+  verify_jwt=false (cron holds no session) and **fails closed** without the
+  service key. ⚠️ Edge functions see the **`sb_secret_`** key in
+  SUPABASE_SERVICE_ROLE_KEY — the legacy `service_role` JWT in the dashboard is a
+  DIFFERENT string and 401s; `dispatch_jobs_service_key()` returns the right one.
 - send-admin-email: free-form subject+body from the admin panel, sent AS SnowServ.
   Admin-gated. Takes a user_id and resolves the address server-side — there is
   deliberately NO `to` parameter, so a stolen admin session can only mail people
