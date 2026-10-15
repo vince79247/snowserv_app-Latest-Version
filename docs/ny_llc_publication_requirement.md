@@ -29,7 +29,17 @@ filing the certificate later **annuls the suspension** — late is fixable.
 ➡️ **The deadline cannot be met** — publication had to begin around 2026-09-25.
 Start anyway: the suspension is annulled on filing.
 
-## Delaware County designated newspapers
+## ✅ DESIGNATION CONFIRMED BY THE CLERK 2026-10-15
+Vince called **607-832-5700** and the clerk named the two papers:
+| Paper | Role | Phone | Confidence |
+|---|---|---|---|
+| **The Daily Star**, Oneonta | the DAILY | **607-432-1000** | from the Clerk's own page |
+| **Walton Reporter**, Delhi | the WEEKLY | **607-464-4009** | the Clerk's page lists this number for "The Reporter" at 39 Elm St Delhi; directory listings tie "Walton Reporter" to the same address, so almost certainly the same masthead |
+⚠️ If 607-464-4009 does not connect, **call the Clerk back for the current
+number** rather than trusting a directory — third-party listings showed two
+other numbers (607-865-4131, 607-865-8689) and flagged one office as closed.
+
+## Full designated list (for reference)
 From the County Clerk's LLC Publications page. **One daily + one weekly.**
 | Paper | Frequency | Town | Phone |
 |---|---|---|---|
