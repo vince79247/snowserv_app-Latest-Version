@@ -100,7 +100,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
   // list flicker mid-storm.
   void _subscribeLive() {
     final chan = supabase.channel('admin_live');
-    for (final table in ['jobs', 'providers', 'disputes']) {
+    // provider_leads added 2026-10-15. ⚠️ A table must ALSO be in the
+    // `supabase_realtime` publication or it emits nothing and this silently
+    // watches a table that never speaks — see the migration alongside this.
+    for (final table in ['jobs', 'providers', 'disputes', 'provider_leads']) {
       chan.onPostgresChanges(
         event: PostgresChangeEvent.all,
         schema: 'public',
@@ -164,12 +167,25 @@ class _AdminPanelScreenState extends State<AdminPanelScreen>
             .order('created_at', ascending: false)
             .then<dynamic>((v) => v)
             .catchError((_) => disputes),
+        // Leads were missing from BOTH refresh paths — not in the realtime
+        // subscription and not polled here — so a website signup stayed
+        // invisible until somebody reopened the panel. Vince hit this on
+        // 2026-10-15: a lead sat "awaiting follow-up" and the only way to see
+        // it was a manual refresh. Website leads are the one thing that arrives
+        // with nobody watching, which makes them the worst thing to miss.
+        supabase
+            .from('provider_leads')
+            .select()
+            .order('created_at', ascending: false)
+            .then<dynamic>((v) => v)
+            .catchError((_) => providerLeads),
       ]);
       if (mounted) {
         setState(() {
           jobs = List<Map<String, dynamic>>.from(results[0] as Iterable);
           providers = _sortProviders(results[1] as Iterable);
           disputes = List<Map<String, dynamic>>.from(results[2] as Iterable);
+          providerLeads = List<Map<String, dynamic>>.from(results[3] as Iterable);
         });
       }
     } catch (_) {

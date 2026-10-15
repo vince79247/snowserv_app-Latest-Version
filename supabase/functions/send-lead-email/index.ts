@@ -526,9 +526,11 @@ Deno.serve(async (req: Request) => {
             'password.'),
           button(magicLink, 'Activate my account'),
           p('<span style="font-size:13px;color:#5A7184;">That link is good for ' +
-            'one hour. If it has already expired by the time you get to it, ' +
+            'two hours. If it has already expired by the time you get to it, ' +
             'just reply to this email and I will send you a fresh one — it ' +
-            'takes me a second.</span>'),
+            'takes me a second. And if you are wondering where our first email ' +
+            'went, check your spam or junk folder; that is usually where it ' +
+            'is.</span>'),
           rows.length
             ? p(`<b>You keep ${pct}% of every job.</b> Here is what that works ` +
                 'out to per job in Yonkers:')

@@ -30,6 +30,13 @@ const json = (body: unknown, status = 200) =>
 
 // Vince's rule, stated 2026-08: "we can pester them once a month."
 const QUIET_DAYS = 30
+// ⚠️ EXCEPT for somebody who never confirmed their email. They are not ignoring
+// us — they are LOCKED OUT of an account they just created and cannot log into,
+// and the magic link we send them expires in 2 hours. Waiting 30 days to try
+// again would mean one missed link costs a whole month. Taj, James and Andy each
+// sat locked out for weeks; Christina was caught in 46 minutes and then would
+// have waited until November under the old rule.
+const QUIET_DAYS_LOCKED_OUT = 3
 // Stop after this many lifetime contacts. A fifth unanswered email is not
 // persistence, it is spam, and it costs sender reputation on the same domain
 // that carries confirmation links and payout notices.
@@ -76,8 +83,9 @@ Deno.serve(async (req: Request) => {
       if (Number(r.contacts) >= MAX_CONTACTS) {
         skipped.push({ who, why: `${r.contacts} contacts already` }); continue
       }
-      if (days(r.recruit_emailed_at) < QUIET_DAYS) {
-        skipped.push({ who, why: 'contacted within 30 days' }); continue
+      const quiet = r.email_confirmed === false ? QUIET_DAYS_LOCKED_OUT : QUIET_DAYS
+      if (days(r.recruit_emailed_at) < quiet) {
+        skipped.push({ who, why: `contacted within ${quiet} days` }); continue
       }
       if (days(r.created_at) > STALE_AFTER_DAYS) {
         skipped.push({ who, why: 'account older than 120 days, no progress' }); continue
@@ -97,9 +105,52 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ---- WEBSITE LEADS ---------------------------------------------------
+    // A gap in the first version, found by Vince the same day: this function
+    // only looked at `providers` — people who had already signed up IN the app.
+    // Somebody who fills in the website form lands in `provider_leads` and was
+    // covered by nothing at all. Muhammad salman khan sat at status 'new',
+    // uncontacted, while the panel showed him "awaiting follow-up".
+    //
+    // Leads are NOT subject to the 30-day quiet period. A fresh lead is the
+    // hottest thing in the pipeline and should hear back the same day; the
+    // quiet period exists to stop nagging people who already said nothing,
+    // which is a different situation.
+    const leadRows = await (await fetch(
+      `${supabaseUrl}/rest/v1/provider_leads?status=eq.new&select=id,name,email,created_at`,
+      { headers: svc },
+    ).catch(() => new Response('[]'))).json().catch(() => [])
+
+    for (const l of (Array.isArray(leadRows) ? leadRows : [])) {
+      const who = String(l.name ?? l.email ?? l.id)
+      // Already signed up in the app? The provider path above owns them; mailing
+      // the lead copy as well would be two different emails about the same thing.
+      try {
+        const u = await (await fetch(
+          `${supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(String(l.email))}&select=id&limit=1`,
+          { headers: svc })).json()
+        if (Array.isArray(u) && u.length) {
+          skipped.push({ who, why: 'lead already signed up in the app' }); continue
+        }
+      } catch { /* fall through and send */ }
+
+      if (dryRun) { sent.push(`${who} (lead, dry run)`); continue }
+      try {
+        const res = await fetch(`${supabaseUrl}/functions/v1/send-lead-email`, {
+          method: 'POST', headers: svc, body: JSON.stringify({ lead_id: l.id }),
+        })
+        const body = await res.json().catch(() => ({}))
+        if (res.ok && body?.sent === 1) sent.push(`${who} (lead)`)
+        else skipped.push({ who, why: `lead send failed: ${res.status}` })
+      } catch (e) {
+        skipped.push({ who, why: `lead send threw: ${e instanceof Error ? e.message : e}` })
+      }
+    }
+
     // Logged so a silent failure is visible in the edge logs, not inferred.
-    console.log(JSON.stringify({ dryRun, considered: candidates.length, sent, skipped }))
-    return json({ dryRun, considered: candidates.length, sent, skipped })
+    const considered = candidates.length + (Array.isArray(leadRows) ? leadRows.length : 0)
+    console.log(JSON.stringify({ dryRun, considered, sent, skipped }))
+    return json({ dryRun, considered, sent, skipped })
   } catch (e: unknown) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500)
   }
