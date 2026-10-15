@@ -128,9 +128,22 @@ Deno.serve(async (req: Request) => {
     // rather than about a job — approval being the first of them. Every earlier
     // status here was job-scoped, so the provider could only ever be reached by
     // way of a job they were already on.
-    const { job_id, provider_id, status } = await req.json()
+    // title/body are accepted ONLY for 'storm_alert', whose text is computed
+    // from a live forecast (how much snow, which night) and so cannot be a
+    // static case below. Every other status still gets its copy from
+    // getNotificationContent, which is what keeps notification wording in one
+    // place instead of scattered across callers.
+    const { job_id, provider_id, status, title, body } = await req.json()
 
-    const notification = getNotificationContent(status)
+    let notification = getNotificationContent(status)
+    if (status === 'storm_alert') {
+      const t = (title ?? '').toString().trim()
+      const b = (body ?? '').toString().trim()
+      // No fallback copy on purpose: a storm alert with invented numbers is
+      // worse than no alert. If the caller did not supply both, send nothing.
+      if (!t || !b) return new Response(JSON.stringify({ skipped: true, why: 'storm_alert needs title and body' }), { status: 200, headers: cors })
+      notification = { title: t, body: b, urgent: true }
+    }
     if (!notification) return new Response(JSON.stringify({ skipped: true }), { status: 200, headers: cors })
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
