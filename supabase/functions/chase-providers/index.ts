@@ -112,17 +112,76 @@ Deno.serve(async (req: Request) => {
     // covered by nothing at all. Muhammad salman khan sat at status 'new',
     // uncontacted, while the panel showed him "awaiting follow-up".
     //
-    // Leads are NOT subject to the 30-day quiet period. A fresh lead is the
-    // hottest thing in the pipeline and should hear back the same day; the
-    // quiet period exists to stop nagging people who already said nothing,
-    // which is a different situation.
+    // ⚠️ THAT FIX LEFT HALF THE HOLE OPEN (found by Vince 2026-10-15). It
+    // selected `status=eq.new`, and send-lead-email flips a lead to 'contacted'
+    // the moment it sends — so after the first email the lead became invisible
+    // to this function FOREVER. Every lead got exactly one email in its life;
+    // all nine in the table proved it. MAX_CONTACTS and QUIET_DAYS were dead
+    // settings on this path, because a second contact could never happen.
+    // stardashia bowles — the ONLY lead inside the Yonkers zone — sat 38 days
+    // on one email with nothing scheduled, ever.
+    //
+    // Now: chase by CONTACT HISTORY (email_log), not by a status flag that the
+    // act of sending destroys. Same shape as the provider path above.
+    //
+    // Statuses are still honored, but only the ones a human sets on purpose:
+    //   new / contacted / interested → chaseable
+    //   registered                   → they signed up; the provider path owns them
+    //   not_interested               → they said no
+    //   out_of_area                  → the admin PARKED them ("waiting" bucket).
+    // Out-of-area is deliberately NOT inferred from the ZIP. Decided w/ Vince
+    // 2026-10-15: dispatch has no distance cap on purpose, so a willing
+    // contractor in the Bronx or Brooklyn is a real Yonkers provider, not a bad
+    // lead. Only an admin parking someone stops the chase.
+    const CHASEABLE = ['new', 'contacted', 'interested']
     const leadRows = await (await fetch(
-      `${supabaseUrl}/rest/v1/provider_leads?status=eq.new&select=id,name,email,created_at`,
+      `${supabaseUrl}/rest/v1/provider_leads` +
+        `?status=in.(${CHASEABLE.join(',')})&select=id,name,email,created_at`,
       { headers: svc },
     ).catch(() => new Response('[]'))).json().catch(() => [])
 
+    // One pass for the whole contact history, instead of a request per lead.
+    const leadMail = new Map<string, string[]>()
+    try {
+      const logRows = await (await fetch(
+        `${supabaseUrl}/rest/v1/email_log?lead_id=not.is.null&select=lead_id,created_at`,
+        { headers: svc })).json()
+      for (const r of (Array.isArray(logRows) ? logRows : [])) {
+        const k = String(r.lead_id)
+        if (!leadMail.has(k)) leadMail.set(k, [])
+        leadMail.get(k)!.push(String(r.created_at))
+      }
+    } catch { /* no history readable → treat everyone as never contacted */ }
+
+    // `days()` is the helper the provider path above already declared; it
+    // returns Infinity for a null date, which reads as "never contacted".
+    // Andy Hatzis submitted the website form TWICE, three minutes apart, and
+    // got two identical emails. One person, one message per run.
+    const seenEmails = new Set<string>()
+
     for (const l of (Array.isArray(leadRows) ? leadRows : [])) {
       const who = String(l.name ?? l.email ?? l.id)
+      const addr = String(l.email ?? '').trim().toLowerCase()
+      if (addr && seenEmails.has(addr)) {
+        skipped.push({ who, why: 'duplicate lead row for the same email' }); continue
+      }
+
+      const history = leadMail.get(String(l.id)) ?? []
+      if (history.length >= MAX_CONTACTS) {
+        skipped.push({ who, why: `lead already contacted ${history.length}x (cap ${MAX_CONTACTS})` })
+        continue
+      }
+      // A FRESH lead — never written to — hears back the same day. The quiet
+      // period only governs the follow-ups after that.
+      if (history.length) {
+        const last = history.reduce((a, b) => (a > b ? a : b))
+        const since = days(last)
+        if (since < QUIET_DAYS) {
+          skipped.push({ who, why: `lead contacted ${Math.floor(since)}d ago (quiet ${QUIET_DAYS}d)` })
+          continue
+        }
+      }
+
       // Already signed up in the app? The provider path above owns them; mailing
       // the lead copy as well would be two different emails about the same thing.
       try {
@@ -134,13 +193,13 @@ Deno.serve(async (req: Request) => {
         }
       } catch { /* fall through and send */ }
 
-      if (dryRun) { sent.push(`${who} (lead, dry run)`); continue }
+      if (dryRun) { sent.push(`${who} (lead, dry run)`); if (addr) seenEmails.add(addr); continue }
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/send-lead-email`, {
           method: 'POST', headers: svc, body: JSON.stringify({ lead_id: l.id }),
         })
         const body = await res.json().catch(() => ({}))
-        if (res.ok && body?.sent === 1) sent.push(`${who} (lead)`)
+        if (res.ok && body?.sent === 1) { sent.push(`${who} (lead)`); if (addr) seenEmails.add(addr) }
         else skipped.push({ who, why: `lead send failed: ${res.status}` })
       } catch (e) {
         skipped.push({ who, why: `lead send threw: ${e instanceof Error ? e.message : e}` })

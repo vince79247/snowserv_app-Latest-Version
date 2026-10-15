@@ -385,6 +385,21 @@ lib/
   then calls send-lead-email per person. It decides nothing about copy; the
   variant comes from the row's own state. Guards: 30-day quiet period per person,
   lifetime cap of 4 contacts, skip accounts >120 days old with no progress.
+  ⚠️ **Leads are chased by CONTACT HISTORY (email_log), not by a status flag**
+  (fixed 2026-10-15). The first version selected `status=eq.new`, and
+  send-lead-email flips a lead to 'contacted' the moment it sends — so after one
+  email a lead was invisible to the chaser FOREVER. Every lead in the table had
+  exactly one email, ever; the cap and quiet period were dead settings because a
+  second contact could not happen. Chaseable statuses are new/contacted/
+  interested; `registered` (the provider path owns them), `not_interested` and
+  `out_of_area` are deliberate admin parking spots and are skipped. A FRESH lead
+  still hears back the same day — the quiet period only governs follow-ups.
+  Duplicate rows for one email address get one message per run (Andy Hatzis
+  submitted the website form twice and got two identical emails).
+  ⚠️ **Out-of-area is NOT inferred from the ZIP** (decided w/ Vince 2026-10-15).
+  `dispatch_jobs()` has no distance cap on purpose, so a willing contractor in
+  the Bronx or Brooklyn is a real Yonkers provider. Only an admin setting
+  `out_of_area` stops the chase.
   verify_jwt=false (cron holds no session) and **fails closed** without the
   service key. ⚠️ Edge functions see the **`sb_secret_`** key in
   SUPABASE_SERVICE_ROLE_KEY — the legacy `service_role` JWT in the dashboard is a
