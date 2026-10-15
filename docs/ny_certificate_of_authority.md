@@ -271,6 +271,30 @@ deadline and its **$50 minimum penalty**.
 
 ➡️ **Create the Online Services account now, not in December.**
 
+### ✅ BUSINESS ONLINE SERVICES ACCOUNT CREATED 2026-10-15
+The PIN was used with 42 days to spare, so the 2026-11-26 expiry no longer matters.
+The account that files SnowServ LLC's sales tax is a **separate Business Online
+Services login** (username recorded in Claude's local memory, not here — the repo is
+public), registered to **support@snowserv.app** rather than the personal Yahoo.
+⚠️ **ALLOW-LIST `ny.gov` IN ZOHO** — filing reminders go to that mailbox, and Zoho has
+previously filed important mail into Spam.
+**Nothing further is due until December.** The first return covers **Sep 1 – Nov 30**
+and is filed **between Dec 1 and Dec 20**: log in → **≡ Services** → **Sales tax –
+file and pay** → **Sales tax web file**. Zero return, still mandatory, $50 minimum
+penalty if skipped.
+
+### ⚠️ `my.ny.gov` IS BROKEN — route around it
+Two sessions were lost to `my.ny.gov/LoginV4/dtfportal.xhtml` failing with "the server
+unexpectedly dropped the connection", in Safari and from curl on the same machine.
+Diagnosed: TCP connects and **the TLS handshake COMPLETES**, then the server drops the
+request. Not a network block — a filter would fail during the handshake — and
+`ols.tax.ny.gov`, on the same /24, works fine. It is that host's application layer.
+➡️ **The route that worked:** skip `my.ny.gov`. Use the NY.gov *business account
+creation* page that lists agencies and pick **"NYS Department of Taxation and Finance
+— business users … sales tax web file"**, which lands on Business Account Creation
+directly. If the login page ever drops the connection again, that is the way round it,
+and **518-485-2889** is the human fallback.
+
 ### One NY.gov ID, several service portals
 New York uses a single sign-on identity with separate SERVICE portals attached, so
 adding a service is NOT creating an account — which is why this feels repetitive:
