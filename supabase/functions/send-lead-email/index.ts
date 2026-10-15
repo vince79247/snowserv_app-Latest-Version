@@ -84,15 +84,41 @@ const BANK_NOTE =
 // A single static reword just moves the problem to winter, where "go online" IS
 // the correct call to action — so branch on the actual month instead.
 // Yonkers snow season: roughly November through March.
-function inSnowSeason(now = new Date()): boolean {
+type SeasonPhase = 'in' | 'pre' | 'off'
+
+// THREE phases, not two. A boolean in/out of season produced a real failure:
+// on 2026-10-15 an approved provider was told "it does not snow in the summer",
+// in mid-October, with the first storm weeks away. Vince caught it — "obviously
+// we have four seasons in New York".
+//   'in'  Nov–Mar  — it is snowing; go online.
+//   'pre' Oct      — snow is WEEKS away. The highest-urgency month there is for
+//                    getting somebody payout-ready, and the old copy told them
+//                    to relax.
+//   'off' Apr–Sep  — genuinely nothing to do; set payouts up at leisure.
+function seasonPhase(now = new Date()): SeasonPhase {
   // Month resolved in America/New_York so a UTC edge near midnight on the 1st or
   // 31st cannot flip the season by a day.
   const m = Number(new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     month: 'numeric',
   }).format(now))
-  return m >= 11 || m <= 3
+  if (m >= 11 || m <= 3) return 'in'
+  if (m === 10) return 'pre'
+  return 'off'
 }
+
+// ⚠️ PAYOUTS ARE A GATE, NOT A CONVENIENCE — say so in every phase.
+// provider_home.dart blocks the online toggle unless payouts_enabled is true
+// ("working a storm for money we cannot send"), so an approved provider without
+// it cannot go online and cannot be dispatched anything. The old copy said
+// "we can hand you work but not money" (in season) and "so you get paid without
+// a delay ... your call" (off season). Both are false and both understate it.
+// Isaiah was approved 2026-08-08, received the soft version, and ten weeks later
+// was still unable to take a job.
+const PAYOUT_GATE =
+  '<b>You cannot go online until this is done.</b> It is not paperwork for ' +
+  'later — it is the switch that turns your account on. Until payouts are set ' +
+  'up we cannot send you a single job.'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -353,45 +379,68 @@ Deno.serve(async (req: Request) => {
           p('Vince<br>SnowServ'),
         ].join(''))
       : isApproved
-      ? shell(heading, (inSnowSeason()
-        ? [
-          p('Your SnowServ application has been approved — you are cleared to ' +
-            'take jobs.'),
-          p('<b>The last thing to do is add your bank information</b>, so we can ' +
-            'actually pay you. It takes about five minutes on Stripe\'s page. ' +
-            'Until it is done we can hand you work but not money.'),
-          p('After that, open the app and flip yourself <b>Online</b>. You only ' +
-            'get job offers while you are online.'),
-          rows.length ? payTable(rows) : '',
-          rows.length
-            ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
-                'column is your money. Deicer pays extra on top.</span>')
-            : '',
-          p(BANK_NOTE),
-          button(SIGNUP_URL, 'Set up your payouts'),
-          p('Welcome aboard. Reply to this email any time — a real person reads it.'),
-        ]
-        : [
-          p('Your SnowServ application has been approved — you are on the roster ' +
-            'for this winter.'),
-          p('There is nothing you need to do in the app today. It does not snow ' +
-            'in the summer, and we will not send you job offers until it does.'),
-          p('<b>The last thing to set up is your bank information</b>, so you get ' +
-            'paid without a delay once the work starts. It takes about five ' +
-            'minutes on Stripe\'s page, and you can do it whenever you are ready ' +
-            '— now, or the week before the first storm. Your call.'),
-          rows.length ? payTable(rows) : '',
-          rows.length
-            ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
-                'column is your money. Deicer pays extra on top. These are this ' +
-                'season\'s rates.</span>')
-            : '',
-          p(BANK_NOTE),
-          button(SIGNUP_URL, 'Set up your payouts'),
-          p('When the first storm is on the way we will email you and send a ' +
-            'notification. That is when you go online.'),
-          p('Welcome aboard. Reply to this email any time — a real person reads it.'),
-        ]).join(''))
+      ? shell(heading, ((): string[] => {
+          // Shared tail: the pay table, the gate, the button. Only the opening
+          // and the closing line change by season, so they do not drift apart.
+          const payBits = [
+            rows.length ? payTable(rows) : '',
+            rows.length
+              ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
+                  'column is your money. Deicer pays extra on top.</span>')
+              : '',
+            p(PAYOUT_GATE),
+            p(BANK_NOTE),
+            button(SIGNUP_URL, 'Set up your payouts'),
+          ]
+          const signOff =
+            p('Welcome aboard. Reply to this email any time — a real person reads it.')
+
+          if (seasonPhase() === 'in') {
+            return [
+              p('Your SnowServ application has been approved — you are cleared to ' +
+                'take jobs.'),
+              p('<b>One step left: add your bank information.</b> It takes about ' +
+                'five minutes on Stripe\'s page.'),
+              ...payBits,
+              p('Once that is done, open the app and flip yourself <b>Online</b>. ' +
+                'You only get job offers while you are online.'),
+              signOff,
+            ]
+          }
+
+          if (seasonPhase() === 'pre') {
+            // October. Snow is weeks away, which makes this the single most
+            // useful month to get somebody payout-ready — the old copy spent it
+            // telling them there was no rush.
+            return [
+              p('Your SnowServ application has been approved — you are on the ' +
+                'roster for this winter.'),
+              p('<b>The season is close, so do this now rather than later:</b> ' +
+                'set up your bank information. It takes about five minutes on ' +
+                'Stripe\'s page, and it is the only thing standing between you ' +
+                'and your first job.'),
+              ...payBits,
+              p('Get it done this week and you are ready the moment the first ' +
+                'storm lands — instead of sorting it out at 5am with jobs going ' +
+                'to somebody else.'),
+              signOff,
+            ]
+          }
+
+          return [
+            p('Your SnowServ application has been approved — you are on the ' +
+              'roster for this winter.'),
+            p('The season has not started yet, so there are no jobs to take ' +
+              'today. But there is one thing worth doing while it is quiet: ' +
+              '<b>set up your bank information.</b> About five minutes on ' +
+              'Stripe\'s page.'),
+            ...payBits,
+            p('Do it now and you are done forever — we will email you and send a ' +
+              'notification when the first storm is on the way, and you can go ' +
+              'straight online.'),
+            signOff,
+          ]
+        })().join(''))
       // Locked out, not disinterested. They signed up and never got in, because
       // the account needs its email confirmed before it will accept a login and
       // that step did not happen. Own it in the first line — this reads as our
@@ -424,10 +473,14 @@ Deno.serve(async (req: Request) => {
           p('Once you are in there is about five minutes left: your equipment, ' +
             'the agreement, and a bank account for payouts.'),
           p(BANK_NOTE),
-          p(inSnowSeason()
+          p(seasonPhase() === 'in'
             ? 'Finish those and you can go online and start taking jobs.'
-            : 'No rush on the timing — it does not snow yet. We will email you ' +
-              'before the first storm, and that is when the work starts.'),
+            : seasonPhase() === 'pre'
+              ? 'The season is close, so it is worth finishing this week — then ' +
+                'you are ready the moment the first storm lands.'
+              : 'The season has not started yet, so there is no rush — but get ' +
+                'it done and you are set. We will email you before the first ' +
+                'storm, and that is when the work starts.'),
           p('Just reply to this email if anything looks off — a real person ' +
             'reads it.'),
         ].join(''))
