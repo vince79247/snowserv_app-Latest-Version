@@ -177,6 +177,9 @@ Deno.serve(async (req: Request) => {
     let to = ''
     let firstName = ''
     let leadStatus: string | null = null
+    // Hoisted beside leadStatus so the status write at the bottom can honor
+    // "first contact wins" — `lead` itself is block-scoped to the fetch above.
+    let leadContactedAt: string | null = null
     let regStatus: string | null = null
     let providerUserId = ''
     let payoutsEnabled = false
@@ -187,13 +190,14 @@ Deno.serve(async (req: Request) => {
 
     if (lead_id) {
       const rows = await (await fetch(
-        `${supabaseUrl}/rest/v1/provider_leads?id=eq.${lead_id}&select=id,name,email,status`,
+        `${supabaseUrl}/rest/v1/provider_leads?id=eq.${lead_id}&select=id,name,email,status,contacted_at`,
         { headers: svc })).json()
       const lead = Array.isArray(rows) ? rows[0] : null
       if (!lead) return json({ error: 'Lead not found' }, 404)
       to = (lead.email ?? '').toString().trim()
       firstName = (lead.name ?? '').toString().trim().split(/\s+/)[0] ?? ''
       leadStatus = (lead.status ?? 'new').toString()
+      leadContactedAt = lead.contacted_at ? String(lead.contacted_at) : null
     } else {
       const rows = await (await fetch(
         `${supabaseUrl}/rest/v1/providers?id=eq.${provider_id}&select=id,user_id,registration_status,payouts_enabled,users!inner(name,email)`,
@@ -705,10 +709,22 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({ recruit_emailed_at: new Date().toISOString() }),
       })
     } else if (leadStatus === 'new') {
+      // ⚠️ contacted_at MUST be stamped here too (fixed 2026-10-15). The admin
+      // panel's _setLeadStatus() stamps it when a HUMAN moves the dropdown, but
+      // this server path wrote `status` alone — so a lead emailed by the nightly
+      // chaser went to 'contacted' with contacted_at still NULL. Six of nine
+      // rows were in that state. The card falls back to contacted_at when
+      // email_log has nothing for the lead, so the inconsistency was one missing
+      // email_log row away from a contacted lead reading as never-contacted.
+      // Same rule as the admin path: FIRST contact wins, never overwritten,
+      // or the date drifts to whenever we last happened to mail them.
       await fetch(`${supabaseUrl}/rest/v1/provider_leads?id=eq.${lead_id}`, {
         method: 'PATCH',
         headers: { ...svc, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'contacted' }),
+        body: JSON.stringify({
+          status: 'contacted',
+          ...(leadContactedAt ? {} : { contacted_at: new Date().toISOString() }),
+        }),
       })
     }
 
