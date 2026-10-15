@@ -52,6 +52,27 @@ From the County Clerk's LLC Publications page. **One daily + one weekly.**
 ⚠️ **Confirm the designation with the clerk before paying anyone.** Publishing in
 a non-designated paper means doing it again, at full cost.
 
+## ✅ THE EXACT NOTICE TEXT (checked against the filed Articles 2026-10-15)
+```
+Notice of Formation of SnowServ LLC. Articles of Organization filed with the
+Secretary of State of New York (SSNY) on July 9, 2026. Office location:
+Delaware County. SSNY has been designated as agent of the LLC upon whom
+process against it may be served. SSNY shall mail a copy of process to
+Vincent Citarella, 3479 County Highway 26, Hamden, NY 13782. Purpose: any
+lawful act or activity.
+```
+**Identical text in BOTH papers.** Two corrections came out of reading the actual
+Articles rather than trusting the DOS database:
+⚠️ **The filed name is `SnowServ LLC`, MIXED CASE.** The DOS online record shows
+`SNOWSERV LLC` because that database displays everything in capitals. The filing
+is the authority.
+⚠️ **Process goes to a PERSON, not "the LLC".** Article THIRD names
+**VINCENT CITARELLA** at 3479 County Highway 26, Hamden NY 13782 as the address
+the Secretary of State mails process to. A notice saying "to the LLC at..."
+would not match the filing.
+(The Articles also record a service email, `snowserv.app@snowserv.app`. §206 does
+not require it in the notice.)
+
 ## What the papers need
 * Name exactly as filed: **SNOWSERV LLC**
 * DOS ID **7962382**, filed **2026-07-09**, **Delaware County**
