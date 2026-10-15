@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SnowServ — On-demand snow removal</title>
-<meta name="description" content="SnowServ clears your driveway and sidewalks, using local independent providers. Request in a tap, track it live, and only pay when a provider starts the job.">
+<title>SnowServ — On-demand snow removal in Yonkers, NY</title>
+<meta name="description" content="Snow removal in Yonkers, NY. SnowServ clears your driveway and sidewalks on demand — request in a tap, see the price for your address up front, and your card is not charged until a provider starts the job.">
 <!-- www.snowserv.app and snowserv.app both serve this page with a 200, so without
      this Google sees two full copies of the site and picks a winner itself. Points
      at the extensionless path Cloudflare Pages actually serves — /index.html and
@@ -14,6 +14,66 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+
+<!-- Local-service structured data. Without this Google has no signal that
+     SnowServ is a snow-removal service operating in a specific place, so a
+     Yonkers resident searching "snow removal near me" during a storm does not
+     find us. The <title> and description now name Yonkers for the same reason.
+
+     BUILT TO SCALE, deliberately. Vince's point (2026-10-15): a Google Business
+     Profile anchors to one verified address and does not scale to a platform
+     expanding city by city. This does — `areaServed` is a LIST. Adding a town
+     means adding one entry here, matching the new service_areas zone. There is
+     no street address in this markup at all: SnowServ performs no work at its
+     registered address, and claiming a storefront it does not have would be
+     both wrong and a Google guidelines violation.
+
+     ⚠️ NO PRICES AND NO RATINGS HERE ON PURPOSE. Prices live in the
+     service_areas table and are admin-editable, so any figure baked into this
+     file goes stale silently — exactly how the recruiting copy once undercut
+     every tier by 25%. priceRange is a band, not a number. aggregateRating is
+     absent because we have no reviews; inventing one is fraud and a manual
+     penalty. Add it only when real ratings exist. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "serviceType": "Snow removal",
+  "name": "SnowServ",
+  "description": "On-demand snow removal for driveways, walkways and sidewalks. Request from your phone and pay only when a provider starts the job.",
+  "url": "https://snowserv.app/",
+  "provider": {
+    "@type": "Organization",
+    "name": "SnowServ LLC",
+    "url": "https://snowserv.app/",
+    "logo": "https://snowserv.app/img/app-store-badge.svg",
+    "email": "support@snowserv.app"
+  },
+  "areaServed": [
+    { "@type": "City", "name": "Yonkers", "addressRegion": "NY", "addressCountry": "US" }
+  ],
+  "audience": { "@type": "Audience", "audienceType": "Homeowners" },
+  "offers": {
+    "@type": "Offer",
+    "priceCurrency": "USD",
+    "priceRange": "$$",
+    "availability": "https://schema.org/InStock",
+    "url": "https://snowserv.app/get"
+  },
+  "potentialAction": {
+    "@type": "OrderAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "https://snowserv.app/get",
+      "actionPlatform": [
+        "https://schema.org/DesktopWebPlatform",
+        "https://schema.org/IOSPlatform",
+        "https://schema.org/AndroidPlatform"
+      ]
+    }
+  }
+}
+</script>
 </head>
 <body>
 
