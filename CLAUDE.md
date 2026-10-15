@@ -278,6 +278,15 @@ lib/
   ⚠️ **Stripe issues a SINGLE backup code, not a list like Google's ten.** It is
   single-use — if it is ever spent, generate a replacement the same day or the
   fallback is gone again. Never screenshot a TOTP QR or setup key.
+- ⚠️ **NY LLC PUBLICATION REQUIREMENT — OVERDUE, NEVER TRACKED UNTIL 2026-10-15.**
+  LLC Law §206: within 120 days of formation, publish once a week for SIX weeks
+  in TWO newspapers (one daily, one weekly) designated by the **Delaware County**
+  Clerk, then file a Certificate of Publication + both affidavits + $50 with DOS
+  Albany. Formed 2026-07-09 → deadline **2026-11-06**, which cannot now be met
+  (six weeks started mid-October ends ~Nov 26). **Missing it SUSPENDS the LLC's
+  authority to transact business in NY**, but filing late **annuls** the
+  suspension, and it voids no contracts. Full details, designated papers and
+  phone numbers: `docs/ny_llc_publication_requirement.md`.
 - Recurring: **NY Biennial Statement** every 2 years, $9, due in the formation
   month — first one **July 2028**.
 
