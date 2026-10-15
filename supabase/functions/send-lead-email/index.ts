@@ -131,19 +131,33 @@ Deno.serve(async (req: Request) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }
 
-    // --- caller must be an admin -------------------------------------------
+    // --- caller must be an admin, OR the server itself ---------------------
+    // The nightly chase-providers cron calls this with the SERVICE ROLE key.
+    // That is safe for the same reason the admin path is: there is no `to`
+    // parameter anywhere in this function — the recipient is resolved
+    // server-side from a lead_id/provider_id that must already exist in our own
+    // tables. A stolen key could only re-mail people we already know, with copy
+    // it does not control. The service key is server-only and never ships to a
+    // client. sent_by stays NULL for these, which is how the admin panel tells a
+    // scheduled nudge from one a human chose to send.
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
-    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
-    })
-    const userId = (await userRes.json())?.id
-    if (!userId) return json({ error: 'Unauthorized' }, 401)
+    let userId: string | null = null
 
-    const profs = await (await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=is_admin`,
-      { headers: svc })).json()
-    if (!Array.isArray(profs) || profs[0]?.is_admin !== true) {
-      return json({ error: 'Forbidden — admins only' }, 403)
+    if (token && token === serviceKey) {
+      userId = null // automated send
+    } else {
+      const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
+      })
+      userId = (await userRes.json())?.id ?? null
+      if (!userId) return json({ error: 'Unauthorized' }, 401)
+
+      const profs = await (await fetch(
+        `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=is_admin`,
+        { headers: svc })).json()
+      if (!Array.isArray(profs) || profs[0]?.is_admin !== true) {
+        return json({ error: 'Forbidden — admins only' }, 403)
+      }
     }
 
     // --- who are we writing to? --------------------------------------------
@@ -157,6 +171,8 @@ Deno.serve(async (req: Request) => {
     let leadStatus: string | null = null
     let regStatus: string | null = null
     let providerUserId = ''
+    let payoutsEnabled = false
+    let alreadyWelcomed = false
     // Assume confirmed. Only the provider path can prove otherwise, and a lead
     // has no auth account at all, so "confirmed" is the correct default there.
     let emailConfirmed = true
@@ -172,7 +188,7 @@ Deno.serve(async (req: Request) => {
       leadStatus = (lead.status ?? 'new').toString()
     } else {
       const rows = await (await fetch(
-        `${supabaseUrl}/rest/v1/providers?id=eq.${provider_id}&select=id,user_id,registration_status,users!inner(name,email)`,
+        `${supabaseUrl}/rest/v1/providers?id=eq.${provider_id}&select=id,user_id,registration_status,payouts_enabled,users!inner(name,email)`,
         { headers: svc })).json()
       const prov = Array.isArray(rows) ? rows[0] : null
       if (!prov) return json({ error: 'Provider not found' }, 404)
@@ -180,6 +196,23 @@ Deno.serve(async (req: Request) => {
       firstName = (prov.users?.name ?? '').toString().trim().split(/\s+/)[0] ?? ''
       regStatus = (prov.registration_status ?? '').toString()
       providerUserId = (prov.user_id ?? '').toString()
+      payoutsEnabled = prov.payouts_enabled === true
+
+      // "Approved" is TWO different messages depending on whether they have
+      // already been welcomed. Deriving that from row state alone is not
+      // possible — recruit_emailed_at is stamped by every send, including lead
+      // mail — so ask the record that actually knows: has an `approved` email
+      // already gone to this provider? If yes, the next message should chase the
+      // payout setup, not re-announce an approval they received weeks ago.
+      // Isaiah was approved 2026-08-08 and has been stuck ever since; re-sending
+      // "you're approved" would read as a mail-merge fault.
+      try {
+        const prior = await (await fetch(
+          `${supabaseUrl}/rest/v1/email_log?provider_id=eq.${provider_id}` +
+          `&template=eq.approved&select=id&limit=1`,
+          { headers: svc })).json()
+        alreadyWelcomed = Array.isArray(prior) && prior.length > 0
+      } catch (_) { /* leave false — worst case they get the approval email */ }
 
       // "Incomplete" hides TWO different people, and until 2026-09-24 we mailed
       // them both the same thing. Three of the five real stalled providers had
@@ -217,7 +250,12 @@ Deno.serve(async (req: Request) => {
     // lost it. Branch on the actual status, not on "did the caller pass a
     // provider_id".
     const isPendingReview = !lead_id && regStatus === 'pending_review'
-    const isApproved = !lead_id && regStatus === 'approved'
+    // Approved, already welcomed, and STILL cannot work: payouts are the gate on
+    // going online, so this person is one Stripe page away from being useful and
+    // does not know it. This is the single most valuable nudge we send.
+    const needsPayouts =
+      !lead_id && regStatus === 'approved' && !payoutsEnabled && alreadyWelcomed
+    const isApproved = !lead_id && regStatus === 'approved' && !needsPayouts
     const isDeclined = !lead_id && regStatus === 'rejected'
     // A review_note means an admin sent them back to fix something. It arrives
     // in the request because the status write and this send race otherwise —
@@ -310,6 +348,8 @@ Deno.serve(async (req: Request) => {
       ? (first ? `Hi ${first} — one thing to fix` : 'One thing to fix')
       : isDeclined
       ? (first ? `Hi ${first}` : 'About your application')
+      : needsPayouts
+      ? (first ? `${first}, you're one step from working` : "One step from working")
       : isApproved
       ? (first ? `You're approved, ${first}` : "You're approved")
       : isPendingReview
@@ -377,6 +417,35 @@ Deno.serve(async (req: Request) => {
             'and this decision is final.'),
           p('I appreciate your interest, and I am sorry not to have better news.'),
           p('Vince<br>SnowServ'),
+        ].join(''))
+      // Approved weeks ago, welcomed, and still blocked. Deliberately SHORT and
+      // does not re-sell the job — they already said yes. It names the one thing
+      // and why it matters, and gives a graceful exit, because an honest "no"
+      // from somebody who has gone quiet is worth more at this point than
+      // silence: it tells Vince whether to count them as supply.
+      : needsPayouts
+      ? shell(heading, [
+          p('You were approved to clear snow with SnowServ, but your account ' +
+            'still cannot be sent any work — payouts were never set up.'),
+          p(PAYOUT_GATE),
+          p('It takes about five minutes on Stripe\'s page.'),
+          p(BANK_NOTE),
+          button(SIGNUP_URL, 'Set up your payouts'),
+          rows.length ? payTable(rows) : '',
+          rows.length
+            ? p('<span style="font-size:13px;color:#5A7184;">The right-hand ' +
+                'column is your money. Deicer pays extra on top.</span>')
+            : '',
+          p(seasonPhase() === 'in'
+            ? 'It is snowing now, so every day this sits is work going to ' +
+              'somebody else.'
+            : seasonPhase() === 'pre'
+              ? 'The season is close. Finish this week and you are ready for the ' +
+                'first storm.'
+              : 'There is no rush on the work itself — but get this done and you ' +
+                'never have to think about it again.'),
+          p('And if you have changed your mind, just reply and say so — I will ' +
+            'stop emailing you, no hard feelings at all.'),
         ].join(''))
       : isApproved
       ? shell(heading, ((): string[] => {
@@ -535,6 +604,8 @@ Deno.serve(async (req: Request) => {
       ? 'needs_attention'
       : isDeclined
       ? 'declined'
+      : needsPayouts
+      ? 'payout_reminder'
       : isApproved
       ? 'approved'
       : isPendingReview
@@ -551,6 +622,8 @@ Deno.serve(async (req: Request) => {
       ? 'One thing to fix on your SnowServ application'
       : isDeclined
       ? 'About your SnowServ application'
+      : needsPayouts
+      ? 'One step left before you can take SnowServ jobs'
       : isApproved
       ? "You're approved to work with SnowServ"
       : isPendingReview

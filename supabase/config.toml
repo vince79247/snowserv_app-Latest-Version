@@ -80,3 +80,9 @@ verify_jwt = false
 [functions.send-dispute-email]
 enabled = true
 verify_jwt = false
+
+# Called by pg_cron, which cannot hold a user session. It requires the
+# service-role key in the Authorization header instead and FAILS CLOSED without
+# it — the storm-booking cron 401'd silently for months while reporting success.
+[functions.chase-providers]
+verify_jwt = false
