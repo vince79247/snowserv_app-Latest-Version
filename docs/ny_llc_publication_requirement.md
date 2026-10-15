@@ -82,6 +82,53 @@ not require it in the notice.)
 Ask each paper for their standard template rather than drafting it — they do
 these constantly and a wording error means republishing.
 
+## PLACEMENT — in progress (2026-10-15)
+
+Both notices are being placed through **column.us**, a third-party legal-notice
+platform, NOT directly with the newspapers.
+
+| | Daily Star (daily) | The Reporter / Walton Reporter (weekly) |
+|---|---|---|
+| Notice ID | `TaP9C4tVL2ojW662kYzG` | (record when scheduled) |
+| Form type | free-text editor | structured fields (generates the text) |
+| Price quoted | **NONE — still outstanding** | $81.61 per insertion, 2.37 col in |
+| Affidavit | Digital RON + mailed copy ($10) | Digital RON + mailed copy ($10) |
+| Invoice | email to support@snowserv.app | email to support@snowserv.app |
+
+Six weekly dates to be the SAME at both papers where possible. The Certificate
+of Publication cannot be filed until BOTH papers have completed all six weeks,
+so the later finish date sets the Albany clock.
+
+### ✅ The "first published in Concordia" line — RESOLVED
+The Daily Star preview carried a line reading *"first published in Concordia"*.
+Vince deleted the entire notice body and **the line survived in the preview**,
+which is what identified it as a platform artifact rather than his own text.
+Concordia has nothing to do with Delaware County, New York.
+
+* **It is column.us's template, NOT the newspaper's.** Christine at the Daily
+  Star confirmed the paper had nothing to do with it.
+* **column.us replied in writing 2026-10-15** that the line will be removed from
+  publication, and thanked him for flagging it.
+* ⚠️ **Because it is a PLATFORM artifact, the Reporter notice is exposed to the
+  same bug** — that one also goes through column.us. Check its proof too.
+* ⚠️ **A promise is not a verification.** Confirm the line is absent from the
+  PROOF before the first run, and from the FIRST PRINTED ISSUE. The affidavit
+  reproduces whatever actually ran; a notice naming the wrong jurisdiction is
+  exactly the sort of defect that gets a Certificate of Publication rejected in
+  Albany, and by then six weeks have been paid for.
+* Keep the column.us email. It is the evidence if the line prints anyway.
+
+### Direct submission is available as a fallback
+Christine at the **Daily Star** told Vince he can submit the notice **directly
+to the paper**, bypassing column.us entirely. Not taken, because both notices
+are already in flight on the platform and switching mid-stream risks duplicate
+or delayed insertions on an already-blown deadline.
+
+Worth knowing for next time (and if column.us causes any further trouble):
+direct is the traditional route, the paper issues the affidavit itself, and
+there is no platform markup. **Christine is also the person to ask for the
+Daily Star price**, which the platform has still never quoted.
+
 ## Then file
 Certificate of Publication + **both** affidavits + **$50** to:
 **NYS Department of State, Division of Corporations, One Commerce Plaza,
