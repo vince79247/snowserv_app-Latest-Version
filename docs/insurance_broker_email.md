@@ -35,6 +35,7 @@ no vehicles, and we have no employees.
 | Employees | None |
 | Workers | Independent contractors, 1099-NEC, paid via Stripe Connect |
 | Contractors onboard | 7 approved — 5 shovel, 2 snowblower, 0 plow trucks |
+| Expected contractor payout | 75% of each job; first season expected to be modest |
 | Work performed | Shoveling, snowblowing, and salting of driveways, walkways and sidewalks |
 | Premises | Outdoor only. Contractors never enter a customer's home. |
 | Equipment / vehicles owned by us | None |
@@ -67,7 +68,16 @@ no vehicles, and we have no employees.
    recommend a workers' compensation policy or a CE-200 exemption filing?
 7. What is excluded that a business like ours would reasonably expect to be
    covered?
-8. **Timeline — how quickly can coverage be bound?** Our season begins in
+8. **Workers' comp pricing:** I understand premium is based on payroll rather
+   than a named roster, and that an uninsured subcontractor's pay is charged to
+   our policy at audit. Our contractors are individuals paid per job, with no
+   coverage of their own, so I expect our full contractor payout to be treated
+   as payroll. Please confirm, and tell me:
+   - the **class code** that applies to snow removal, and the **rate per $100**
+   - the **minimum premium** for both the GL and the WC policy
+   - whether a contractor's own certificate of insurance removes their pay from
+     our payroll, and what evidence you need
+9. **Timeline — how quickly can coverage be bound?** Our season begins in
    roughly three weeks and I would rather not operate uninsured.
 
 If it is easier, a written summary plus the specimen policy or a coverage

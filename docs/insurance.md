@@ -142,7 +142,84 @@ vehicle applicant — those go to Vince.
 
 ---
 
-## 6. Quotes received
+---
+
+## 7. How workers' comp actually prices when the workforce is undefined
+
+Vince, 2026-10-16: *"a person only shovels for me one day a year... they couldn't
+possibly ask me for the names because I don't even know if these people are going
+to call in for work."*
+
+**Correct — and they don't ask for names. WC is priced on PAYROLL, not headcount.**
+
+You declare an estimated payroll at bind, pay a deposit premium, and the carrier
+**audits at the end of the policy period** and trues up. Somebody who shovels one
+day contributes one day of payroll. The policy self-adjusts. No roster, no
+notifying anyone when a new provider signs up.
+
+### ⚠️ But uninsured subcontractors become YOUR payroll — WCL §56 + NYCIRB Rule VIII
+
+Liability runs **up** the contract chain. If a subcontractor has no comp coverage,
+the contractor who retained them is liable, and the contractor's standard policy
+automatically insures that statutory responsibility.
+
+At audit, the auditor works from the **payables ledger** — who did you pay — and
+asks for a certificate of insurance for each. **For every sub you cannot produce
+one for, the premium is computed by applying the class code to that sub's entire
+payroll for the work.**
+
+⚠️ **The part that bites SnowServ specifically:** NYSIF audit guidance states
+that when you pay an **individual rather than a business entity, 100% of the
+contract price is counted.** Every SnowServ provider is an individual with no
+WC of their own. So **the full 75% payout to every provider becomes payroll on
+SnowServ's policy.**
+
+### The formula — so the number is computable the moment Careene gives a rate
+
+```
+WC payroll      = total provider payouts  (75% of job revenue)
+annual premium  ≈ (payroll / 100) x rate per $100  ... subject to a MINIMUM
+```
+
+Worked example — 100 jobs at the Yonkers $160 "both" price:
+
+| | |
+|---|---|
+| Gross | $16,000 |
+| Provider payouts (75%) | **$12,000 = the WC payroll** |
+| At $8 per $100 | ~$960 |
+| At $15 per $100 | ~$1,800 |
+
+⚠️ Those rates are ILLUSTRATIVE. The real rate depends on the NY class code
+assigned to snow removal, which only the broker/NYCIRB can give. **Ask for the
+class code and the rate per $100 — then the premium is arithmetic.**
+
+⚠️ **Pre-revenue does not mean free.** WC and GL both carry a MINIMUM PREMIUM
+regardless of payroll. Ask for it; it may be the whole first-year cost.
+
+### The lever: a provider's own COI removes them from your payroll
+
+Rule VIII excludes a sub from your premium if you furnish **satisfactory evidence
+that the subcontractor had workers' compensation in force** for the work. So
+collecting certificates is not only liability protection — it **directly cuts the
+premium**, dollar for dollar of payout.
+
+That is a second, independent reason to tier the insurance requirement by
+equipment (§4): a plow operator is both the highest risk AND the biggest payroll
+line, so their COI is worth the most.
+
+### The audit trail already exists
+Stripe Connect holds every payout by provider by date. That IS the payroll record
+an auditor asks for. Nothing extra to build — but do not delete it.
+
+⚠️ One broker reports a client assessed **$2M in additional payroll at audit** for
+uninsured subcontractors, producing **>$225,000** in additional premium. Audit
+surprises are the normal failure mode here, not the exotic one. Estimate payroll
+honestly at bind.
+
+---
+
+## 8. Quotes received
 
 | Broker / carrier | Date | GL incl. contractor ops? | Snow/ice excl.? | Limits | Premium | Can bind by |
 |---|---|---|---|---|---|---|
