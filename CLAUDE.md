@@ -379,8 +379,9 @@ lib/
   never typed into a template or passed by the client. The pay table shows BOTH
   "customer pays" and "you take home" — one column alone reads as "is $60 the job or
   my cut?" and a contractor who guesses low just doesn't reply.
-- chase-providers: **nightly lifecycle chaser** (pg_cron `chase-providers`, 14:00
-  UTC). Reads `providers_needing_nudge()` — a SECURITY DEFINER SQL function,
+- chase-providers: **lifecycle chaser** (pg_cron `chase-providers`, `30 */2 * * *`
+  — EVERY TWO HOURS at :30, twelve runs a day; it is NOT nightly, an earlier note
+  here said 14:00 UTC daily and that was wrong). Reads `providers_needing_nudge()` — a SECURITY DEFINER SQL function,
   because the candidate query joins `auth.users`, which PostgREST cannot reach —
   then calls send-lead-email per person. It decides nothing about copy; the
   variant comes from the row's own state. Guards: 30-day quiet period per person,
