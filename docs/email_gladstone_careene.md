@@ -104,3 +104,46 @@ support@snowserv.app
   reply thread — ask her what you need, don't argue the legal question.
 * If she only writes personal lines (home/auto) and not commercial, ask her who
   she'd send you to. A local referral is still worth the email.
+
+---
+
+## ⚠️ 2026-10-16 — info@ BOUNCED. Their mailbox rejects outside email.
+
+First send came straight back:
+
+```
+550 5.4.1 Recipient address rejected: Access denied
+Remote-MTA: gladstoneinsuranceagency-com.mail.protection.outlook.com
+```
+
+Gladstone is on **Microsoft 365**, and that error means their `info@` mailbox is
+set to **require authenticated senders** — i.e. it accepts internal mail only.
+Nothing to do with SnowServ's domain, reputation or content: the message reached
+Microsoft's servers and was refused at their door by an access rule. It is also
+proof that Zoho sending works.
+
+⚠️ **`info@` is the ONLY email address they publish.** So email to Gladstone is
+effectively broken until they give out a working one. Every prospect who tries
+to email that agency bounces, and they almost certainly do not know.
+
+**Route in: their web contact form** — gladstoneinsuranceagency.com/contact/
+(First Name, Last Name, Email, Phone, "How can we help?"). It posts through the
+website and bypasses the mail rule. Use it to report the bounce and ask for a
+working address for Careene, THEN send the full inquiry below. Telling a small
+agency their published email is dead is a favor and a better opening than a cold
+quote request.
+
+Fallback if no reply in a day: **607-363-7150** (607-363-7465 is the FAX).
+
+⚠️ Do NOT guess `careene@` or `cguglielmo@`. A Microsoft tenant rejects unknown
+recipients with the same 550, so guessing just collects bounces.
+
+⚠️ There is no `vince@snowserv.app`. Only `support@snowserv.app` and
+`snowserv.app@snowserv.app` exist, both landing in the one mailbox. Claude
+signed a draft with vince@ in error — corrected.
+
+**Name:** Vince chose **Vincent** throughout (2026-10-16), matching the Zoho
+display name. The ready-to-paste plain-text version lives at
+`~/Desktop/gladstone_email.txt` — plain ASCII, because pasting out of a
+dark-mode window carried white-on-black styling into Zoho, which is both
+unreadable in a light client and a hidden-text spam signal.
